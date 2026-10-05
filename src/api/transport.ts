@@ -10,6 +10,38 @@ import type { Limiter } from "./limiter.ts";
 export type ReqClass = "fg" | "bg";
 export type RetryPolicy = "auto" | "none";          // спец. §5.3 (CM-01)
 
+/**
+ * Класс запроса, который можно поднять с фона на передний план. Single-flight кэша отдаёт один запрос всем, кто ждёт
+ * ключ: если к фоновому префетчу присоединился экран, ждущий в очереди запрос идёт как передний план и не сбрасывается.
+ */
+export class Priority {
+  private value: ReqClass;
+  private listeners = new Set<() => void>();
+
+  constructor(cls: ReqClass) {
+    this.value = cls;
+  }
+
+  cls(): ReqClass {
+    return this.value;
+  }
+
+  /** bg → fg; повторный вызов ничего не делает. */
+  promote(): void {
+    if (this.value === "fg") return;
+    this.value = "fg";
+    for (const fn of [...this.listeners]) fn();
+  }
+
+  /** Для лимитера: `fn` при повышении; возвращает отписку. */
+  onPromote(fn: () => void): () => void {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  }
+}
+
 export interface ApiRequest {
   method: "GET" | "POST";
   path: string;
@@ -18,6 +50,8 @@ export interface ApiRequest {
   retry: RetryPolicy;
   timeoutMs: number;
   cls: ReqClass;
+  /** Если задан — главнее `cls`: каждая попытка встаёт в очередь с текущим классом и повышается, пока ждёт. */
+  prio?: Priority;
 }
 
 export interface ApiResponse { status: number; json: unknown; ms: number }
@@ -72,7 +106,7 @@ export class Transport {
   async send(req: ApiRequest): Promise<ApiResponse> {
     const attempts = req.retry === "auto" ? RETRY_PAUSES_MS.length + 1 : 1;
     for (let i = 0; ; i++) {
-      const out = await this.limiter.run(req.cls, () => this.attempt(req));
+      const out = await this.limiter.run(req.prio ?? req.cls, () => this.attempt(req));
       if (out.ok) return out.res;
       if (!out.retry || i + 1 >= attempts) throw out.err;
       await sleep(this.clock, out.pauseMs ?? (RETRY_PAUSES_MS[i] as number));
@@ -213,7 +247,7 @@ export class Transport {
 
   /** Журнал спец. §13: путь без query (токен не попадает), статус, время, класс. */
   private logCall(level: "info" | "warn", req: ApiRequest, status: string, ms: number): void {
-    this.log[level]("api", `${req.method} ${pathOnly(req.path)} ${status} ${Math.round(ms)}ms ${req.cls}`);
+    this.log[level]("api", `${req.method} ${pathOnly(req.path)} ${status} ${Math.round(ms)}ms ${req.prio?.cls() ?? req.cls}`);
   }
 }
 

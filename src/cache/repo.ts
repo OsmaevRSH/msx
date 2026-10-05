@@ -3,6 +3,7 @@ import type {
   BookmarkFolder, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, MediaUnit, Page, Season,
   SerialWatching, ServerLocation, User,
 } from "../api/models.ts";
+import { Priority } from "../api/transport.ts";
 import type { ReqClass } from "../api/transport.ts";
 import { b64urlEncode } from "../core/b64url.ts";
 import type { Clock } from "../core/clock.ts";
@@ -134,6 +135,8 @@ export class Repo {
   private clock: Clock;
   private log: Logger;
   private trimQueued = false;
+  /** Фоновые загрузки в полёте по ключу кэша. */
+  private lanes = new Map<string, Priority>();
 
   constructor(deps: { api: KpApi; cache: SwrCache; clock: Clock; log: Logger }) {
     this.api = deps.api;
@@ -168,7 +171,8 @@ export class Repo {
     const cls = opts?.cls;
     if (src.kind === "similar") return this.similarPage(src.id, page, cls);
     const base = src.kind === "folder" ? FOLDER : LIST;
-    return this.cache.get(cacheKeys.list(src, page), page === 1 ? base : memOnly(base), () => this.loadList(src, page, cls));
+    const k = cacheKeys.list(src, page);
+    return this.cache.get(k, page === 1 ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)));
   }
 
   shelf(kind: "fresh" | "popular" | "hot", type: string): Promise<Got<ItemSummary[]>> {
@@ -219,15 +223,16 @@ export class Repo {
   /** Только L1, 600 с; префетч и resolve одного `mid` делят один запрос. `fresh` — в обход кэша (шаг 2 fallback). */
   async links(mid: number, opts: { cls: ReqClass; fresh?: boolean }): Promise<MediaLinks> {
     let failure: unknown;
-    const load = async (): Promise<MediaLinks> => {
+    const k = cacheKeys.links(mid);
+    const load = this.loader(k, opts.cls, async (c): Promise<MediaLinks> => {
       try {
-        return await this.api.mediaLinks(mid, opts.cls);
+        return await this.api.mediaLinks(mid, c);
       } catch (e) {
         failure = e;
         throw e;
       }
-    };
-    const got = await this.cache.get(cacheKeys.links(mid), LINKS, load, opts.fresh === true ? { force: true } : undefined);
+    });
+    const got = await this.cache.get(k, LINKS, load, opts.fresh === true ? { force: true } : undefined);
     // SwrCache при сбое сети отдаёт прежнюю запись с `offline`; для ссылок это недопустимо.
     if (got.offline !== undefined) throw failure ?? new KpError(got.offline, "links-unavailable");
     return got.value;
@@ -249,7 +254,28 @@ export class Repo {
 
   // --- Внутреннее ---
 
-  private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number, cls?: ReqClass): Promise<Page<ItemSummary>> {
+  /**
+   * Загрузка ключа для `SwrCache.get`. Single-flight отдаёт одну загрузку всем, кто ждёт ключ, поэтому её класс —
+   * старший из их классов: фоновая идёт с `Priority`, а передний план, пришедший к тому же ключу, её повышает —
+   * иначе экран ждал бы в очереди фоновых и получал бы `bg-dropped` (спец. §8.3, §8.5).
+   */
+  private loader<T>(key: string, cls: ReqClass | undefined, load: (cls: ReqClass | Priority) => Promise<T>): () => Promise<T> {
+    if (cls !== "bg") {
+      this.lanes.get(key)?.promote();
+      return () => load(cls ?? "fg");
+    }
+    return async () => {
+      const prio = new Priority("bg");
+      this.lanes.set(key, prio);
+      try {
+        return await load(prio);
+      } finally {
+        if (this.lanes.get(key) === prio) this.lanes.delete(key);
+      }
+    };
+  }
+
+  private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number, cls: ReqClass | Priority): Promise<Page<ItemSummary>> {
     switch (src.kind) {
       case "catalog":
         return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, page, perpage: PER_PAGE }, cls);
@@ -262,7 +288,8 @@ export class Repo {
 
   /** «Похожие» — одна страница; дальше пусто. */
   private async similarPage(id: number, page: number, cls?: ReqClass): Promise<Got<Page<ItemSummary>>> {
-    const got = await this.cache.get(cacheKeys.similar(id), SIMILAR, () => this.api.similar(id, cls));
+    const k = cacheKeys.similar(id);
+    const got = await this.cache.get(k, SIMILAR, this.loader(k, cls, (c) => this.api.similar(id, c)));
     const items = page === 1 ? got.value : [];
     return { ...got, value: { items, pagination: { total: 1, current: page, perpage: PER_PAGE, totalItems: got.value.length } } };
   }
@@ -291,11 +318,15 @@ export class Repo {
       if (got.stale) this.refreshItem(id, cls).catch(noop);
       return got;
     }
-    return this.cache.get(cacheKeys.item(id), ITEM_FULL, () => this.loadItem(id, cls));
+    return this.cache.get(cacheKeys.item(id), ITEM_FULL, this.itemLoader(id, cls));
   }
 
   private refreshItem(id: number, cls?: ReqClass): Promise<Got<ItemDetail>> {
-    return this.cache.get(cacheKeys.item(id), ITEM_FULL, () => this.loadItem(id, cls), { force: true });
+    return this.cache.get(cacheKeys.item(id), ITEM_FULL, this.itemLoader(id, cls), { force: true });
+  }
+
+  private itemLoader(id: number, cls?: ReqClass): () => Promise<ItemDetail> {
+    return this.loader(cacheKeys.item(id), cls, (c) => this.loadItem(id, c));
   }
 
   private refreshWithin(id: number, cur: Cached, waitMs: number, cls?: ReqClass): Promise<Got<ItemDetail>> {
@@ -313,7 +344,7 @@ export class Repo {
   }
 
   /** Полная карточка — в L1; компактная копия под `item:<id>:l2:` — в L2 (тот же префикс, та же инвалидация). */
-  private async loadItem(id: number, cls?: ReqClass): Promise<ItemDetail> {
+  private async loadItem(id: number, cls: ReqClass | Priority): Promise<ItemDetail> {
     const d = await this.api.item(id, cls);
     const compact = compactItem(d);
     this.cache.get(cacheKeys.itemCompact(id), ITEM_COMPACT, async () => compact, { force: true }).then(() => this.queueTrim(), noop);

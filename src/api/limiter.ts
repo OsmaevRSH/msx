@@ -1,6 +1,6 @@
 import type { Clock, TimerId } from "../core/clock.ts";
 import { KpError } from "../core/errors.ts";
-import type { ReqClass } from "./transport.ts";
+import type { Priority, ReqClass } from "./transport.ts";
 
 // Спец. §8.5, CNFR-18: 3 запроса переднего плана + 1 фоновый, не больше 5 стартов за любую секунду;
 // после 429 или «ответа без CORS» — передний план по одному 30 с.
@@ -12,6 +12,7 @@ const SLOW_MS = 30_000;
 const BG_DROP_AFTER_MS = 200;
 
 interface Waiter {
+  cls: ReqClass;
   at: number;
   start(): void;
   drop(e: KpError): void;
@@ -31,18 +32,26 @@ export class Limiter {
     this.clock = clock;
   }
 
-  run<T>(cls: ReqClass, fn: () => Promise<T>): Promise<T> {
+  /** С `Priority` фоновая задача, пока ждёт в очереди, по `promote()` переходит в очередь переднего плана. */
+  run<T>(cls: ReqClass | Priority, fn: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      const finish = (): void => {
-        this.active[cls] -= 1;
-        this.pump();
-      };
-      this.queues[cls].push({
+      let unwatch = (): void => {};
+      const w: Waiter = {
+        cls: typeof cls === "string" ? cls : cls.cls(),
         at: this.clock.perf(),
-        drop: reject,
+        drop: (e) => {
+          unwatch();
+          reject(e);
+        },
         start: () => {
-          this.active[cls] += 1;
+          unwatch();
+          const c = w.cls;
+          this.active[c] += 1;
           this.starts.push(this.clock.perf());
+          const finish = (): void => {
+            this.active[c] -= 1;
+            this.pump();
+          };
           let p: Promise<T>;
           try {
             p = fn();
@@ -60,7 +69,9 @@ export class Limiter {
             },
           );
         },
-      });
+      };
+      if (typeof cls !== "string" && w.cls === "bg") unwatch = cls.onPromote(() => this.promote(w));
+      this.queues[w.cls].push(w);
       this.pump();
     });
   }
@@ -76,6 +87,20 @@ export class Limiter {
 
   inFlight(): { fg: number; bg: number } {
     return { fg: this.active.fg, bg: this.active.bg };
+  }
+
+  /**
+   * Ждущая фоновая задача — в конец очереди переднего плана: его ожидание (порог сброса фоновых 200 мс) считается
+   * с момента повышения, и как фоновая она больше не сбрасывается. Уже запущенную задачу не трогаем.
+   */
+  private promote(w: Waiter): void {
+    const i = this.queues.bg.indexOf(w);
+    if (i < 0) return;
+    this.queues.bg.splice(i, 1);
+    w.cls = "fg";
+    w.at = this.clock.perf();
+    this.queues.fg.push(w);
+    this.pump();
   }
 
   private pump(): void {

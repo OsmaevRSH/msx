@@ -9,7 +9,7 @@ import {
   parseItemList, parseItems, parseListItem, parseMediaLinks, parsePage, parseSerialWatching, parseServerLocation, parseToggle,
   parseTokenPair, parseUser, parseWatching, str,
 } from "./parse.ts";
-import type { ApiRequest, ApiResponse, ReqClass, RetryPolicy, Transport } from "./transport.ts";
+import type { ApiRequest, ApiResponse, Priority, ReqClass, RetryPolicy, Transport } from "./transport.ts";
 
 export interface TokenSource { access(): { token: string; gen: number } | undefined; refresh(gen: number): Promise<void> }
 export type DeviceTokenResult = { kind: "ok"; pair: TokenPairRaw } | { kind: "pending" | "slow_down" | "expired" | "denied" };
@@ -26,7 +26,10 @@ const HISTORY_MAX_PERPAGE = 50;
 type Query = Record<string, string | number | undefined>;
 type Form = Record<string, string | number>;
 
-interface Call { method?: "GET" | "POST"; path: string; query?: Query; form?: Form; retry?: RetryPolicy; timeoutMs?: number; cls?: ReqClass }
+/** `Priority` вместо класса — запрос, который single-flight кэша может повысить с фона (`Repo`). */
+type Cls = ReqClass | Priority;
+
+interface Call { method?: "GET" | "POST"; path: string; query?: Query; form?: Form; retry?: RetryPolicy; timeoutMs?: number; cls?: Cls }
 
 const SETTING_KEYS: readonly (keyof DeviceSettings)[] = ["supportSsl", "supportHevc", "supportHdr", "support4k", "mixedPlaylist"];
 
@@ -142,13 +145,13 @@ export class KpApi {
 
   // --- Каталог (research kinopub-api §6–§7) ---
 
-  async items(q: { type?: string; genre?: string; sort?: string; page: number; perpage: number }, cls?: ReqClass): Promise<Page<ItemSummary>> {
+  async items(q: { type?: string; genre?: string; sort?: string; page: number; perpage: number }, cls?: Cls): Promise<Page<ItemSummary>> {
     const query = { type: q.type, genre: q.genre, sort: q.sort, page: q.page, perpage: q.perpage };
     return parsePage(await this.call({ path: "/v1/items", query, cls }), parseListItem);
   }
 
   async shelf(
-    kind: "fresh" | "popular" | "hot", q: { type?: string; genre?: string; page: number; perpage: number }, cls?: ReqClass,
+    kind: "fresh" | "popular" | "hot", q: { type?: string; genre?: string; page: number; perpage: number }, cls?: Cls,
   ): Promise<Page<ItemSummary>> {
     const query = { type: q.type, genre: q.genre, page: q.page, perpage: q.perpage };
     return parsePage(await this.call({ path: `/v1/items/${kind}`, query, cls }), parseListItem);
@@ -160,19 +163,20 @@ export class KpApi {
   }
 
   /** `nolinks=1`: без ссылок на поток, но с лестницей файлов, озвучками и прогрессом (research kinopub-api §6.3). */
-  async item(id: number, cls?: ReqClass): Promise<ItemDetail> {
+  async item(id: number, cls?: Cls): Promise<ItemDetail> {
     const d = parseItemDetail(await this.call({ path: `/v1/items/${id}`, query: { nolinks: 1 }, timeoutMs: ITEM_MS, cls }));
     if (d.id <= 0) throw new KpError("KP-BAD", "bad-item");
     return d;
   }
 
-  async similar(id: number, cls?: ReqClass): Promise<ItemSummary[]> {
+  async similar(id: number, cls?: Cls): Promise<ItemSummary[]> {
     return parseItemList(await this.call({ path: "/v1/items/similar", query: { id }, cls }));
   }
 
   /** `mid` — id видео или серии, не тайтла; ответ без `status`, ссылки в `urls` (research kinopub-api §7.1). */
-  async mediaLinks(mid: number, cls: ReqClass): Promise<MediaLinks> {
-    return parseMediaLinks(await this.call({ path: "/v1/items/media-links", query: { mid }, timeoutMs: LINKS_MS[cls], cls }), mid);
+  async mediaLinks(mid: number, cls: Cls): Promise<MediaLinks> {
+    const timeoutMs = LINKS_MS[typeof cls === "string" ? cls : cls.cls()];
+    return parseMediaLinks(await this.call({ path: "/v1/items/media-links", query: { mid }, timeoutMs, cls }), mid);
   }
 
   // --- Просмотры (research kinopub-api §8.1) ---
@@ -210,7 +214,7 @@ export class KpApi {
     return parseItems(await this.call({ path: "/v1/bookmarks" }), parseBookmarkFolder);
   }
 
-  async bookmarkFolder(id: number, page: number, perpage: number, cls?: ReqClass): Promise<Page<ItemSummary>> {
+  async bookmarkFolder(id: number, page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {
     return parsePage(await this.call({ path: `/v1/bookmarks/${id}`, query: { page, perpage }, cls }), parseListItem);
   }
 
@@ -259,10 +263,12 @@ export class KpApi {
   }
 
   private request(c: Call, token: string): ApiRequest {
+    const cls = c.cls ?? "fg";
     const req: ApiRequest = {
       method: c.method ?? "GET", path: c.path, query: { ...c.query, access_token: token },
-      retry: c.retry ?? "auto", timeoutMs: c.timeoutMs ?? CATALOG_MS, cls: c.cls ?? "fg",
+      retry: c.retry ?? "auto", timeoutMs: c.timeoutMs ?? CATALOG_MS, cls: typeof cls === "string" ? cls : cls.cls(),
     };
+    if (typeof cls !== "string") req.prio = cls;
     if (c.form !== undefined) req.form = c.form;
     return req;
   }
