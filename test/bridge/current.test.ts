@@ -25,6 +25,15 @@ describe("CurrentScreen (спец. §6.3, CD-16)", () => {
     assert.equal(c.get(), "item:1");
   });
 
+  it("dev → probe:flag:<name> (the switch panel) keeps dev current; probe:report:… is content", () => {
+    const c = new CurrentScreen();
+    c.onRequest("dev");
+    c.onRequest("probe:flag:streamMode");
+    assert.equal(c.get(), "dev");
+    c.onRequest("probe:report:1");
+    assert.equal(c.get(), "probe:report:1");
+  });
+
   it("play:… (resolve) does not change the current screen", () => {
     const c = new CurrentScreen();
     c.onRequest("season:2001:1");

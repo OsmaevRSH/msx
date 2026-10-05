@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { b64urlDecode } from "../../src/core/b64url.ts";
 import { fnv1a } from "../../src/core/hash.ts";
-import { decodeListKey, encodeListKey, ids, listFlag, msgs, parseDataId, parseMessage } from "../../src/router/ids.ts";
+import { decodeListKey, encodeListKey, ids, isPanelId, listFlag, msgs, parseDataId, parseMessage } from "../../src/router/ids.ts";
 import type { ListKey, Msg, Route } from "../../src/router/ids.ts";
 
 describe("parseDataId: round trip of every route (§0.6.7)", () => {
@@ -66,6 +66,15 @@ describe("parseDataId: round trip of every route (§0.6.7)", () => {
       "play:probe:zz:1:2:1:1", "play:probe:a1:1:2:1", "home:1", "init:x", "settings:1",
     ]) {
       assert.deepEqual(parseDataId(raw), { k: "unknown", raw }, raw);
+    }
+  });
+});
+
+describe("isPanelId: panels open over the current screen (spec §6.3)", () => {
+  it("panel:… and the switch panel probe:flag:… are panels; screens are not", () => {
+    for (const id of [ids.panel("audio", 1, 10, "c"), ids.panel("loc"), ids.probe("flag:streamMode")]) assert.equal(isPanelId(id), true, id);
+    for (const id of [ids.probe(), ids.probe("report:1"), ids.dev(), ids.item(1), ids.list("abc"), "init", "play:1:continue", "panelx"]) {
+      assert.equal(isPanelId(id), false, id);
     }
   });
 });

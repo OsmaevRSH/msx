@@ -192,6 +192,7 @@ describe("«Для разработчика» (spec §16.6)", () => {
 
   it("act:probe:flag sets the switch (values with «:» too) and reloads; invalid values are ignored; flagsReset", async () => {
     const t = await make();
+    await t.request(ids.dev());
     t.app.handleData({ message: msgs.act("probe", "flag", "streamMode", "hls2") });
     t.app.handleData({ message: msgs.act("probe", "flag", "apiBase", t.ctx.build.apiBase) });
     await t.run(Promise.resolve());
@@ -205,6 +206,27 @@ describe("«Для разработчика» (spec §16.6)", () => {
     await t.run(onProbeAct(t.ctx, "flagsReset", []));
     assert.deepEqual(t.ctx.flags.overrides(), {});
     assert.match(t.host.actions.at(-1)?.action ?? "", /reload:content\]$/);
+  });
+});
+
+describe("«Для разработчика»: the variants panel does not change the current screen (spec §6.3, CD-16)", () => {
+  it("dev → panel probe:flag:… → choice: dev stays current and is reloaded", async () => {
+    const t = await make();
+    await t.request(ids.dev());
+    await t.request(ids.probe("flag:streamMode"));
+    assert.equal(t.ctx.current.get(), ids.dev());
+    await t.run(onProbeAct(t.ctx, "flag", ["streamMode", "hls2"]));
+    assert.deepEqual(t.host.actions.map((a) => a.action), ["reload:content"]);
+  });
+
+  it("the choice arrives when another screen is current → the switch is set, no reload", async () => {
+    const t = await make();
+    await t.request(ids.dev());
+    await t.request(ids.probe("flag:streamMode"));
+    t.ctx.current.onRequest(ids.probe("report:1"));
+    await t.run(onProbeAct(t.ctx, "flag", ["streamMode", "hls2"]));
+    assert.equal(t.ctx.flags.get().streamMode, "hls2");
+    assert.deepEqual(t.host.actions, []);
   });
 });
 

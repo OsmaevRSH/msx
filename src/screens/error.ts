@@ -3,7 +3,7 @@ import { toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
 import { chain, contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
-import { ids } from "../router/ids.ts";
+import { ids, isPanelId } from "../router/ids.ts";
 
 // Экран ошибки S14 (Plan B §8.3 S14, спец. §12): причина простыми словами и код KP-*.
 
@@ -70,7 +70,7 @@ export function errorItems(ctx: AppContext, err: unknown, o: ErrorItemsOptions):
  * панель, а не экран под ней.
  */
 export function errorScreen(ctx: AppContext, err: unknown, retryDataId?: string): MsxContentRoot {
-  const panel = retryDataId?.startsWith("panel:") === true;
+  const panel = retryDataId !== undefined && isPanelId(retryDataId);
   const items = errorItems(ctx, err, {
     retry: panel ? RETRY_PANEL : RETRY_CONTENT,
     offerLogin: true,

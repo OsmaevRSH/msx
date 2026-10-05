@@ -113,6 +113,13 @@ export function parseDataId(id: string): Route {
   return route(id) ?? { k: "unknown", raw: id };
 }
 
+/** Панели открываются поверх экрана и не меняют текущий (спец. §6.3): S6/S10 и переключатель «Для разработчика». */
+const PANEL_PREFIXES = ["panel:", "probe:flag:"] as const;
+
+export function isPanelId(id: string): boolean {
+  return PANEL_PREFIXES.some((p) => id.startsWith(p));
+}
+
 function message(m: string): Msg | undefined {
   const parts = m.split(":");
   switch (parts[0]) {

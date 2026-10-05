@@ -104,6 +104,6 @@ export function onFlagAct(ctx: AppContext, name: string, args: string[]): void {
   }
   ctx.flags.set(row.key, value as never);
   ctx.log.info(TAG, "flag set", { name: row.key, value });
-  // Выбор сделан в панели поверх экрана «Для разработчика»: перерисовывается он.
-  ctx.host.executeAction("reload:content");
+  // Выбор сделан в панели поверх экрана «Для разработчика»: перерисовывается он, если всё ещё текущий (§6.3).
+  if (ctx.current.isCurrent(ids.dev())) ctx.host.executeAction("reload:content");
 }
