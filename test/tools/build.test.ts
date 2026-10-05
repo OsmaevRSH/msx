@@ -73,11 +73,47 @@ describe("build: artefact layout", () => {
 
   it("writes .nojekyll and build-info.json, returns the file list", () => {
     assert.ok(existsSync(join(res.outDir, ".nojekyll")));
-    assert.deepEqual(JSON.parse(read(res.outDir, "build-info.json")), { version: VERSION, hash: res.hash });
+    assert.deepEqual(JSON.parse(read(res.outDir, "build-info.json")), { version: VERSION, hash: res.hash, probeHash: res.probeHash });
     assert.deepEqual(
       [...res.files].sort(),
-      [".nojekyll", "app/app.js", "app/index.html", "build-info.json", "msx/start.json", "start.json"],
+      [".nojekyll", "app/app.js", "app/index.html", "app/probe.js", "build-info.json", "msx/start.json", "start.json"],
     );
+  });
+});
+
+describe("build: probe.js (stage 23b)", () => {
+  let res: BuildResult;
+  before(async () => {
+    res = await buildTo({ SOURCE_URL: "https://github.com/u/msx" });
+  });
+
+  it("probe.js starts with the licence banner and registers itself with its version", () => {
+    const probe = read(res.outDir, "app/probe.js");
+    assert.match(res.probeHash, /^[0-9a-f]{10}$/);
+    assert.ok(probe.startsWith(`/*! KinoPub MSX v${VERSION} probe | GPL-3.0-or-later | https://github.com/u/msx */\n`), probe.slice(0, 120));
+    assert.ok(probe.includes(`globalThis.kpProbe={v:"${res.probeHash}",init:function(kpShared){`), probe.slice(0, 300));
+  });
+
+  it("probeHash = SHA-256 of the code inside the wrapper; app.js asks for probe.js?v=<probeHash>", () => {
+    const probe = read(res.outDir, "app/probe.js");
+    const head = `globalThis.kpProbe={v:"${res.probeHash}",init:function(kpShared){`;
+    const tail = "return kpProbeEntry}};\n";
+    assert.ok(probe.endsWith(tail));
+    const body = probe.slice(probe.indexOf(head) + head.length, -tail.length);
+    assert.equal(sha10(Buffer.from(body)), res.probeHash);
+    assert.ok(read(res.outDir, "app/app.js").includes(`probe.js?v=${res.probeHash}`));
+  });
+
+  it("index.html still loads only app.js; CSP is unchanged ('self' covers probe.js)", () => {
+    const html = read(res.outDir, "app/index.html");
+    assert.deepEqual(html.match(/<script\b[^>]*>/g), [`<script src="app.js?v=${res.hash}">`]);
+    assert.match(cspOf(html), /script-src 'self';/);
+  });
+
+  it("two builds in a row produce the same probeHash and app.js hash", async () => {
+    const again = await buildTo({ SOURCE_URL: "https://github.com/u/msx" });
+    assert.equal(again.probeHash, res.probeHash);
+    assert.equal(again.hash, res.hash);
   });
 });
 

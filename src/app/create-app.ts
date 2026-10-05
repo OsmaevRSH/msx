@@ -24,8 +24,8 @@ import { Metrics } from "../core/metrics.ts";
 import { FallbackChain } from "../playback/modes.ts";
 import { PrefsStore } from "../playback/prefs.ts";
 import { onTrackerEvent } from "../playback/resolve.ts";
-import { ProbeRunner } from "../probe/runner.ts";
-import { installTvChecks } from "../probe/tv-checks.ts";
+import { attachProbe } from "../probe/lazy.ts";
+import type { ProbeLoad } from "../probe/lazy.ts";
 import { HeartbeatTimer } from "../progress/heartbeat.ts";
 import { Outbox } from "../progress/outbox.ts";
 import { Overlay } from "../progress/overlay.ts";
@@ -37,6 +37,8 @@ import type { AppContext, AppState } from "./context.ts";
 export interface CreateAppOptions {
   host: MsxHost; storage: StorageLike; fetch: FetchLike; P: string;
   clock?: Clock; build?: Partial<BuildInfo>; startedAt?: number;
+  /** Загрузка probe.js по первому маршруту пробника (этап 23b); `ctx.probe` появляется после неё. */
+  loadProbe?: ProbeLoad;
 }
 
 /** Спец. §13: журнал и оверлей сбрасываются в хранилище раз в 30 с (и сразу на `app:suspend`). */
@@ -102,7 +104,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   ctx.outbox = new Outbox(ctx);
   ctx.heartbeat = new HeartbeatTimer(ctx);
   ctx.chain = new FallbackChain(ctx);
-  ctx.probe = new ProbeRunner(ctx);
+  attachProbe(ctx, o.loadProbe);
 
   auth.onLoggedOut = () => {
     // Прежний вход по коду завершён: следующий экран входа начнёт новый (этап 17).
@@ -111,7 +113,6 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
     ctx.host.executeAction("reload:menu");
   };
   ctx.tracker.addListener((e) => onTrackerEvent(ctx, e));
-  installTvChecks(ctx);
 
   const persistTick = (): void => {
     try {
