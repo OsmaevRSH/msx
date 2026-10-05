@@ -1,0 +1,30 @@
+{
+  "name": "kinopub-msx",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "node tools/build.mjs",
+    "size": "node tools/size.mjs",
+    "privacy": "node tools/privacy.mjs",
+    "mock": "node tools/kpmock/cli.ts --port 8787",
+    "gen:media": "sh tools/gen-media.sh",
+    "dev": "node tools/dev.mjs",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
+    "tv-address": "node tools/tv-address.mjs",
+    "crawl": "node tools/crawl.ts",
+    "check": "npm run typecheck && npm test && npm run privacy && npm run build && npm run size"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.6.4",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}

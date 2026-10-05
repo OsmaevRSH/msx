@@ -1,0 +1,11 @@
+node_modules/
+dist/
+reports/
+*.log
+.env*
+test-results/
+playwright-report/
+.DS_Store
+vibe/
+docs/grill/
+docs/research/
