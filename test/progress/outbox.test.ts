@@ -115,6 +115,25 @@ describe("Outbox: records and flush", () => {
     assert.equal(t.ctx.outbox.size(), 0);
   });
 
+  it("request class: retries from kp.out.* go bg, setWatched from the tracker goes fg (Plan B §9.5)", async () => {
+    const t = await make();
+    const seen: string[] = [];
+    const send = t.ctx.transport.send.bind(t.ctx.transport);
+    t.ctx.transport.send = (req) => {
+      seen.push(`${req.cls} ${req.path}`);
+      return send(req);
+    };
+    const now = t.clock.now();
+    t.ctx.store.set("out", "w_2001_1_5", { item: EP.item, season: 1, video: 5, desired: 1, createdAt: now, attempts: 0, nextAt: now });
+    t.ctx.outbox.putMarktime(EP.item, 1, 4, 300);
+    await t.run(t.ctx.outbox.flush());
+    assert.deepEqual(seen, ["bg /v1/watching/marktime", "bg /v1/watching", "bg /v1/watching/toggle"]);
+    assert.equal(t.ctx.outbox.size(), 0);
+    seen.length = 0;
+    assert.equal(await t.run(t.ctx.outbox.setWatched(EP.item, 1, 5, 0)), "done");
+    assert.deepEqual(seen, ["fg /v1/watching", "fg /v1/watching/toggle"]);
+  });
+
   it("retries 10 s → 30 s → 2 min → 10 min → every 30 min", async () => {
     const t = await make();
     const at: number[] = [];

@@ -181,19 +181,20 @@ export class KpApi {
 
   // --- Просмотры (research kinopub-api §8.1) ---
 
-  async watching(id: number): Promise<WatchingUnit[]> {
-    return parseWatching(await this.call({ path: "/v1/watching", query: { id } }));
+  async watching(id: number, cls?: Cls): Promise<WatchingUnit[]> {
+    return parseWatching(await this.call({ path: "/v1/watching", query: { id }, cls }));
   }
 
   /** `video` и `season` — номера, не id; `season` только у сериала. Позиция абсолютная, поэтому повтор безопасен. */
-  async marktime(id: number, video: number, time: number, season?: number): Promise<void> {
+  async marktime(id: number, video: number, time: number, season?: number, cls?: Cls): Promise<void> {
     const query = { id, video, time: Math.max(0, Math.floor(time)), season };
-    await this.call({ path: "/v1/watching/marktime", query, timeoutMs: PROGRESS_MS });
+    await this.call({ path: "/v1/watching/marktime", query, timeoutMs: PROGRESS_MS, cls });
   }
 
   /** Переключатель: не повторяется вслепую (спец. §5.3, CM-01); ответ — новое состояние. */
-  async toggle(id: number, video: number, season?: number): Promise<{ watched: 0 | 1 }> {
-    return parseToggle(await this.call({ path: "/v1/watching/toggle", query: { id, video, season }, retry: "none", timeoutMs: PROGRESS_MS }));
+  async toggle(id: number, video: number, season?: number, cls?: Cls): Promise<{ watched: 0 | 1 }> {
+    const query = { id, video, season };
+    return parseToggle(await this.call({ path: "/v1/watching/toggle", query, retry: "none", timeoutMs: PROGRESS_MS, cls }));
   }
 
   async history(page: number, perpage: number): Promise<HistoryEntry[]> {

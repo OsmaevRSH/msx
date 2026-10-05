@@ -1,4 +1,5 @@
 import type { AppContext } from "../app/context.ts";
+import type { ReqClass } from "../api/transport.ts";
 import type { TimerId } from "../core/clock.ts";
 import { KpError, isKpError, toKpError } from "../core/errors.ts";
 import { checkToggleResult } from "./rules.ts";
@@ -113,7 +114,7 @@ export class Outbox {
   async setWatched(itemId: number, season: number, video: number, desired: 0 | 1): Promise<"done" | "queued"> {
     const key = keyOf("w", itemId, season, video);
     try {
-      await this.apply(itemId, season, video, desired);
+      await this.apply(itemId, season, video, desired, "fg");
     } catch (e) {
       if (isTransient(e)) {
         const now = this.ctx.clock.now();
@@ -132,14 +133,15 @@ export class Outbox {
 
   // --- Внутреннее ---
 
-  private async apply(item: number, season: number, video: number, desired: 0 | 1): Promise<void> {
+  /** `cls`: немедленная отметка из трекера — передний план, повторы из `kp.out.*` — фон (Plan B §9.5). */
+  private async apply(item: number, season: number, video: number, desired: 0 | 1, cls: ReqClass): Promise<void> {
     const { api, log } = this.ctx;
-    const unit = (await api.watching(item)).find((u) => u.season === season && u.number === video);
+    const unit = (await api.watching(item, cls)).find((u) => u.season === season && u.number === video);
     if (unit === undefined) throw new KpError("KP-404", "unit-not-in-watching");
     if ((unit.status === 1 ? 1 : 0) === desired) return;
     // Ответ toggle — новое состояние: 0 при желаемой 1 значит, что статус успел смениться после сверки (Plan B §9.4 п. 3).
     for (let i = 0; i < 2; i++) {
-      if (checkToggleResult(desired, await api.toggle(item, video, seasonArg(season))) === "done") return;
+      if (checkToggleResult(desired, await api.toggle(item, video, seasonArg(season), cls)) === "done") return;
     }
     log.error(TAG, "toggle_mismatch", { item, season, video, desired });
   }
@@ -178,8 +180,8 @@ export class Outbox {
   private async send(key: string, rec: Rec): Promise<void> {
     const { api, clock, log } = this.ctx;
     try {
-      if ("time" in rec) await api.marktime(rec.item, rec.video, rec.time, seasonArg(rec.season));
-      else await this.apply(rec.item, rec.season, rec.video, rec.desired);
+      if ("time" in rec) await api.marktime(rec.item, rec.video, rec.time, seasonArg(rec.season), "bg");
+      else await this.apply(rec.item, rec.season, rec.video, rec.desired, "bg");
       this.removeIfSame(key, rec);
       log.info(TAG, "outbox_sent", { key, attempts: rec.attempts });
     } catch (e) {

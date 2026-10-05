@@ -169,6 +169,21 @@ describe("KpApi against kpmock (contract)", () => {
       assert.equal(q(env.calls("/v1/watching/toggle")[2]).get("season"), "1");
     });
 
+    it("request class: watching, marktime and toggle go fg by default and bg when asked (Plan B §9.5)", async () => {
+      const r = env.rig();
+      await r.run(r.api.watching(FIX.MOVIE_SIMPLE));
+      await r.run(r.api.marktime(FIX.MOVIE_SIMPLE, 1, 300));
+      await r.run(r.api.toggle(FIX.MOVIE_SIMPLE, 1));
+      await r.run(r.api.watching(FIX.MOVIE_SIMPLE, "bg"));
+      await r.run(r.api.marktime(FIX.MOVIE_SIMPLE, 1, 300, undefined, "bg"));
+      await r.run(r.api.toggle(FIX.MOVIE_SIMPLE, 1, undefined, "bg"));
+      assert.deepEqual(r.t.reqs.map((x) => `${x.cls} ${x.path}`), [
+        "fg /v1/watching", "fg /v1/watching/marktime", "fg /v1/watching/toggle",
+        "bg /v1/watching", "bg /v1/watching/marktime", "bg /v1/watching/toggle",
+      ]);
+      assert.equal(r.t.reqs.find((x) => x.path === "/v1/watching/toggle")?.retry, "none");
+    });
+
     it("toggle with a dropped connection → exactly one call and KP-NET (CM-01)", async () => {
       env.mock().setScenario({ rules: [{ path: "^/v1/watching/toggle$", drop: true }] });
       const r = env.rig();
