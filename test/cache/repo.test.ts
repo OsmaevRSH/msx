@@ -245,6 +245,31 @@ describe("Repo", () => {
     assert.ok(!all.includes("links") && !all.includes("/cdn/"), "stream links never reach the storage");
   });
 
+  it("links: an empty or broken 200 is not cached — the next call (fallback step) goes to the API at once", async () => {
+    const r = env.rig();
+    const { l2, repo } = setup(r);
+    const mid = FIX.MOVIE_SIMPLE * 1000 + 1;
+    env.mock().setScenario({ rules: [{ path: "^/v1/items/media-links$", status: 200, times: 1 }] });
+    const empty = await r.run(repo.links(mid, { cls: "bg" }));
+    assert.deepEqual(empty.files, []);
+    const good = await r.run(repo.links(mid, { cls: "fg" }));
+    assert.ok(good.files[0].urls.hls?.includes("/cdn/hls/"));
+    await r.run(repo.links(mid, { cls: "fg" }));
+    assert.equal(count("/v1/items/media-links"), 2);
+
+    let calls = 0;
+    const api = Object.assign(Object.create(r.api) as typeof r.api, {
+      mediaLinks: async (m: number) => {
+        calls += 1;
+        return { mid: m, files: [{ codec: "h264", w: 1920, h: 1080, quality: "1080p", qualityId: 3, file: "/f.mp4", urls: {} }], subtitles: [] };
+      },
+    });
+    const brokenRepo = new Repo({ api, cache: new SwrCache({ l1: new Lru(), l2, clock: r.clock, log: r.log }), clock: r.clock, log: r.log });
+    await r.run(brokenRepo.links(mid, { cls: "fg" }));
+    await r.run(brokenRepo.links(mid, { cls: "fg" }));
+    assert.equal(calls, 2);
+  });
+
   it("request class: cls from item/listPage reaches the transport; without it requests stay fg", async () => {
     const r = env.rig();
     const { repo } = setup(r);

@@ -235,6 +235,8 @@ export class Repo {
     const got = await this.cache.get(k, LINKS, load, opts.fresh === true ? { force: true } : undefined);
     // SwrCache при сбое сети отдаёт прежнюю запись с `offline`; для ссылок это недопустимо.
     if (got.offline !== undefined) throw failure ?? new KpError(got.offline, "links-unavailable");
+    // Пустой или битый ответ (200 без потоков) не держим 600 с: следующий шаг fallback сразу берёт свежие.
+    if (!got.value.files.some((f) => f.urls.hls !== undefined || f.urls.hls2 !== undefined)) this.cache.delete(k);
     return got.value;
   }
 
