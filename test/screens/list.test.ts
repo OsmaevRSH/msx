@@ -37,7 +37,9 @@ const visible = (type: string): number => catalog().filter((it) => !it.deleted &
 
 const items = (s: MsxContentRoot): MsxContentItem[] => s.items ?? [];
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
-const live = (key: string): MsxContentItem["live"] => ({ type: "setup", action: `interaction:commit:message:extend:${key}` });
+const EXTEND = "interaction:commit:message:extend:";
+const live = (key: string, dir: "down" | "up", at: number): MsxContentItem["live"] =>
+  ({ type: "setup", action: `${EXTEND}${key}:${dir}:${at}` });
 const pageCalls = (t: TestApp, page: number, path = "/v1/items"): number =>
   t.mock.calls().filter((c) => c.path === path && new URLSearchParams(c.query).get("page") === String(page)).length;
 const state = (t: TestApp, key: string): ListState => {
@@ -70,7 +72,7 @@ describe("listScreen (S5, CC-05)", () => {
     ]);
     const tiles = items(s);
     assert.equal(tiles.length, 48);
-    assert.deepEqual(tiles.at(-1)?.live, live(MOVIES));
+    assert.deepEqual(tiles.at(-1)?.live, live(MOVIES, "down", 48));
     assert.equal(tiles.filter((i) => i.live !== undefined).length, 1);
     const page = await t.run(t.ctx.repo.listPage(listSource(decodeListKey(MOVIES)), 1));
     assert.deepEqual(tiles.map(({ live: _l, ...tile }) => tile), posterTiles(t.ctx, page.value.items));
@@ -125,7 +127,7 @@ describe("listScreen (S5, CC-05)", () => {
     const s = await b.request(ids.list(MOVIES));
     assert.equal(items(s).length, 48);
     assert.equal(s.extension, "{ico:msx-red:stop} Сортировка и жанр  {ico:msx-yellow:history} нет связи");
-    assert.deepEqual(items(s).at(-1)?.live, live(MOVIES));
+    assert.deepEqual(items(s).at(-1)?.live, live(MOVIES, "down", 48));
   });
 
   it("an empty list: «Ничего не найдено» and a focusable «Назад», no live", async () => {
@@ -205,16 +207,19 @@ describe("onExtend (spec §3.4, §6.3, CD-16)", () => {
     const tiles = items(s);
     assert.equal(tiles.length, 96);
     assert.equal(new Set(tiles.map((i) => i.id)).size, 96);
-    assert.deepEqual(tiles.at(-1)?.live, live(MOVIES));
+    assert.deepEqual(tiles.at(-1)?.live, live(MOVIES, "down", 96));
     assert.equal(tiles.filter((i) => i.live !== undefined).length, 1);
   });
 
-  it("the message extend:<key> goes through the router", async () => {
+  it("the edge message goes through the router; a bare extend:<key> extends down from the current end", async () => {
     const t = await make();
     await t.request(ids.list(MOVIES));
-    t.app.handleData({ message: `extend:${MOVIES}` });
+    t.app.handleData({ message: `extend:${MOVIES}:down:48` });
     await t.run(until(() => actions(t).includes("reload:content")));
     assert.equal(state(t, MOVIES).items.length, 96);
+    t.app.handleData({ message: `extend:${MOVIES}` });
+    await t.run(until(() => actions(t).length === 2));
+    assert.equal(state(t, MOVIES).items.length, 144);
   });
 
   it("the card became current → no reload; back to the list: 96 tiles from memory, no requests, ≤ 50 ms (CE-06)", async () => {
@@ -244,7 +249,8 @@ describe("onExtend (spec §3.4, §6.3, CD-16)", () => {
     assert.equal(st.items.length, total);
     assert.deepEqual([st.page, st.totalPages], [Math.ceil(total / 48), Math.ceil(total / 48)]);
     const s = await t.request(ids.list(MOVIES));
-    assert.ok(items(s).every((i) => i.live === undefined));
+    assert.equal(items(s).at(-1)?.id, `i${st.items.at(-1)?.id}`);
+    assert.ok(items(s).every((i) => !i.live?.action?.includes(":down:")));
 
     // Список, конец которого не был замечен: KinoPub отдаёт последнюю страницу вместо пустой.
     st.done = false;
@@ -273,7 +279,7 @@ describe("onExtend (spec §3.4, §6.3, CD-16)", () => {
     assert.ok(t.ctx.log.entries().some((e) => e.tag === "list" && e.level === "warn" && e.msg === "extend_failed"));
     assert.deepEqual(actions(t), []);
     assert.deepEqual([state(t, MOVIES).page, state(t, MOVIES).done], [1, false]);
-    assert.deepEqual(items(await t.request(ids.list(MOVIES))).at(-1)?.live, live(MOVIES));
+    assert.deepEqual(items(await t.request(ids.list(MOVIES))).at(-1)?.live, live(MOVIES, "down", 48));
 
     t.mock.setScenario({ rules: [] });
     await t.run(onExtend(t.ctx, MOVIES));
