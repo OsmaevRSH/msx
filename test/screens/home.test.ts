@@ -92,6 +92,18 @@ const refreshed = (t: TestApp, key: string): boolean => {
   return got !== undefined && got.fetchedAt === t.clock.now() && !got.stale;
 };
 
+/** Все записи, из которых собирается главная, и `user` (его запрос главная не ждёт). */
+const HOME_KEYS = [
+  cacheKeys.history(), cacheKeys.serials(), cacheKeys.bookmarks(), cacheKeys.user(),
+  ...["fresh", "popular", "hot"].flatMap((kind) => ["movie", "serial"].map((type) => cacheKeys.shelf(kind, type))),
+];
+
+/** Загрузки главной дошли до кэша, и отложенная запись L2 (1 с, спец. §7.3) ушла в хранилище. */
+async function persisted(t: TestApp): Promise<void> {
+  await drive(t, () => HOME_KEYS.every((k) => t.ctx.cache.peek(k) !== undefined), "home loads");
+  await t.clock.advance(1000);
+}
+
 describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
   it("16×8 list, flag home, not cached by MSX, eight shelves two per page in the Plan B order", async () => {
     const t = await make();
@@ -240,7 +252,7 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
   it("a new app on the same storage answers from L2 within 50 ms without waiting for KinoPub", async () => {
     const first = await make();
     assert.deepEqual(headers(await open(first)), ALL);
-    await first.clock.advance(1000);
+    await persisted(first);
     first.mock.setScenario({ delayMs: 600 });
     const n = first.mock.calls().length;
     const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false });
@@ -260,7 +272,7 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
   it("stale L2 two hours later: still at once, refresh in the background", async () => {
     const first = await make();
     await open(first);
-    await first.clock.advance(1000);
+    await persisted(first);
     const n0 = first.mock.calls().length;
     first.mock.setScenario({ delayMs: 600 });
     const clock = new FakeClock(FAKE_EPOCH + 120 * MIN);
@@ -373,8 +385,7 @@ describe("warmHome and the history fallback", () => {
   it("loads every shelf into L2: the next app answers home without KinoPub", async () => {
     const first = await make();
     warmHome(first.ctx);
-    await drive(first, () => first.ctx.cache.peek(cacheKeys.shelf("hot", "serial")) !== undefined
-      && first.ctx.cache.peek(cacheKeys.user()) !== undefined, "warm shelves");
+    await persisted(first);
     const n = first.mock.calls().length;
     const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false });
     assert.deepEqual(headers((await t.app.handleRequest(HOME, {})) as MsxContentRoot), ALL);
