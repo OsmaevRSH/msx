@@ -97,6 +97,11 @@ export class SwrCache {
     this.marks.set(keyPrefix, this.clock.now());
   }
 
+  /** Ключи L2 с префиксом, от старых к новым (лимиты числа записей, спец. §8.1). */
+  persistedKeys(prefix: string): string[] {
+    return this.l2.keys(prefix);
+  }
+
   delete(key: string): void {
     this.l1.delete(key);
     this.l2.remove(key);

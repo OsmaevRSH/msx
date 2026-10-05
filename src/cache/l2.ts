@@ -82,6 +82,18 @@ export class L2 {
     }
   }
 
+  /** Ключи с префиксом, от самых старых `savedAt` к новым, с учётом ещё не записанной пачки. */
+  keys(prefix: string): string[] {
+    const at = new Map<string, number>();
+    for (const [k, m] of this.loadIndex()) if (k.startsWith(prefix)) at.set(k, m.t);
+    for (const [k, p] of this.pending) {
+      if (!k.startsWith(prefix)) continue;
+      if (p.v === undefined) at.delete(k);
+      else at.set(k, p.t);
+    }
+    return [...at].sort((x, y) => x[1] - y[1]).map(([k]) => k);
+  }
+
   remove(key: string): void {
     this.pending.delete(key);
     if (this.index !== undefined) this.drop(this.index, key);

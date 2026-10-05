@@ -170,6 +170,24 @@ describe("L2", () => {
     assert.deepEqual(l2Keys(mem), []);
   });
 
+  it("keys(prefix): stored and pending keys, oldest savedAt first; a new L2 loads them from storage", async () => {
+    const { clock, kv, l2 } = setup();
+    l2.put("item:1:", 1);
+    await clock.advance(1000);
+    l2.put("item:2:", 2);
+    l2.put("shelf:hot:", 3);
+    await clock.advance(1000);
+    l2.put("item:1:", 11);
+    assert.deepEqual(l2.keys("item:"), ["item:2:", "item:1:"]);
+    l2.remove("item:2:");
+    l2.put("item:3:", 3);
+    l2.put("item:1:", undefined);
+    assert.deepEqual(l2.keys("item:"), ["item:3:"]);
+    l2.flush();
+    const again = new L2(kv, clock);
+    assert.deepEqual([again.keys("item:"), again.keys("shelf:"), again.keys("nope:")], [["item:3:"], ["shelf:hot:"], []]);
+  });
+
   it("survives KvStore purging kp.l2.* behind its back", () => {
     const { kv, mem, l2 } = setup({ maxBytes: 1000 });
     l2.put("a", sized(400));

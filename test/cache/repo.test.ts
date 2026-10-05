@@ -19,6 +19,8 @@ const DAY = 24 * HOUR;
 const LONG_PLOT = "Длинный сюжет. ".repeat(60);
 const CATALOG: ListSource = { kind: "catalog", type: "movie", sort: "-updated" };
 const FOLDER1: ListSource = { kind: "folder", folder: 1 };
+/** 31 карточек для лимита «последние 30 карточек в L2» (спец. §8.1). */
+const MANY = Array.from({ length: 31 }, (_, i) => 5001 + i);
 
 /** Карточка, в которой API проигнорировал `nolinks=1`: ссылки на поток, субтитры со ссылками и длинный сюжет. */
 function rawCard(id: number): unknown {
@@ -77,7 +79,7 @@ async function until(r: Rig, what: string, pred: () => boolean): Promise<void> {
 
 describe("Repo", () => {
   const env = useKpApiMock((router) => {
-    for (const id of [1, 12, 9001]) router.add("GET", `/v1/items/${id}`, () => ({ status: 200, json: rawCard(id) }));
+    for (const id of [1, 12, 9001, ...MANY]) router.add("GET", `/v1/items/${id}`, () => ({ status: 200, json: rawCard(id) }));
   });
   const count = (path: string): number => env.calls(path).length;
 
@@ -293,6 +295,30 @@ describe("Repo", () => {
     assert.deepEqual([stale.source, stale.stale], ["l2", true]);
     await until(r, "full card", () => cold2.peekItem(9001)?.value.videos[0].subtitles.length === 1);
     assert.equal(count("/v1/items/9001"), 2);
+  });
+
+  it("L2 keeps the last 30 compact cards: the 31st evicts the oldest, home shelves stay", async () => {
+    const r = env.rig();
+    const { mem, l2, repo } = setup(r);
+    await r.run(repo.shelf("popular", "movie"));
+    await r.run(repo.shelf("hot", "serial"));
+    const cards = (): string[] => {
+      l2.flush();
+      return l2Keys(mem).filter((k) => k.startsWith("item:"));
+    };
+    for (const id of MANY.slice(0, 30)) {
+      await r.run(repo.item(id));
+      await r.clock.advance(SEC);
+    }
+    assert.equal(cards().length, 30);
+    await r.run(repo.item(MANY[30]));
+    await r.clock.advance(SEC);
+    const left = cards();
+    assert.equal(left.length, 30);
+    assert.ok(!left.includes(cacheKeys.itemCompact(MANY[0])), "the oldest card is evicted");
+    assert.ok(left.includes(cacheKeys.itemCompact(MANY[1])) && left.includes(cacheKeys.itemCompact(MANY[30])));
+    assert.ok([cacheKeys.shelf("popular", "movie"), cacheKeys.shelf("hot", "serial")].every((k) => l2Keys(mem).includes(k)));
+    assert.equal(repo.peekItem(MANY[0])?.value.videos[0].subtitles.length, 1, "L1 keeps the full card");
   });
 
   it("invalidateAfterProgress marks, not deletes: old values at once, refresh in background; item 12 untouched", async () => {

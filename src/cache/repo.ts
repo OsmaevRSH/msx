@@ -23,6 +23,8 @@ const PER_PAGE = 48;
 const SHELF_SIZE = 7;
 const HISTORY_PER_PAGE = 50;
 const PLOT_MAX = 600;
+/** Спец. §8.1: в L2 — последние 30 карточек в компактной модели. */
+const L2_CARDS_MAX = 30;
 /** Plan B D-41: resolve ждёт обновления карточки старше 600 с не дольше 500 мс. */
 const D41_FRESH_MS = 600_000;
 const D41_WAIT_MS = 500;
@@ -131,6 +133,7 @@ export class Repo {
   private cache: SwrCache;
   private clock: Clock;
   private log: Logger;
+  private trimQueued = false;
 
   constructor(deps: { api: KpApi; cache: SwrCache; clock: Clock; log: Logger }) {
     this.api = deps.api;
@@ -313,7 +316,19 @@ export class Repo {
   private async loadItem(id: number, cls?: ReqClass): Promise<ItemDetail> {
     const d = await this.api.item(id, cls);
     const compact = compactItem(d);
-    this.cache.get(cacheKeys.itemCompact(id), ITEM_COMPACT, async () => compact, { force: true }).catch(noop);
+    this.cache.get(cacheKeys.itemCompact(id), ITEM_COMPACT, async () => compact, { force: true }).then(() => this.queueTrim(), noop);
     return d;
+  }
+
+  /** Вне критического пути запроса (спец. §7.3): обрезка — отдельным таймером, одна на пачку карточек. */
+  private queueTrim(): void {
+    if (this.trimQueued) return;
+    this.trimQueued = true;
+    this.clock.setTimeout(() => {
+      this.trimQueued = false;
+      // Полная карточка в L2 не пишется, поэтому `item:` в L2 — только компактные копии `item:<id>:l2:`.
+      const cards = this.cache.persistedKeys("item:");
+      for (const k of cards.slice(0, Math.max(0, cards.length - L2_CARDS_MAX))) this.cache.delete(k);
+    }, 0);
   }
 }
