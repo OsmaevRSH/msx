@@ -84,6 +84,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   const api = new KpApi(transport, auth);
   auth.bindApi(api);
   const l2 = new L2(store, clock, undefined, log);
+  store.onL2Purged(() => l2.resetIndex());
   const cache = new SwrCache({ l1: new Lru(), l2, clock, log });
   const repo = new Repo({ api, cache, clock, log });
   const overlay = new Overlay(clock);

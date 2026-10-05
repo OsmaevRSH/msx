@@ -94,6 +94,12 @@ export class L2 {
     return [...at].sort((x, y) => x[1] - y[1]).map(([k]) => k);
   }
 
+  /** `KvStore` удалил все `kp.l2.*` в обход L2: индекс перестроится из хранилища при следующем обращении. */
+  resetIndex(): void {
+    this.index = undefined;
+    this.total = 0;
+  }
+
   remove(key: string): void {
     this.pending.delete(key);
     if (this.index !== undefined) this.drop(this.index, key);

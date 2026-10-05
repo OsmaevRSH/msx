@@ -126,6 +126,20 @@ describe("KvStore", () => {
     }
   });
 
+  it("onL2Purged: listeners hear the quota purge and removeNs('l2'), nothing else", () => {
+    const { kv } = setup(4000);
+    let calls = 0;
+    kv.onL2Purged(() => (calls += 1));
+    fillL2(kv);
+    assert.equal(kv.set("l2", "one-more", "z".repeat(4000)), false);
+    kv.removeNs("auth");
+    assert.equal(calls, 0);
+    assert.equal(kv.set("auth", "pair", { access: "mock-at-1" }), true);
+    assert.equal(calls, 1);
+    kv.removeNs("l2");
+    assert.equal(calls, 2);
+  });
+
   it("on quota overflow while writing l2 returns false and deletes nothing", () => {
     const { log, kv } = setup(4000);
     kv.set("auth", "pair", { access: "mock-at-1" });

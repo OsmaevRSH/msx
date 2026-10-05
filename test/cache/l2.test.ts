@@ -1,9 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { createApp } from "../../src/app/create-app.ts";
 import { KvStore } from "../../src/bridge/storage.ts";
 import { L2 } from "../../src/cache/l2.ts";
 import { Logger } from "../../src/core/log.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
+import { FakeHost } from "../helpers/fake-host.ts";
+import { TEST_P } from "../helpers/harness.ts";
 import { MemoryStorage } from "../helpers/memory-storage.ts";
 
 function setup(opts?: { maxBytes?: number; quotaBytes?: number }) {
@@ -198,5 +201,36 @@ describe("L2", () => {
     l2.put("d", sized(400));
     l2.flush();
     assert.deepEqual(l2Keys(mem), ["kp.l2.c", "kp.l2.d"]);
+  });
+
+  it("after a quota purge for auth the index is rebuilt lazily: purged entries are not counted, budget holds", async () => {
+    const { clock, kv, mem, l2 } = setup({ maxBytes: 1000, quotaBytes: 2000 });
+    kv.onL2Purged(() => l2.resetIndex());
+    l2.put("a", sized(400));
+    l2.put("b", sized(400));
+    l2.flush();
+    assert.equal(kv.set("auth", "pair", "p".repeat(600)), true);
+    assert.deepEqual(l2Keys(mem), []);
+    assert.deepEqual(l2.keys(""), []);
+    kv.remove("auth", "pair");
+    await clock.advance(1);
+    for (const k of ["c", "d", "e"]) l2.put(k, sized(300));
+    l2.flush();
+    assert.deepEqual(l2Keys(mem), ["kp.l2.c", "kp.l2.d", "kp.l2.e"]);
+    assert.deepEqual(l2.keys(""), ["c", "d", "e"]);
+    l2.put("f", sized(300));
+    l2.flush();
+    assert.deepEqual(l2.keys(""), ["d", "e", "f"]);
+    assert.deepEqual(l2Keys(mem), ["kp.l2.d", "kp.l2.e", "kp.l2.f"]);
+  });
+
+  it("createApp wires the KvStore purge to its L2", () => {
+    const mem = new MemoryStorage({ quotaBytes: 2000 });
+    const { ctx } = createApp({ host: new FakeHost(), storage: mem, fetch: () => Promise.reject(new TypeError("offline")), P: TEST_P, clock: new FakeClock() });
+    ctx.l2.put("a", sized(800));
+    ctx.l2.flush();
+    assert.deepEqual(ctx.l2.keys(""), ["a"]);
+    assert.equal(ctx.store.set("auth", "pair", "p".repeat(600)), true);
+    assert.deepEqual(ctx.l2.keys(""), []);
   });
 });

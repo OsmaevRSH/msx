@@ -33,6 +33,7 @@ function errorName(e: unknown): string {
 export class KvStore {
   private storage: StorageLike;
   private log: Logger | undefined;
+  private l2Purged: (() => void)[] = [];
 
   constructor(storage: StorageLike, log?: Logger) {
     this.storage = storage;
@@ -79,6 +80,11 @@ export class KvStore {
     }
   }
 
+  /** Все `kp.l2.*` удалены (переполнение или `removeNs("l2")`): L2 держит индекс размеров в памяти и должен его сбросить. */
+  onL2Purged(cb: () => void): void {
+    this.l2Purged.push(cb);
+  }
+
   remove(ns: Ns, key: string): void {
     this.storage.removeItem(prefix(ns) + key);
   }
@@ -96,6 +102,7 @@ export class KvStore {
   removeNs(ns: Ns): void {
     const p = prefix(ns);
     for (const k of this.keys(ns)) this.storage.removeItem(p + k);
+    if (ns === "l2") for (const cb of this.l2Purged) cb();
   }
 
   bytes(ns: Ns): number {
