@@ -29,6 +29,12 @@ export function fmtDate(ts: number): string {
   return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
+/** Миллисекунды эпохи → "HH:MM" в местном времени ТВ. */
+export function fmtTime(ms: number): string {
+  const d = new Date(ms);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 /** Русская часть названия KinoPub "Рус / Eng". */
 export function ruTitle(title: string): string {
   const i = title.indexOf(" / ");

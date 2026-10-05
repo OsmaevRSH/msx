@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { fmtClock, fmtDate, fmtMinutes, fmtRemaining, ruTitle } from "../../src/core/format.ts";
+import { fmtClock, fmtDate, fmtMinutes, fmtRemaining, fmtTime, ruTitle } from "../../src/core/format.ts";
 
 describe("fmtClock", () => {
   it("h:mm:ss from an hour, m:ss below", () => {
@@ -46,6 +46,13 @@ describe("fmtDate", () => {
     assert.match(fmtDate(0), /^\d{2}\.\d{2}\.\d{4}$/);
     const d = new Date(2026, 2, 7, 12, 0, 0);
     assert.equal(fmtDate(d.getTime() / 1000), "07.03.2026");
+  });
+});
+
+describe("fmtTime", () => {
+  it("formats epoch milliseconds as local HH:MM", () => {
+    assert.equal(fmtTime(new Date(2026, 2, 7, 9, 5, 59).getTime()), "09:05");
+    assert.equal(fmtTime(new Date(2026, 2, 7, 23, 40).getTime()), "23:40");
   });
 });
 

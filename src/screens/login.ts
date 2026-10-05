@@ -3,6 +3,7 @@ import { DeviceFlow } from "../auth/device-flow.ts";
 import type { LoginState } from "../auth/device-flow.ts";
 import { KpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
+import { fmtTime } from "../core/format.ts";
 import { chain, commitMsg, contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { ids, msgs } from "../router/ids.ts";
@@ -28,14 +29,6 @@ const T = {
   reloadMenu: "Обновить меню",
 };
 
-const pad2 = (n: number): string => String(n).padStart(2, "0");
-
-/** Местное время ТВ «HH:MM». */
-function hhmm(ms: number): string {
-  const d = new Date(ms);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
 /** `https://kino.watch/device` → `kino.watch/device`; фигурные скобки сломали бы выражение `{txt:…}`. */
 function bareUri(uri: string): string {
   const s = uri.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/+$/, "").replace(/[{}]/g, "");
@@ -50,7 +43,7 @@ function codeScreen(ctx: AppContext, st: Extract<LoginState, { phase: "code" }>)
   return screen([
     { type: "space", layout: "0,0,12,2", text: T.steps(bareUri(st.verificationUri)) },
     { id: "login_code", type: "space", layout: "2,2,8,2", color: "msx-glass", alignment: "center", headline: st.userCode },
-    { type: "space", layout: "0,4,12,1", alignment: "center", text: T.until(hhmm(st.expiresAt)) },
+    { type: "space", layout: "0,4,12,1", alignment: "center", text: T.until(fmtTime(st.expiresAt)) },
     { type: "button", layout: "0,5,6,1", label: T.newCode, action: commitMsg(msgs.act("login", "new")) },
     { type: "button", layout: "6,5,6,1", label: T.probe, action: contentAction(ctx.P, ids.probe()) },
   ]);
