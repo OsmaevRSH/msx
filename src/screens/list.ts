@@ -361,7 +361,7 @@ function edge(items: MsxContentItem[], i: number, on: boolean, key: string, dir:
 }
 
 /** Размер ответа так, как его меряет CNFR-16: JSON в UTF-8. */
-function bytes(v: unknown): number {
+export function bytes(v: unknown): number {
   return new TextEncoder().encode(JSON.stringify(v)).length;
 }
 

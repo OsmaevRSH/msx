@@ -134,6 +134,13 @@ describe("keyboardPage (S7, spec §3.4)", () => {
     assert.equal(inputRow(keyboardPage(t.ctx, s)).headline, "{ico:search} фи_ {col:msx-white-soft}· Найдено: 263");
   });
 
+  it("a cut result list: «Найдено» tells how many are shown and asks to refine the query", async () => {
+    const t = await make();
+    const s = Object.assign(state({ query: "фи", status: "ready" }), { total: 263, shown: 96 });
+    assert.equal(inputRow(keyboardPage(t.ctx, s)).headline,
+      "{ico:search} фи_ {col:msx-white-soft}· Найдено: 263, показаны первые 96 — уточните запрос");
+  });
+
   it("the keyboard page JSON is light: ≤ 6 KB in both layouts (it is redrawn on every key)", async () => {
     const t = await make();
     for (const lang of ["ru", "en"] as const) {

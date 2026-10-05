@@ -15,8 +15,11 @@ export const DIGITS = "1234567890";
 /** Все символы, которые может прислать клавиатура: буквы обеих раскладок и цифры. */
 export const KEY_CHARS = LAYOUTS.ru + LAYOUTS.en + DIGITS;
 
-/** Состояние поиска и то, что знает только экран: общее число найденного из `pagination.totalItems`. */
-export type SearchView = SearchState & { total?: number };
+/**
+ * Состояние поиска и то, что знает только экран: общее число найденного из `pagination.totalItems` и сколько
+ * результатов показано, если выдача обрезана (не больше 96 и 32 КБ, CNFR-16).
+ */
+export type SearchView = SearchState & { total?: number; shown?: number };
 
 const ROW = { ru: 11, en: 9 } as const;
 const FIRST_LETTER_ROW = 1;
@@ -30,6 +33,8 @@ const T = {
   loading: "Ищу…",
   empty: "Ничего не найдено",
   found: "Найдено: ",
+  shown: "показаны первые",
+  refine: "уточните запрос",
   back: "{ico:backspace} Стереть",
   space: "{ico:space-bar} Пробел",
   clear: "{ico:clear} Очистить",
@@ -57,7 +62,10 @@ function hint(s: SearchView): string {
     case "short": return T.short;
     case "loading": return T.loading;
     case "empty": return T.empty;
-    case "ready": return `${T.found}${s.total ?? s.items.length}`;
+    case "ready": {
+      const found = `${T.found}${s.total ?? s.items.length}`;
+      return s.shown === undefined ? found : `${found}, ${T.shown} ${s.shown} — ${T.refine}`;
+    }
     case "error": {
       const { code, text } = errorText(new KpError(s.error ?? "KP-BAD", "search"));
       return `${text} (${code})`;

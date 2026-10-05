@@ -7,6 +7,7 @@ import { ids, msgs } from "../router/ids.ts";
 import type { Msg, SearchControl } from "../router/ids.ts";
 import { KEY_CHARS, keyboardPage } from "./keyboard.ts";
 import type { SearchView } from "./keyboard.ts";
+import { MAX_BYTES, WINDOW, bytes } from "./list.ts";
 import { gridTemplate, posterTiles } from "./tiles.ts";
 
 // Поиск S7 (спец. §3.4, §6.3, §11 S7): строка запроса живёт в памяти плагина. Каждое нажатие сразу
@@ -19,14 +20,21 @@ const EXTEND_KEY = "search";
 /** Как у списков S5: 8 плиток в ряд в сетке 16×8. */
 const GRID = "0,0,2,4";
 const PER_PAGE = 48;
+/** Как окно списка S5: дальше 96 результатов поиск не листают, а уточняют запрос (CNFR-16). */
+const MAX_RESULTS = WINDOW;
+/** Страница MSX при `GRID`: 2 ряда по 8; выдача ужимается по байтам целыми страницами. */
+const PAGE = 16;
 const MIN_CHARS = 2;
 const MAX_CHARS = 32;
 /** CNFR-10: результат ≤ 1,5 с после последней буквы. */
 const DEBOUNCE_MS = 500;
 const T = { headline: "Поиск" };
 
-/** Состояние поиска в памяти и то, что не входит в общий `SearchState`: число найденного и идущая догрузка. */
-type SearchEntry = SearchView & { loading?: Promise<void> };
+/**
+ * Состояние поиска в памяти и то, что не входит в общий `SearchState`: число найденного, идущая догрузка и
+ * `capped` — результатов больше `MAX_RESULTS`.
+ */
+type SearchEntry = SearchView & { loading?: Promise<void>; capped?: boolean };
 
 /** Что уходит в API: без пробелов по краям (пробел в конце строки ввода — не новый запрос). */
 const norm = (q: string): string => q.trim();
@@ -39,12 +47,17 @@ export async function searchScreen(ctx: AppContext): Promise<MsxContentRoot> {
     root.pages = [keyboardPage(ctx, s)];
     return root;
   }
-  const items = posterTiles(ctx, s.items);
-  if (!s.done) items[items.length - 1].live = { type: "setup", action: commitMsg(msgs.extend(EXTEND_KEY)) };
-  root.header = keyboardPage(ctx, s);
-  root.template = gridTemplate(ctx, GRID);
-  root.items = items;
-  return root;
+  const tiles = posterTiles(ctx, s.items);
+  if (!s.done) tiles[tiles.length - 1].live = { type: "setup", action: commitMsg(msgs.extend(EXTEND_KEY)) };
+  const template = gridTemplate(ctx, GRID);
+  // CNFR-16 при любых названиях: хвост выдачи отрезается страницами MSX, подсказка говорит, сколько показано.
+  for (let n = tiles.length; ; n = (Math.ceil(n / PAGE) - 1) * PAGE) {
+    const cut = n < tiles.length;
+    root.header = keyboardPage(ctx, s.capped === true || cut ? { ...s, shown: n } : s);
+    root.template = template;
+    root.items = cut ? tiles.slice(0, n) : tiles;
+    if (n <= PAGE || bytes(root) <= MAX_BYTES) return root;
+  }
 }
 
 /** `search:input:*`, `search:control:*` и `extend:search` (спец. §3.4). */
@@ -116,6 +129,7 @@ function restart(ctx: AppContext, s: SearchEntry): void {
   delete s.timer;
   delete s.error;
   delete s.total;
+  delete s.capped;
   s.items = [];
   s.page = 0;
   s.totalPages = 0;
@@ -199,5 +213,10 @@ function apply(s: SearchEntry, page: Page<ItemSummary>, want: number): number {
   s.page = want;
   s.totalPages = total;
   s.done = current >= total || current < want || page.items.length < PER_PAGE;
+  if (s.items.length > MAX_RESULTS || (s.items.length === MAX_RESULTS && !s.done)) {
+    s.items.length = MAX_RESULTS;
+    s.capped = true;
+    s.done = true;
+  }
   return added;
 }

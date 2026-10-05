@@ -205,8 +205,38 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.deepEqual(searches(t).map((q) => q.get("page")), ["1", "2"]);
     const s: MsxContentRoot = await t.request(ids.search());
     assert.equal(items(s).length, 96);
-    assert.deepEqual(items(s).at(-1)?.live, EXTEND_LIVE);
-    assert.equal(items(s).filter((i) => i.live !== undefined).length, 1);
+  });
+
+  it("results stop at 96 (CNFR-16): no live, no third page, the hint says to refine the query", async () => {
+    const t = await opened();
+    type(t, "фи");
+    await settle(t);
+    send(t, "extend:search");
+    await t.run(until(() => st(t).items.length === 96 && (st(t) as { loading?: unknown }).loading === undefined));
+    assert.ok(matches("фи") > 96);
+    assert.equal(st(t).done, true);
+    const s: MsxContentRoot = await t.request(ids.search());
+    assert.ok(items(s).every((i) => i.live === undefined));
+    assert.equal(line(s), `{ico:search} фи_ {col:msx-white-soft}· Найдено: ${matches("фи")}, показаны первые 96 — уточните запрос`);
+    assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
+    send(t, "extend:search");
+    await t.clock.advance(1000);
+    assert.equal(searches(t).filter((q) => q.get("page") === "3").length, 0);
+  });
+
+  it("96 results with long titles fit 32 KB: the tail is cut by MSX pages of 16 and the hint tells how many", async () => {
+    const t = await opened();
+    type(t, "фи");
+    await settle(t);
+    const base = st(t).items[0];
+    assert.ok(base !== undefined);
+    const long = (i: number) => ({ ...base, id: 900_000 + i, title: `${"Очень длинное русское название ".repeat(3)}${i} / Original ${i}` });
+    Object.assign(st(t), { items: Array.from({ length: 96 }, (_, i) => long(i)), done: true, total: 500 });
+    const s: MsxContentRoot = await t.request(ids.search());
+    const n = items(s).length;
+    assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
+    assert.ok(n < 96 && n >= 16 && n % 16 === 0, `${n} tiles`);
+    assert.equal(line(s), `{ico:search} фи_ {col:msx-white-soft}· Найдено: 500, показаны первые ${n} — уточните запрос`);
   });
 
   it("extend while another screen is current → appended in memory, no reload", async () => {
