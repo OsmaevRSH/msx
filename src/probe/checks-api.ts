@@ -256,8 +256,9 @@ export async function checkProgress(ctx: AppContext): Promise<CheckResult> {
   const was = orig.status === 1 ? 1 : 0;
   let toggleOk: boolean;
   try {
+    // Ответ — новое состояние: обратно переключаем, только если отметка действительно сменилась.
     toggleOk = (await api.toggle(id, e, s)).watched !== was;
-    toggleOk = (await api.toggle(id, e, s)).watched === was && toggleOk;
+    if (toggleOk) toggleOk = (await api.toggle(id, e, s)).watched === was;
   } catch (err) {
     const code = toKpError(err).code;
     return result(ctx, "CDG-08", false, `toggle: ${code}; проверьте отметку на сайте (S${s}E${e} «${title.title}»)`, { id, posOk, code });

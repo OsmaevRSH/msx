@@ -192,6 +192,20 @@ describe("CDG-08: marktime and toggle on the test title", () => {
     assert.match(r.summary, /проверьте отметку на сайте/);
     assert.equal(apiCalls(t).filter((c) => c.path === "/v1/watching/toggle").length, 1);
   });
+
+  it("toggle answers the old state → ✗ and no toggle back that would flip the mark away from the original (CM-01)", async () => {
+    const t = await make({ loggedIn: true });
+    await t.run(pickTestTitle(t.ctx));
+    let toggles = 0;
+    t.ctx.api.toggle = async () => {
+      toggles += 1;
+      return { watched: 0 };
+    };
+    const r = await run(t, "CDG-08");
+    assert.equal(r.ok, false);
+    assert.equal(r.values.toggleOk, false);
+    assert.equal(toggles, 1);
+  });
 });
 
 describe("CDG-09: storage survives restarts, quota, purge of kp.l2.* only", () => {
