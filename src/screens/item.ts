@@ -15,7 +15,7 @@ import { encodeListKey, ids, msgs, parseDataId } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
 import { playerProps } from "./player.ts";
 import type { PlayerPropsInput } from "./player.ts";
-import { personalHash, scheduleRefresh } from "./refresh.ts";
+import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import type { RefreshSpec } from "./refresh.ts";
 
 // Карточка S8 (спец. §11, Plan B §8.3 S8): кнопки ведут в resolve, серия «Продолжить» выбирается в момент запуска (D-41).
@@ -154,7 +154,9 @@ export async function itemScreen(ctx: AppContext, id: number): Promise<MsxConten
   };
   if (ctx.prefs.get().cardBackgrounds) root.background = item.posters.wide ?? item.posters.big;
   if (m.target !== undefined) prefetchLinks(ctx, m.target.ref.mid);
-  if (got.stale) scheduleScreenRefresh(ctx, itemRefreshSpec(ctx, id, itemHash(ctx, item, got.fetchedAt)));
+  const spec = itemRefreshSpec(ctx, id, itemHash(ctx, item, got.fetchedAt));
+  trackScreen(ctx, spec);
+  if (got.stale) scheduleScreenRefresh(ctx, spec);
   return root;
 }
 

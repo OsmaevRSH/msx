@@ -13,7 +13,7 @@ import {
   freshItem, isSerial, optionsRoot, playerInput, prefetchLinks, scheduleScreenRefresh, watchedRow,
 } from "./item.ts";
 import { contextFields, contextPlayerProps } from "./player.ts";
-import { personalHash } from "./refresh.ts";
+import { personalHash, trackScreen } from "./refresh.ts";
 import type { RefreshSpec } from "./refresh.ts";
 
 // Серии S9 (спец. §11, Plan B §8.3 S9): плитка запускает выбранную серию; автопереход — из свойств плеера (D-29).
@@ -131,7 +131,9 @@ export async function seasonScreen(ctx: AppContext, id: number, n: number): Prom
 
   const next = m.episodes.find((e) => e.status !== 1);
   if (next !== undefined) prefetchLinks(ctx, next.ref.mid);
-  if (got.stale) scheduleScreenRefresh(ctx, seasonRefreshSpec(ctx, id, n, seasonHash(ctx, item, got.fetchedAt, n)));
+  const spec = seasonRefreshSpec(ctx, id, n, seasonHash(ctx, item, got.fetchedAt, n));
+  trackScreen(ctx, spec);
+  if (got.stale) scheduleScreenRefresh(ctx, spec);
   return root;
 }
 
