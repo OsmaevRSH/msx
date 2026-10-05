@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Audio } from "../../src/api/models.ts";
 import { KvStore } from "../../src/bridge/storage.ts";
-import { DEFAULT_PREFS, PrefsStore, type Prefs } from "../../src/playback/prefs.ts";
+import { DEFAULT_PREFS, PrefsStore, parseSubsValue, subsValue, type Prefs } from "../../src/playback/prefs.ts";
 import { MemoryStorage } from "../helpers/memory-storage.ts";
 
 function setup(): { mem: MemoryStorage; prefs: PrefsStore } {
@@ -184,5 +184,21 @@ describe("PrefsStore.setTitle", () => {
     prefs.setTitle("subs", 1, 5);
     prefs.setTitle("subs", 3, "");
     assert.deepEqual(prefs.get(), DEFAULT_PREFS);
+  });
+});
+
+describe("titleSubs: a forced track of a language (stage 26)", () => {
+  it("is the language code with the .forced suffix; a plain code and off keep their meaning", () => {
+    assert.equal(subsValue({ lang: "eng", forced: true }), "eng.forced");
+    assert.equal(subsValue({ lang: "rus", forced: false }), "rus");
+    assert.deepEqual(parseSubsValue("eng.forced"), { lang: "eng", forced: true });
+    assert.deepEqual(parseSubsValue("rus"), { lang: "rus", forced: false });
+    assert.equal(parseSubsValue("off"), "off");
+  });
+
+  it("is stored per title like any other choice", () => {
+    const { mem, prefs } = setup();
+    prefs.setTitle("subs", 2004, subsValue({ lang: "eng", forced: true }));
+    assert.deepEqual(new PrefsStore(new KvStore(mem)).get().titleSubs, { "2004": "eng.forced" });
   });
 });

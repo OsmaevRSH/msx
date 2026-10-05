@@ -111,6 +111,22 @@ const TITLE_NORM: Record<keyof typeof TITLE_FIELD, Norm> = { quality: oneOf(QUAL
 
 const isDefault = (k: keyof Prefs, v: unknown): boolean => JSON.stringify(v) === JSON.stringify(DEFAULT_PREFS[k]);
 
+/** Дорожка субтитров, выбранная для тайтла: у одного языка бывают обычная и форсированная (Plan B S10). */
+export interface SubsChoice { lang: string; forced: boolean }
+
+const FORCED_SUFFIX = ".forced";
+
+/** Значение `titleSubs`: код языка — обычная дорожка, `<код>.forced` — форсированная (этап 26), `"off"` — без субтитров. */
+export function subsValue(c: SubsChoice): string {
+  return c.forced ? `${c.lang}${FORCED_SUFFIX}` : c.lang;
+}
+
+export function parseSubsValue(v: string): SubsChoice | "off" {
+  if (v === "off") return "off";
+  const forced = v.endsWith(FORCED_SUFFIX);
+  return { lang: forced ? v.slice(0, -FORCED_SUFFIX.length) : v, forced };
+}
+
 /** Хранит только отличия от значений по умолчанию; недопустимые значения игнорируются (как `FlagStore`). */
 export class PrefsStore {
   private store: KvStore;
