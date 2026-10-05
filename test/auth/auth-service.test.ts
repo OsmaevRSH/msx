@@ -83,6 +83,8 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.deepEqual(r.tokens.pair(), before);
       assert.equal(env.calls("/oauth2/token").length, 1, "refresh is never retried automatically (CM-01)");
       assert.deepEqual(r.loggedOut, []);
+      const warn = r.log.entries().find((e) => e.msg === "refresh_failed");
+      assert.equal(warn?.data?.["err"], "KP-NET", "the error code is not eaten by the masking of `code`");
 
       const user = await r.run(r.api.user());
       assert.equal(user.username, "tester");

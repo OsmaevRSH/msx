@@ -172,7 +172,8 @@ export class SwrCache {
       if (policy.persist) this.l2.put(key, value);
       return e;
     } catch (err) {
-      this.log.warn(TAG, "load_failed", { key, code: toKpError(err).code });
+      // Ключ `err`: `code` журнал маскирует (CNFR-20).
+      this.log.warn(TAG, "load_failed", { key, err: toKpError(err).code });
       throw err;
     } finally {
       this.flights.delete(key);

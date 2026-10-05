@@ -195,6 +195,23 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     r.flow.stop();
   });
 
+  it("a hanging deviceTitle does not hold back the pair: kp.auth.pair is written at once (spec §7.1 p. 4)", async () => {
+    const r = flowRig(env, () => new Promise<string>(() => undefined));
+    const save = r.tokens.save.bind(r.tokens);
+    const saved = new Promise<void>((resolve) => {
+      r.tokens.save = (raw) => {
+        const p = save(raw);
+        resolve();
+        return p;
+      };
+    });
+    await r.run(r.flow.start());
+    await r.run(saved);
+    assert.ok(r.mem.writes.includes("kp.auth.pair"));
+    assert.deepEqual([r.auth.isLoggedIn(), r.tokens.device(), env.calls("/v1/device/notify").length], [true, {}, 0]);
+    r.flow.stop();
+  });
+
   it("deviceTitle failure → the login still completes with a fallback title", async () => {
     const r = flowRig(env, () => Promise.reject(new Error("no info")));
     await r.run(r.flow.start());

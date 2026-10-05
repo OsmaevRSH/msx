@@ -82,7 +82,7 @@ export class DeviceFlow {
       try {
         this.d.onChange(st);
       } catch (e) {
-        this.d.log.error(TAG, "on_change_failed", { code: toKpError(e).code });
+        this.d.log.error(TAG, "on_change_failed", { err: toKpError(e).code });
       }
     }
     return st;
@@ -96,7 +96,7 @@ export class DeviceFlow {
     } catch (e) {
       if (seq !== this.seq) return this.st;
       const err = toKpError(e);
-      this.d.log.warn(TAG, "device_code_failed", { code: err.code, status: err.status });
+      this.d.log.warn(TAG, "device_code_failed", { err: err.code, status: err.status });
       return this.set({ phase: "error", code: err.code }, announce);
     }
     if (seq !== this.seq) return this.st;
@@ -128,7 +128,7 @@ export class DeviceFlow {
     } catch (e) {
       // Сеть или 429/5xx: следующий опрос по расписанию (спец. §5.3 — у опроса свой таймер).
       if (seq !== this.seq) return;
-      this.d.log.warn(TAG, "poll_failed", { code: toKpError(e).code });
+      this.d.log.warn(TAG, "poll_failed", { err: toKpError(e).code });
       this.schedule(seq);
       return;
     }
@@ -158,9 +158,9 @@ export class DeviceFlow {
   private async finish(pair: TokenPairRaw): Promise<void> {
     this.halt();
     try {
-      await this.d.auth.completeLogin(pair, await this.title());
+      await this.d.auth.completeLogin(pair, this.title());
     } catch (e) {
-      this.d.log.error(TAG, "complete_failed", { code: toKpError(e).code });
+      this.d.log.error(TAG, "complete_failed", { err: toKpError(e).code });
       this.set({ phase: "error", code: toKpError(e).code }, true);
       return;
     }

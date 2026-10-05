@@ -16,9 +16,10 @@ const SETTING_KEYS = Object.keys(DEVICE_SETTINGS) as (keyof DeviceSettings)[];
 
 export type LogoutReason = "refresh-rejected" | "logout";
 
+// Ключ `err`, а не `code`: журнал маскирует `code` как код входа OAuth (CNFR-20).
 const errData = (e: unknown): Record<string, unknown> => {
   const k = toKpError(e);
-  return { code: k.code, status: k.status, msg: k.message };
+  return { err: k.code, status: k.status, msg: k.message };
 };
 
 /**
@@ -101,15 +102,17 @@ export class AuthService implements TokenSource {
   }
 
   /**
-   * Спец. §7.1 п. 4: пара пишется первой, затем `notify` → `info` → настройки устройства → сверка.
-   * Сбой шагов после записи пары логируется и не отменяет вход; `onReady` доделает недостающее.
+   * Спец. §7.1 п. 4: пара пишется первой (до ожидания названия ТВ), затем `notify` → `info` → настройки устройства →
+   * сверка. Сбой шагов после записи пары логируется и не отменяет вход; `onReady` доделает недостающее.
    */
-  async completeLogin(raw: TokenPairRaw, deviceTitle: string): Promise<void> {
+  async completeLogin(raw: TokenPairRaw, deviceTitle: string | Promise<string>): Promise<void> {
     this.epoch += 1;
+    const epoch = this.epoch;
     const pair = this.tokens.save(raw);
-    this.tokens.saveDevice({ title: deviceTitle });
+    this.tokens.saveDevice({});
     this.log.info(TAG, "login", { gen: pair.gen });
-    await this.setupDevice(deviceTitle);
+    const title = await deviceTitle;
+    if (this.saveDevice(epoch, { title })) await this.setupDevice(title);
   }
 
   /** `device/unlink` (ошибка игнорируется) → удаление `kp.auth.*` → `onLoggedOut("logout")`. */

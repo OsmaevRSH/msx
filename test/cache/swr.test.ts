@@ -172,7 +172,7 @@ describe("SwrCache", () => {
     assert.equal(got.value, "v1");
     await clock.advance(0);
     assert.equal(refreshed, 0);
-    assert.ok(log.entries().some((e) => e.level === "warn" && e.tag === "swr" && e.data?.["key"] === "k"));
+    assert.ok(log.entries().some((e) => e.level === "warn" && e.tag === "swr" && e.data?.["key"] === "k" && e.data["err"] === "KP-NET"));
     const load = loader("v2");
     assert.equal((await cache.get("k", PERSIST, load)).stale, true);
     await clock.advance(0);
