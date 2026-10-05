@@ -98,15 +98,23 @@ describe("L2", () => {
 
   it("over the byte budget evicts the oldest savedAt first", async () => {
     const { clock, mem, l2 } = setup({ maxBytes: 1000 });
+    const evicted: string[] = [];
+    l2.onEvict((k) => evicted.push(k));
     l2.put("old", sized(400));
     await clock.advance(1000);
     l2.put("mid", sized(400));
     await clock.advance(1000);
     assert.deepEqual(l2Keys(mem), ["kp.l2.mid", "kp.l2.old"]);
+    l2.put("mid", sized(400));
+    l2.remove("mid");
+    l2.put("mid", sized(400));
+    await clock.advance(1000);
+    assert.deepEqual(evicted, [], "overwrite and remove are not evictions");
     l2.put("new", sized(400));
     await clock.advance(1000);
     assert.deepEqual(l2Keys(mem), ["kp.l2.mid", "kp.l2.new"]);
     assert.equal(l2.get("old"), undefined);
+    assert.deepEqual(evicted, ["old"]);
   });
 
   it("budget eviction also counts entries flushed by an earlier L2 instance", async () => {

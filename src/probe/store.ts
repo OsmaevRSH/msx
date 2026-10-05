@@ -1,5 +1,6 @@
 import type { AppContext } from "../app/context.ts";
 import type { KvStore, Ns } from "../bridge/storage.ts";
+import type { TimerId } from "../core/clock.ts";
 import { stat } from "../core/metrics.ts";
 import type { Schema } from "./fingerprint.ts";
 import type { CheckId, CheckResult } from "./runner.ts";
@@ -13,9 +14,12 @@ export const PROBE_KEYS = {
 export interface ColdRec { at: number; bootId: string; evalMs: number; readyMs: number; initMs?: number }
 /** `first` — самый первый замеченный запуск (кэш ТВ пуст, CNFR-02); `recent` — последние 10. */
 export interface ColdLog { first?: ColdRec; recent: ColdRec[] }
-export interface PersistRun { at: number; markerAt?: number; authOk: boolean; l2Ok: boolean; l2Blocks: number }
-/** `markerAt` — время последней «Записать»; `runs` — каждый запуск плагина (CDG-09). */
-export interface PersistLog { markerAt?: number; runs: PersistRun[] }
+export interface PersistRun { at: number; markerAt?: number; authOk: boolean; l2Ok: boolean; l2Blocks: number; l2Expect?: number }
+/**
+ * `markerAt` — время последней «Записать»; `expect` — сколько блоков должно дожить до запуска (без вытесненных
+ * самим плагином); `runs` — каждый запуск плагина (CDG-09).
+ */
+export interface PersistLog { markerAt?: number; expect?: number; runs: PersistRun[] }
 export interface UnitRef { mid: number; s: number; e: number; duration: number }
 /** Тестовый тайтл: сериал с ≥ 2 сезонами и ≥ 2 озвучками в S1E1 (CDG-05, 08, 11). */
 export interface TestTitle { id: number; title: string; seasons: number; audios: number; s1e1: UnitRef; s1Last: UnitRef; s2e1: UnitRef }
@@ -112,7 +116,7 @@ export function persistWrite(ctx: AppContext): number {
   ctx.store.set("auth", MARKER, { at });
   writeBlocks(ctx, at);
   const p = loadPersist(ctx.store);
-  ctx.store.set("cfg", PROBE_KEYS.persist, { ...p, markerAt: at });
+  ctx.store.set("cfg", PROBE_KEYS.persist, { ...p, markerAt: at, expect: BLOCKS });
   ctx.log.info("probe", "persist marker written");
   return at;
 }
@@ -124,9 +128,38 @@ export function persistOnReady(ctx: AppContext): void {
   const at = isObj(marker) ? num(marker.at) : undefined;
   const authOk = at !== undefined && (p.markerAt === undefined || p.markerAt === at);
   const l2Blocks = at === undefined ? 0 : blocksPresent(ctx);
-  const run: PersistRun = { at: ctx.clock.now(), authOk, l2Ok: authOk && l2Blocks === BLOCKS, l2Blocks };
+  const l2Expect = Math.min(p.expect ?? BLOCKS, BLOCKS);
+  const run: PersistRun = { at: ctx.clock.now(), authOk, l2Ok: authOk && l2Blocks >= l2Expect, l2Blocks, l2Expect };
   if (p.markerAt !== undefined) run.markerAt = p.markerAt;
   ctx.store.set("cfg", PROBE_KEYS.persist, { ...p, runs: [...p.runs, run].slice(-PERSIST_KEEP) });
+}
+
+/**
+ * Блоки, удалённые самим плагином (вытеснение по бюджету L2 за долгий просмотр, очистка `kp.l2.*` при переполнении),
+ * — не потеря: `expect` снижается до числа оставшихся. Запись отложена — обработчики зовутся изнутри L2 и KvStore.
+ */
+export function watchBlocks(ctx: AppContext): void {
+  let timer: TimerId | undefined;
+  let saving = false;
+  const note = (): void => {
+    timer = undefined;
+    const p = loadPersist(ctx.store);
+    const n = blocksPresent(ctx);
+    if (p.markerAt === undefined || n >= (p.expect ?? BLOCKS)) return;
+    saving = true;
+    try {
+      ctx.store.set("cfg", PROBE_KEYS.persist, { ...p, expect: n });
+    } finally {
+      saving = false;
+    }
+  };
+  const schedule = (): void => {
+    if (!saving && timer === undefined) timer = ctx.clock.setTimeout(note, 0);
+  };
+  ctx.l2.onEvict((key) => {
+    if (key.startsWith("probe.c")) schedule();
+  });
+  ctx.store.onL2Purged(schedule);
 }
 
 function totalBytes(store: KvStore): number {
@@ -174,7 +207,10 @@ export function checkStorage(ctx: AppContext): CheckResult {
   const marker = ctx.store.get<unknown>("auth", MARKER);
   const markerAt = isObj(marker) ? num(marker.at) : undefined;
   // Очистка `kp.l2.*` при переполнении стёрла и блоки «Записать»: вернуть их, чтобы следующий запуск их нашёл.
-  if (markerAt !== undefined && blocksPresent(ctx) < BLOCKS) writeBlocks(ctx, markerAt);
+  if (markerAt !== undefined && blocksPresent(ctx) < BLOCKS) {
+    writeBlocks(ctx, markerAt);
+    ctx.store.set("cfg", PROBE_KEYS.persist, { ...loadPersist(ctx.store), expect: BLOCKS });
+  }
   const runs = loadPersist(ctx.store).runs.filter((r) => markerAt !== undefined && r.markerAt === markerAt);
   const survived = runs.filter((r) => r.authOk && r.l2Ok).length;
   const ok = q.quotaBytes >= QUOTA_MIN && q.authKept && q.marker2;

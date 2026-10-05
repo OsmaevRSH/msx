@@ -2,7 +2,7 @@ import type { AppContext } from "../app/context.ts";
 import { toKpError } from "../core/errors.ts";
 import { checkApi, checkCors, checkOauthPost, checkPostBody, checkProgress } from "./checks-api.ts";
 import {
-  checkColdStart, checkStorage, coldOnReady, fillInit, loadResults, persistOnReady, persistWrite, result, saveResults,
+  checkColdStart, checkStorage, coldOnReady, fillInit, loadResults, persistOnReady, persistWrite, result, saveResults, watchBlocks,
 } from "./store.ts";
 
 // Пробник Phase 0 (спец. §16.2). Проверки уровня API, хранилища и холодного старта — здесь (этап 20);
@@ -27,6 +27,7 @@ export class ProbeRunner {
 
   constructor(ctx: AppContext) {
     this.ctx = ctx;
+    watchBlocks(ctx);
   }
 
   /** Вызывается из `App.ready()` при каждой загрузке плагина: замер холодного старта (CDG-10) и маркер хранилища (CDG-09). */

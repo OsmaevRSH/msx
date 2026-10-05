@@ -241,6 +241,32 @@ describe("CDG-09: storage survives restarts, quota, purge of kp.l2.* only", () =
     assert.deepEqual(loadPersist(t3.ctx.store).runs.at(-1)?.authOk, false);
   });
 
+  it("blocks evicted by the L2 budget or purged on quota are not a loss; losing a remaining block still is", async () => {
+    const storage = new MemoryStorage();
+    const t = await make({ storage });
+    t.ctx.probe.persistWrite();
+    await t.clock.advance(1000);
+    t.ctx.l2.put("item:1:", "x".repeat(300_000));
+    t.ctx.l2.flush();
+    await t.clock.advance(0);
+    const left = t.ctx.store.keys("l2").filter((k) => k.startsWith("probe.c"));
+    assert.ok(left.length > 0 && left.length < 10, String(left.length));
+    const t2 = await make({ storage, mock: t.mock });
+    await ready(t2);
+    assert.deepEqual(loadPersist(t2.ctx.store).runs.map((r) => [r.authOk, r.l2Ok, r.l2Blocks]), [[true, true, left.length]]);
+
+    storage.removeItem(`kp.l2.${left[0]}`);
+    const t3 = await make({ storage, mock: t.mock });
+    await ready(t3);
+    assert.deepEqual(loadPersist(t3.ctx.store).runs.at(-1)?.l2Ok, false);
+
+    t3.ctx.store.removeNs("l2");
+    await t3.clock.advance(0);
+    const t4 = await make({ storage, mock: t.mock });
+    await ready(t4);
+    assert.deepEqual(loadPersist(t4.ctx.store).runs.at(-1)?.l2Ok, true);
+  });
+
   it("no quota within 8 MB → capped, still ✓", async () => {
     const t = await make();
     const r = await run(t, "CDG-09");

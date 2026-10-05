@@ -44,6 +44,7 @@ export class L2 {
   private timer: TimerId | undefined;
   private index: Map<string, Meta> | undefined;
   private total = 0;
+  private evicted: ((key: string) => void)[] = [];
 
   constructor(store: KvStore, clock: Clock, maxBytes: number = DEFAULT_MAX_BYTES, log?: Logger) {
     this.store = store;
@@ -92,6 +93,11 @@ export class L2 {
       else at.set(k, p.t);
     }
     return [...at].sort((x, y) => x[1] - y[1]).map(([k]) => k);
+  }
+
+  /** Ключ вытеснен по бюджету (не явное удаление): пробник отличает вытеснение от потери данных (CDG-09). */
+  onEvict(cb: (key: string) => void): void {
+    this.evicted.push(cb);
   }
 
   /** `KvStore` удалил все `kp.l2.*` в обход L2: индекс перестроится из хранилища при следующем обращении. */
@@ -150,6 +156,7 @@ export class L2 {
     }
     if (oldest === undefined) return false;
     this.drop(index, oldest);
+    for (const cb of this.evicted) cb(oldest);
     return true;
   }
 
