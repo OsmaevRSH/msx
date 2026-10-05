@@ -36,6 +36,22 @@ export function selectPrefs(p: Prefs, itemId: number): SelectPrefs {
   return out;
 }
 
+/** Дорожка субтитров, выбранная для тайтла: у одного языка бывают обычная и форсированная (Plan B S10). */
+export interface SubsChoice { lang: string; forced: boolean }
+
+const FORCED_SUFFIX = ".forced";
+
+/** Значение `titleSubs`: код языка — обычная дорожка, `<код>.forced` — форсированная (этап 26), `"off"` — без субтитров. */
+export function subsValue(c: SubsChoice): string {
+  return c.forced ? `${c.lang}${FORCED_SUFFIX}` : c.lang;
+}
+
+export function parseSubsValue(v: string): SubsChoice | "off" {
+  if (v === "off") return "off";
+  const forced = v.endsWith(FORCED_SUFFIX);
+  return { lang: forced ? v.slice(0, -FORCED_SUFFIX.length) : v, forced };
+}
+
 /** Ключ озвучки без кодека: одна озвучка в строках AAC 2.0, AAC 5.1 и AC3 даёт один ключ (Plan B §5.5, F12). */
 export function audioKey(a: Audio): string {
   return `${a.lang}|${a.typeId ?? ""}|${a.authorId ?? ""}`;
@@ -104,14 +120,15 @@ export function pickAudio(audios: Audio[], p: SelectPrefs): Audio | undefined {
 }
 
 /**
- * Plan B §5.6: выбор для тайтла (`"off"` — без субтитров вовсе), иначе `subsLang`; если озвучка не на `audioLang`,
- * а выбранной дорожки нет — форсированные субтитры на `audioLang` (надписи и вставки на чужом языке).
+ * Plan B §5.6: выбор для тайтла (`"off"` — без субтитров вовсе, `<код>.forced` — форсированная дорожка), иначе
+ * `subsLang`; если озвучка не на `audioLang`, а выбранной дорожки нет — форсированные субтитры на `audioLang`
+ * (надписи и вставки на чужом языке).
  */
 export function pickSubtitle(subs: Subtitle[], p: SelectPrefs, audioLang?: string): Subtitle | undefined {
   if (p.titleSubs === "off") return undefined;
-  const lang = p.titleSubs ?? p.subsLang;
-  if (lang !== "off") {
-    const s = subs.find((x) => !x.forced && sameLang(x.lang, lang));
+  const want = parseSubsValue(p.titleSubs ?? p.subsLang);
+  if (want !== "off") {
+    const s = subs.find((x) => x.forced === want.forced && sameLang(x.lang, want.lang));
     if (s) return s;
   }
   if (audioLang === undefined || sameLang(audioLang, p.audioLang)) return undefined;

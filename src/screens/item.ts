@@ -8,8 +8,8 @@ import { commitMsg, contentAction, panelAction, resolveAction } from "../msx/act
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
 import type { ContinueTarget, EpRef } from "../playback/episodes.ts";
-import { pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
-import type { SelectPrefs } from "../playback/select.ts";
+import { parseSubsValue, pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
+import type { SelectPrefs, SubsChoice } from "../playback/select.ts";
 import { qualityLabel } from "../playback/url.ts";
 import { encodeListKey, ids, msgs, parseDataId } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
@@ -31,6 +31,7 @@ const T = {
   quality: "Качество",
   subs: "Субтитры",
   subsOff: "выкл",
+  forced: "форсированные",
   auto: "Авто",
   markFilm: "Отметить просмотренным",
   markEpisode: "Отметить просмотренной",
@@ -252,15 +253,18 @@ const clip = (s: string, max: number): string => (s.length > max ? `${s.slice(0,
 /** Студия озвучки, иначе её тип («Оригинал»), иначе язык. */
 const audioName = (a: Audio): string => a.authorTitle ?? a.typeTitle ?? a.lang;
 
+/** «ENG», «ENG · форсированные» — одинаково на карточке и в панели субтитров (S10). */
+export const subsLabel = (c: SubsChoice): string => (c.forced ? `${c.lang.toUpperCase()} · ${T.forced}` : c.lang.toUpperCase());
+
 /**
  * Субтитры карточки `nolinks=1` — неполный список (полный приходит с `media-links`), поэтому без совпадения
- * показываем выбранный в настройках язык: resolve найдёт его в полном списке.
+ * показываем выбранную в настройках дорожку: resolve найдёт её в полном списке.
  */
 function subsName(unit: MediaUnit, sp: SelectPrefs, audio: Audio | undefined): string {
   const sub = pickSubtitle(unit.subtitles, sp, audio?.lang);
-  if (sub !== undefined) return sub.lang.toUpperCase();
-  const want = sp.titleSubs ?? sp.subsLang;
-  return want === "off" ? T.subsOff : want.toUpperCase();
+  if (sub !== undefined) return subsLabel(sub);
+  const want = parseSubsValue(sp.titleSubs ?? sp.subsLang);
+  return want === "off" ? T.subsOff : subsLabel(want);
 }
 
 // --- Сообщения `act:item:*` ---

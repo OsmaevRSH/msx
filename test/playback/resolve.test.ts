@@ -92,6 +92,13 @@ describe("resolvePlay: «Продолжить» и свойства (CC-08)", ()
     assert.equal(p["resume:position"], "none");
   });
 
+  it("a forced track chosen in the panel (titleSubs <lang>.forced) survives the next start", async () => {
+    const t = await make();
+    t.ctx.prefs.setTitle("subs", FIX.MOVIE_AUDIO12, "eng.forced");
+    const p = props(await play(t, ids.playContinue(FIX.MOVIE_AUDIO12)));
+    assert.match(p["tizen:subtitle:url"] ?? "", /\/2004001\.eng\.forced\.srt$/);
+  });
+
   it("S1E20 of SERIAL_BIG → button:next goes over the season boundary to S2E1", async () => {
     const t = await make();
     const p = props(await play(t, ids.playEp(BIG, mid(BIG, 20), 1, 20)));

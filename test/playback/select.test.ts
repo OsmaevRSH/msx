@@ -281,4 +281,17 @@ describe("pickSubtitle", () => {
   it("prefers the chosen language over forced rows", () => {
     assert.equal(pickSubtitle(subs, { ...BASE, subsLang: "eng" }, "eng"), subs[0]);
   });
+
+  it("per-title <lang>.forced (panel S10) takes the forced row of that language, plain <lang> — the non-forced one", () => {
+    const both = [sub("eng", false, 1), sub("eng", true, 2), sub("rus", false, 3)];
+    assert.equal(pickSubtitle(both, { ...BASE, titleSubs: "eng.forced" }, "rus"), both[1]);
+    assert.equal(pickSubtitle(both, { ...BASE, titleSubs: "eng" }, "rus"), both[0]);
+    assert.equal(pickSubtitle(both, { ...BASE, subsLang: "rus", titleSubs: "ENG.forced" }, "rus"), both[1]);
+  });
+
+  it("per-title <lang>.forced without such a row falls back like a missing language", () => {
+    const plain = [sub("eng", false, 1), sub("rus", true, 2)];
+    assert.equal(pickSubtitle(plain, { ...BASE, titleSubs: "eng.forced" }, "rus"), undefined);
+    assert.equal(pickSubtitle(plain, { ...BASE, titleSubs: "eng.forced" }, "eng"), plain[1]);
+  });
 });

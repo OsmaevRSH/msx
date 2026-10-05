@@ -14,7 +14,7 @@ import { positionFrom } from "../progress/samples.ts";
 import { type ListKey, decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import { errorScreen, errorText } from "./error.ts";
 import { genresOrStatic } from "./genres-static.ts";
-import { freshItem } from "./item.ts";
+import { freshItem, subsLabel } from "./item.ts";
 import { SORTS } from "./list.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
 import { settingPanel } from "./settings.ts";
@@ -25,7 +25,7 @@ import { settingPanel } from "./settings.ts";
 
 const T = {
   sort: "Сортировка", genre: "Жанр", allGenres: "Все жанры", audio: "Озвучка", ac3: "может не играть",
-  quality: "Качество", auto: "Авто", ceiling: "потолок", subs: "Субтитры", subsOff: "Выключены", forced: "форсированные",
+  quality: "Качество", auto: "Авто", ceiling: "потолок", subs: "Субтитры", subsOff: "Выключены",
   bookmarks: "Закладки", createFolder: "Создать папку „MSX“ и добавить", seasons: "Сезоны", mode: "Режим потока",
   modeTv: "настройка ТВ", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов", part: "Часть",
 };
@@ -199,9 +199,8 @@ async function subsPanel(ctx: AppContext, a: UnitArgs): Promise<MsxContentRoot> 
   const cur = currentSubs(ctx, a.id, unit, subs);
   const rows: Row[] = [{ label: T.subsOff, action: panelAct("subs", a.id, a.mid, "off", a.where), current: cur === "off" }];
   for (const c of subsTracks(subs)) {
-    const lang = c.lang.toUpperCase();
     rows.push({
-      label: c.forced ? `${lang} · ${T.forced}` : lang, action: panelAct("subs", a.id, a.mid, subsValue(c), a.where),
+      label: subsLabel(c), action: panelAct("subs", a.id, a.mid, subsValue(c), a.where),
       current: cur !== "off" && cur.forced === c.forced && sameLang(cur.lang, c.lang),
     });
   }

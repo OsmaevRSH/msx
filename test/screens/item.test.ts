@@ -108,6 +108,14 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     assert.equal(el(s, "b_audio").label, "Озвучка: Оригинал");
   });
 
+  it("a forced track chosen for the title reads like the panel row, not as the stored value", async () => {
+    const t = await make();
+    t.ctx.prefs.setTitle("subs", BIG, "eng.forced");
+    assert.equal(el(await open(t, BIG), "b_subs").label, "Субтитры: ENG · форсированные");
+    t.ctx.prefs.setTitle("subs", BIG, "rus");
+    assert.equal(el(await open(t, BIG), "b_subs").label, "Субтитры: RUS");
+  });
+
   it("options of a serial: stream mode and refresh, no watched toggle", async () => {
     const t = await make();
     const s = await open(t, BIG);
