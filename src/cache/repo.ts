@@ -160,14 +160,12 @@ export class Repo {
     return this.cache.get(cacheKeys.voiceovers(), REFS, () => this.api.voiceoverTypes());
   }
 
-  /**
-   * По 48 на страницу; в L2 — только первая порция раздела. `opts.cls` пока не передаётся: `KpApi.items/shelf/
-   * bookmarkFolder/similar` не принимают класс запроса (этап 13), все такие запросы идут как `fg`.
-   */
-  listPage(src: ListSource, page: number, _opts?: { cls?: ReqClass }): Promise<Got<Page<ItemSummary>>> {
-    if (src.kind === "similar") return this.similarPage(src.id, page);
+  /** По 48 на страницу; в L2 — только первая порция раздела. `opts.cls` — класс запроса для лимитера (спец. §8.3). */
+  listPage(src: ListSource, page: number, opts?: { cls?: ReqClass }): Promise<Got<Page<ItemSummary>>> {
+    const cls = opts?.cls;
+    if (src.kind === "similar") return this.similarPage(src.id, page, cls);
     const base = src.kind === "folder" ? FOLDER : LIST;
-    return this.cache.get(cacheKeys.list(src, page), page === 1 ? base : memOnly(base), () => this.loadList(src, page));
+    return this.cache.get(cacheKeys.list(src, page), page === 1 ? base : memOnly(base), () => this.loadList(src, page, cls));
   }
 
   shelf(kind: "fresh" | "popular" | "hot", type: string): Promise<Got<ItemSummary[]>> {
@@ -185,11 +183,12 @@ export class Repo {
    * При пустом кэше сеть ждётся всегда.
    */
   async item(id: number, opts?: { freshWithinMs?: number; waitMs?: number; cls?: ReqClass }): Promise<Got<ItemDetail>> {
-    if (opts?.freshWithinMs === undefined && opts?.waitMs === undefined) return this.itemSwr(id);
+    const cls = opts?.cls;
+    if (opts?.freshWithinMs === undefined && opts?.waitMs === undefined) return this.itemSwr(id, cls);
     const cur = this.cached(id);
-    if (cur === undefined) return this.itemSwr(id);
-    if (!cur.marked && this.clock.now() - cur.fetchedAt < (opts.freshWithinMs ?? D41_FRESH_MS)) return this.itemSwr(id);
-    return this.refreshWithin(id, cur, opts.waitMs ?? D41_WAIT_MS);
+    if (cur === undefined) return this.itemSwr(id, cls);
+    if (!cur.marked && this.clock.now() - cur.fetchedAt < (opts.freshWithinMs ?? D41_FRESH_MS)) return this.itemSwr(id, cls);
+    return this.refreshWithin(id, cur, opts.waitMs ?? D41_WAIT_MS, cls);
   }
 
   /** Без сети. `stale` — пометка или возраст ≥ TTL карточки. */
@@ -247,20 +246,20 @@ export class Repo {
 
   // --- Внутреннее ---
 
-  private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number): Promise<Page<ItemSummary>> {
+  private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number, cls?: ReqClass): Promise<Page<ItemSummary>> {
     switch (src.kind) {
       case "catalog":
-        return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, page, perpage: PER_PAGE });
+        return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, page, perpage: PER_PAGE }, cls);
       case "shelf":
-        return this.api.shelf(src.shelf, { type: opt(src.type), genre: opt(src.genre), page, perpage: PER_PAGE });
+        return this.api.shelf(src.shelf, { type: opt(src.type), genre: opt(src.genre), page, perpage: PER_PAGE }, cls);
       case "folder":
-        return this.api.bookmarkFolder(src.folder, page, PER_PAGE);
+        return this.api.bookmarkFolder(src.folder, page, PER_PAGE, cls);
     }
   }
 
   /** «Похожие» — одна страница; дальше пусто. */
-  private async similarPage(id: number, page: number): Promise<Got<Page<ItemSummary>>> {
-    const got = await this.cache.get(cacheKeys.similar(id), SIMILAR, () => this.api.similar(id));
+  private async similarPage(id: number, page: number, cls?: ReqClass): Promise<Got<Page<ItemSummary>>> {
+    const got = await this.cache.get(cacheKeys.similar(id), SIMILAR, () => this.api.similar(id, cls));
     const items = page === 1 ? got.value : [];
     return { ...got, value: { items, pagination: { total: 1, current: page, perpage: PER_PAGE, totalItems: got.value.length } } };
   }
@@ -282,22 +281,22 @@ export class Repo {
   }
 
   /** Полная карточка — обычный SWR; только компактная (холодный старт) — сразу, полная — фоном, если устарела. */
-  private async itemSwr(id: number): Promise<Got<ItemDetail>> {
+  private async itemSwr(id: number, cls?: ReqClass): Promise<Got<ItemDetail>> {
     const cur = this.cached(id);
     if (cur?.compact === true && this.clock.now() - cur.fetchedAt < ITEM_FULL.staleMaxMs) {
       const got = this.asGot(cur);
-      if (got.stale) this.refreshItem(id).catch(noop);
+      if (got.stale) this.refreshItem(id, cls).catch(noop);
       return got;
     }
-    return this.cache.get(cacheKeys.item(id), ITEM_FULL, () => this.loadItem(id));
+    return this.cache.get(cacheKeys.item(id), ITEM_FULL, () => this.loadItem(id, cls));
   }
 
-  private refreshItem(id: number): Promise<Got<ItemDetail>> {
-    return this.cache.get(cacheKeys.item(id), ITEM_FULL, () => this.loadItem(id), { force: true });
+  private refreshItem(id: number, cls?: ReqClass): Promise<Got<ItemDetail>> {
+    return this.cache.get(cacheKeys.item(id), ITEM_FULL, () => this.loadItem(id, cls), { force: true });
   }
 
-  private refreshWithin(id: number, cur: Cached, waitMs: number): Promise<Got<ItemDetail>> {
-    const refreshed = this.refreshItem(id).catch((e: unknown) => this.asGot(cur, toKpError(e).code));
+  private refreshWithin(id: number, cur: Cached, waitMs: number, cls?: ReqClass): Promise<Got<ItemDetail>> {
+    const refreshed = this.refreshItem(id, cls).catch((e: unknown) => this.asGot(cur, toKpError(e).code));
     return new Promise((resolve) => {
       const timer = this.clock.setTimeout(() => {
         this.log.debug(TAG, "item_wait_timeout", { id, waitMs });
@@ -311,8 +310,8 @@ export class Repo {
   }
 
   /** Полная карточка — в L1; компактная копия под `item:<id>:l2:` — в L2 (тот же префикс, та же инвалидация). */
-  private async loadItem(id: number): Promise<ItemDetail> {
-    const d = await this.api.item(id);
+  private async loadItem(id: number, cls?: ReqClass): Promise<ItemDetail> {
+    const d = await this.api.item(id, cls);
     const compact = compactItem(d);
     this.cache.get(cacheKeys.itemCompact(id), ITEM_COMPACT, async () => compact, { force: true }).catch(noop);
     return d;

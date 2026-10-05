@@ -142,14 +142,16 @@ export class KpApi {
 
   // --- Каталог (research kinopub-api §6–§7) ---
 
-  async items(q: { type?: string; genre?: string; sort?: string; page: number; perpage: number }): Promise<Page<ItemSummary>> {
+  async items(q: { type?: string; genre?: string; sort?: string; page: number; perpage: number }, cls?: ReqClass): Promise<Page<ItemSummary>> {
     const query = { type: q.type, genre: q.genre, sort: q.sort, page: q.page, perpage: q.perpage };
-    return parsePage(await this.call({ path: "/v1/items", query }), parseListItem);
+    return parsePage(await this.call({ path: "/v1/items", query, cls }), parseListItem);
   }
 
-  async shelf(kind: "fresh" | "popular" | "hot", q: { type?: string; genre?: string; page: number; perpage: number }): Promise<Page<ItemSummary>> {
+  async shelf(
+    kind: "fresh" | "popular" | "hot", q: { type?: string; genre?: string; page: number; perpage: number }, cls?: ReqClass,
+  ): Promise<Page<ItemSummary>> {
     const query = { type: q.type, genre: q.genre, page: q.page, perpage: q.perpage };
-    return parsePage(await this.call({ path: `/v1/items/${kind}`, query }), parseListItem);
+    return parsePage(await this.call({ path: `/v1/items/${kind}`, query, cls }), parseListItem);
   }
 
   /** `field=title` — релевантный поиск по названию (research kinopub-api §6.1). */
@@ -158,14 +160,14 @@ export class KpApi {
   }
 
   /** `nolinks=1`: без ссылок на поток, но с лестницей файлов, озвучками и прогрессом (research kinopub-api §6.3). */
-  async item(id: number): Promise<ItemDetail> {
-    const d = parseItemDetail(await this.call({ path: `/v1/items/${id}`, query: { nolinks: 1 }, timeoutMs: ITEM_MS }));
+  async item(id: number, cls?: ReqClass): Promise<ItemDetail> {
+    const d = parseItemDetail(await this.call({ path: `/v1/items/${id}`, query: { nolinks: 1 }, timeoutMs: ITEM_MS, cls }));
     if (d.id <= 0) throw new KpError("KP-BAD", "bad-item");
     return d;
   }
 
-  async similar(id: number): Promise<ItemSummary[]> {
-    return parseItemList(await this.call({ path: "/v1/items/similar", query: { id } }));
+  async similar(id: number, cls?: ReqClass): Promise<ItemSummary[]> {
+    return parseItemList(await this.call({ path: "/v1/items/similar", query: { id }, cls }));
   }
 
   /** `mid` — id видео или серии, не тайтла; ответ без `status`, ссылки в `urls` (research kinopub-api §7.1). */
@@ -208,8 +210,8 @@ export class KpApi {
     return parseItems(await this.call({ path: "/v1/bookmarks" }), parseBookmarkFolder);
   }
 
-  async bookmarkFolder(id: number, page: number, perpage: number): Promise<Page<ItemSummary>> {
-    return parsePage(await this.call({ path: `/v1/bookmarks/${id}`, query: { page, perpage } }), parseListItem);
+  async bookmarkFolder(id: number, page: number, perpage: number, cls?: ReqClass): Promise<Page<ItemSummary>> {
+    return parsePage(await this.call({ path: `/v1/bookmarks/${id}`, query: { page, perpage }, cls }), parseListItem);
   }
 
   /** Без автоповтора: повтор создал бы вторую папку. */

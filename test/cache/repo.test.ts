@@ -243,6 +243,24 @@ describe("Repo", () => {
     assert.ok(!all.includes("links") && !all.includes("/cdn/"), "stream links never reach the storage");
   });
 
+  it("request class: cls from item/listPage reaches the transport; without it requests stay fg", async () => {
+    const r = env.rig();
+    const { repo } = setup(r);
+    const cls = (path: string): string[] => r.t.reqs.filter((x) => x.path === path).map((x) => x.cls);
+    await r.run(repo.item(1, { cls: "bg" }));
+    await r.run(repo.item(12));
+    await r.run(repo.listPage(CATALOG, 2, { cls: "bg" }));
+    await r.run(repo.listPage({ kind: "shelf", shelf: "hot" }, 1, { cls: "bg" }));
+    await r.run(repo.listPage(FOLDER1, 1, { cls: "bg" }));
+    await r.run(repo.listPage({ kind: "similar", id: FIX.MOVIE_SIMPLE }, 1, { cls: "bg" }));
+    await r.run(repo.listPage(CATALOG, 1));
+    assert.deepEqual(cls("/v1/items/1"), ["bg"]);
+    assert.deepEqual(cls("/v1/items/12"), ["fg"]);
+    assert.deepEqual(cls("/v1/items"), ["bg", "fg"]);
+    assert.deepEqual([cls("/v1/items/hot"), cls("/v1/bookmarks/1"), cls("/v1/items/similar")], [["bg"], ["bg"], ["bg"]]);
+    assert.equal(r.t.reqs.find((x) => x.path === "/v1/items/1")?.timeoutMs, 15_000);
+  });
+
   it("compact card in kp.l2.*: no stream urls, no subtitles, plot ≤ 600; L1 keeps the full card; cold start hydrates", async () => {
     const r = env.rig();
     const { mem, l2, repo } = setup(r);
