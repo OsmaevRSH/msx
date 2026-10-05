@@ -25,7 +25,7 @@ const T = {
 const ROWS: readonly { key: keyof Flags; label: string }[] = [
   { key: "streamMode", label: "Режим потока (CDG-05)" },
   { key: "playerPropsIn", label: "Свойства плеера (CDG-06)" },
-  { key: "heartbeat", label: "Heartbeat (CDG-07)" },
+  { key: "heartbeat", label: "Снимки позиции (CDG-07)" },
   { key: "events", label: "Источник событий (CDG-07)" },
   { key: "autonext", label: "Автопереход (CDG-11)" },
   { key: "focusPrefetch", label: "Префетч по фокусу (CDG-12)" },
