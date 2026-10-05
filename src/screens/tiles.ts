@@ -1,6 +1,6 @@
 import type { AppContext } from "../app/context.ts";
 import type { ItemSummary } from "../api/models.ts";
-import { ruTitle } from "../core/format.ts";
+import { fmtRating, ruTitle } from "../core/format.ts";
 import { commitMsg, contentAction } from "../msx/actions.ts";
 import type { MsxContentItem } from "../msx/types.ts";
 import type { Prefs } from "../playback/prefs.ts";
@@ -14,16 +14,11 @@ const T = { kp: "КП", uhd: "4K" };
 
 type PosterSize = Prefs["posterSize"];
 
-/** 7.912 → "7,9"; 0 и отсутствие — пусто. */
-function rating(r: number | undefined): string | undefined {
-  return r !== undefined && r > 0 ? r.toFixed(1).replace(".", ",") : undefined;
-}
-
 function tile(ctx: AppContext, it: ItemSummary, size: PosterSize): MsxContentItem {
   const out: MsxContentItem = { id: `i${it.id}`, kid: it.id, title: ruTitle(it.title) };
-  const kp = rating(it.kpRating);
-  const footer = [it.year !== undefined ? String(it.year) : undefined, kp !== undefined ? `${T.kp} ${kp}` : undefined]
-    .filter((s): s is string => s !== undefined)
+  const kp = fmtRating(it.kpRating);
+  const footer = [it.year !== undefined ? String(it.year) : "", kp !== "" ? `${T.kp} ${kp}` : ""]
+    .filter((s) => s !== "")
     .join(" · ");
   if (footer !== "") out.titleFooter = footer;
   out.image = it.posters[size] || it.posters.medium;

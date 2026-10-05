@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { fmtClock, fmtDate, fmtMinutes, fmtRemaining, fmtTime, ruTitle } from "../../src/core/format.ts";
+import { fmtClock, fmtDate, fmtMinutes, fmtRating, fmtRemaining, fmtTime, ruTitle } from "../../src/core/format.ts";
 
 describe("fmtClock", () => {
   it("h:mm:ss from an hour, m:ss below", () => {
@@ -53,6 +53,23 @@ describe("fmtTime", () => {
   it("formats epoch milliseconds as local HH:MM", () => {
     assert.equal(fmtTime(new Date(2026, 2, 7, 9, 5, 59).getTime()), "09:05");
     assert.equal(fmtTime(new Date(2026, 2, 7, 23, 40).getTime()), "23:40");
+  });
+});
+
+describe("fmtRating", () => {
+  it("one decimal with a comma", () => {
+    assert.equal(fmtRating(7.9), "7,9");
+    assert.equal(fmtRating(7.912), "7,9");
+    assert.equal(fmtRating(7.96), "8,0");
+    assert.equal(fmtRating(8), "8,0");
+    assert.equal(fmtRating(0.05), "0,1");
+  });
+
+  it("no rating → empty string", () => {
+    assert.equal(fmtRating(undefined), "");
+    assert.equal(fmtRating(0), "");
+    assert.equal(fmtRating(-1), "");
+    assert.equal(fmtRating(Number.NaN), "");
   });
 });
 

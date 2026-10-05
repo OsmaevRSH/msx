@@ -40,3 +40,8 @@ export function ruTitle(title: string): string {
   const i = title.indexOf(" / ");
   return (i >= 0 ? title.slice(0, i) : title).trim();
 }
+
+/** Рейтинг КП/IMDb с одним знаком после запятой: 7.912 → "7,9", 8 → "8,0"; 0, отсутствие и нечисло — "". */
+export function fmtRating(r: number | undefined): string {
+  return r !== undefined && Number.isFinite(r) && r > 0 ? r.toFixed(1).replace(".", ",") : "";
+}

@@ -3,7 +3,7 @@ import type { Audio, ItemDetail, MediaUnit } from "../api/models.ts";
 import type { ReqClass } from "../api/transport.ts";
 import type { Got } from "../cache/swr.ts";
 import { toKpError } from "../core/errors.ts";
-import { fmtMinutes, ruTitle } from "../core/format.ts";
+import { fmtMinutes, fmtRating, ruTitle } from "../core/format.ts";
 import { commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
@@ -241,7 +241,8 @@ function describe(item: ItemDetail): string {
 }
 
 function rating(name: string, v: number | undefined): string | undefined {
-  return v !== undefined && v > 0 ? `${name} ${v.toFixed(1).replace(".", ",")}` : undefined;
+  const r = fmtRating(v);
+  return r === "" ? undefined : `${name} ${r}`;
 }
 
 const clip = (s: string, max: number): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
