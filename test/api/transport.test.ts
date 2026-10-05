@@ -2,7 +2,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Breaker } from "../../src/api/breaker.ts";
 import { Limiter } from "../../src/api/limiter.ts";
-import { Transport } from "../../src/api/transport.ts";
+import { Priority, Transport } from "../../src/api/transport.ts";
 import type { ApiRequest, FetchLike } from "../../src/api/transport.ts";
 import { KvStore } from "../../src/bridge/storage.ts";
 import { DEFAULT_FLAGS, FlagStore } from "../../src/config/flags.ts";
@@ -288,6 +288,28 @@ describe("Transport", () => {
       assert.equal(await r.clock.runUntilSettled(r.t.probeNoCors()), false);
       assert.deepEqual(calls(), [PROBE, PROBE]);
       assert.ok(r.inits.every((i) => i.init.mode === "no-cors" && i.init.credentials === "omit"));
+    });
+  });
+
+  describe("request class", () => {
+    it("prio: a bg request waiting for the bg slot is sent as fg after promote(); later attempts use the current class", async () => {
+      const r = rig();
+      let release = (): void => {};
+      const hold = r.limiter.run("bg", () => new Promise<void>((res) => (release = res)));
+      const prio = new Priority("bg");
+      const req = get("/v1/types", { query: { access_token: token }, cls: "bg", prio });
+      const p = r.t.send(req);
+      await r.clock.advance(0);
+      assert.equal(mock.calls().length, 0, "waits for the only bg slot");
+
+      prio.promote();
+      assert.equal((await r.clock.runUntilSettled(p)).status, 200);
+      assert.equal((await r.clock.runUntilSettled(r.t.send(req))).status, 200, "a new attempt queues as fg at once");
+      assert.deepEqual(r.limiter.inFlight(), { fg: 0, bg: 1 }, "the bg slot is still held");
+      const api = r.log.entries().filter((e) => e.tag === "api");
+      assert.ok(api.length === 2 && api.every((e) => /^GET \/v1\/types 200 \d+ms fg$/.test(e.msg)), JSON.stringify(api));
+      release();
+      await hold;
     });
   });
 

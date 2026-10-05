@@ -54,7 +54,7 @@ export class TestTokens implements TokenSource {
 }
 
 export interface Rig {
-  api: KpApi; t: SpyTransport; tokens: TestTokens; clock: FakeClock; log: Logger; flags: FlagStore;
+  api: KpApi; t: SpyTransport; tokens: TestTokens; clock: FakeClock; log: Logger; flags: FlagStore; limiter: Limiter;
   run<T>(p: Promise<T>): Promise<T>;
 }
 
@@ -128,12 +128,13 @@ export function useKpApiMock(extraRoutes?: MockOptions["extraRoutes"]): KpApiEnv
       const clock = new FakeClock();
       const log = new Logger(clock);
       const flags = new FlagStore(new KvStore(new MemoryStorage()), { ...DEFAULT_FLAGS, apiBase: m.url, apiFallbackBase: m.url });
-      const t = new SpyTransport({ fetch, clock, log, metrics: new Metrics(), flags, limiter: new Limiter(clock), breaker: new Breaker(clock) });
+      const limiter = new Limiter(clock);
+      const t = new SpyTransport({ fetch, clock, log, metrics: new Metrics(), flags, limiter, breaker: new Breaker(clock) });
       const tokens = new TestTokens();
       tokens.pair = m.issueToken();
       const api = new KpApi(t, tokens);
       tokens.api = api;
-      return { api, t, tokens, clock, log, flags, run: (p) => clock.runUntilSettled(p) };
+      return { api, t, tokens, clock, log, flags, limiter, run: (p) => clock.runUntilSettled(p) };
     },
   };
 }
