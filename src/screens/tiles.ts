@@ -15,7 +15,7 @@ const T = { kp: "КП", uhd: "4K" };
 type PosterSize = Prefs["posterSize"];
 
 function tile(ctx: AppContext, it: ItemSummary, size: PosterSize): MsxContentItem {
-  const out: MsxContentItem = { id: `i${it.id}`, kid: it.id, title: ruTitle(it.title) };
+  const out: MsxContentItem = { id: `i${it.id}`, kid: String(it.id), title: ruTitle(it.title) };
   const kp = fmtRating(it.kpRating);
   const footer = [it.year !== undefined ? String(it.year) : "", kp !== "" ? `${T.kp} ${kp}` : ""]
     .filter((s) => s !== "")
@@ -27,7 +27,7 @@ function tile(ctx: AppContext, it: ItemSummary, size: PosterSize): MsxContentIte
   return out;
 }
 
-/** `kid` — числовой id тайтла для `{context:kid}` в `selection` шаблона (CD-10). */
+/** `kid` — id тайтла строкой для `{context:kid}`: нестроковое поле MSX подставляет пустой строкой (CD-10, Р-36). */
 export function posterTile(ctx: AppContext, it: ItemSummary): MsxContentItem {
   return tile(ctx, it, ctx.prefs.get().posterSize);
 }

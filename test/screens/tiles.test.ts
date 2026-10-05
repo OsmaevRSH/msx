@@ -29,7 +29,7 @@ describe("posterTile", () => {
   it("id, kid, Russian title, year and КП rating with a comma, medium poster, action to the card", async () => {
     const t = await make();
     assert.deepEqual(posterTile(t.ctx, summary()), {
-      id: "i1001", kid: 1001, title: "Тестовый фильм 1001", titleFooter: "2001 · КП 7,9",
+      id: "i1001", kid: "1001", title: "Тестовый фильм 1001", titleFooter: "2001 · КП 7,9",
       image: "https://cdn.test/m/1001.jpg", action: `content:request:interaction:item:1001@${TEST_P}`,
     });
   });
