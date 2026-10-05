@@ -124,7 +124,8 @@ export async function build(opts = {}) {
     charset: "utf8", // кириллица UI байтами UTF-8, а не \uXXXX: меньше бандл (CNFR-15); index.html объявляет UTF-8
     legalComments: "none",
     banner: { js: `/*! ${banner} */` },
-    define: { __KP_BUILD__: JSON.stringify(info) },
+    // Отдельная константа, а не поле __KP_BUILD__: только её esbuild сворачивает и выбрасывает отладочные хуки из бандла.
+    define: { __KP_BUILD__: JSON.stringify(info), __KP_DEBUG_HOOKS__: String(debugHooks) },
     write: false,
     logLevel: "silent",
   });

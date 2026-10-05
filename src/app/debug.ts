@@ -47,12 +47,16 @@ export function debugStats(ctx: AppContext, app: App): DebugStats {
   };
 }
 
+// Подставляет esbuild (tools/build.mjs): в боевой сборке `false`, и хуки вместе с прокси выпадают из бандла.
+// В тестах не определена — тогда решает `ctx.build.debugHooks`.
+declare const __KP_DEBUG_HOOKS__: boolean | undefined;
+
 /**
  * Только в dev/e2e-сборке (`DEBUG_HOOKS=1`): `globalThis.__kp = { ctx, app, stats() }`, а `ctx.host` заменяется
  * записывающим прокси (сервисы берут `ctx.host` при каждом вызове, поэтому подмена видна всем).
  */
 export function installDebugHooks(ctx: AppContext, app: App): void {
-  if (!ctx.build.debugHooks) return;
+  if (!(typeof __KP_DEBUG_HOOKS__ === "undefined" ? ctx.build.debugHooks : __KP_DEBUG_HOOKS__)) return;
   ctx.host = recordingHost(ctx.host, app.actions);
   (globalThis as Record<string, unknown>).__kp = { ctx, app, stats: (): DebugStats => debugStats(ctx, app) };
 }

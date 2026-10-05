@@ -65,6 +65,12 @@ describe("build: artefact layout", () => {
     assert.ok(js.startsWith(banner), js.slice(0, 200));
   });
 
+  it("debug hooks are compiled out of a production build (no __kp global, no recording proxy)", async () => {
+    assert.ok(!read(res.outDir, "app/app.js").includes("__kp"));
+    const dev = await buildTo({ DEBUG_HOOKS: "1" });
+    assert.ok(read(dev.outDir, "app/app.js").includes("__kp"));
+  });
+
   it("writes .nojekyll and build-info.json, returns the file list", () => {
     assert.ok(existsSync(join(res.outDir, ".nojekyll")));
     assert.deepEqual(JSON.parse(read(res.outDir, "build-info.json")), { version: VERSION, hash: res.hash });
