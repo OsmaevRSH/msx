@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chain, commitMsg, contentAction, panelAction, replaceContent, req, resolveAction } from "../../src/msx/actions.ts";
+import { chain, commitMsg, contentAction, panelAction, playerMsg, replaceContent, req, resolveAction } from "../../src/msx/actions.ts";
 
 const P = "https://u.github.io/msx/app/index.html";
 
@@ -34,6 +34,12 @@ describe("MSX action builders", () => {
   it("commitMsg", () => {
     assert.equal(commitMsg("pf:2001"), "interaction:commit:message:pf:2001");
     assert.equal(commitMsg("search:input:Ё"), "interaction:commit:message:search:input:Ё");
+  });
+});
+
+describe("playerMsg", () => {
+  it("a message to the player (AVPlay properties at runtime)", () => {
+    assert.equal(playerMsg("tizen:subtitle:silent:true"), "player:commit:message:tizen:subtitle:silent:true");
   });
 });
 

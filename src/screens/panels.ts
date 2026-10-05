@@ -4,7 +4,7 @@ import { cacheKeys } from "../cache/repo.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { ruTitle } from "../core/format.ts";
-import { chain, commitMsg, replaceContent, resolveAction } from "../msx/actions.ts";
+import { chain, commitMsg, playerMsg, replaceContent, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { type EpRef, findUnit } from "../playback/episodes.ts";
 import { type StreamMode, type SubsChoice, parseSubsValue, subsValue } from "../playback/prefs.ts";
@@ -42,7 +42,7 @@ const MODE_LABEL: Record<StreamMode, string> = { hls1: "HLS1", hls2: "HLS2" };
 const DEVICE_WAIT_MS = 1500;
 const SUBS_VALUE = /^(off|[a-z]{2,8}(\.forced)?)$/i;
 const LOC_CODE = /^[a-z0-9_-]+$/i;
-const SUBTITLE_CMD = "player:commit:message:tizen:subtitle";
+const SUBTITLE = "tizen:subtitle";
 
 type Where = "c" | "p";
 interface Row { label: string; action: string; current: boolean }
@@ -345,7 +345,7 @@ async function chooseSubs(ctx: AppContext, args: string[]): Promise<void> {
   ctx.prefs.setTitle("subs", id, value);
   const choice = parseSubsValue(value);
   if (w === "c") return ctx.host.executeAction(BACK_RELOAD);
-  if (choice === "off") return ctx.host.executeAction(chain(["back", `${SUBTITLE_CMD}:silent:true`]));
+  if (choice === "off") return ctx.host.executeAction(chain(["back", playerMsg(`${SUBTITLE}:silent:true`)]));
   const sub = findTrack((await ctx.repo.links(mid, { cls: "fg" })).subtitles, choice);
   if (sub === undefined) {
     ctx.log.warn(TAG, "subs_not_found", { mid, value });
@@ -353,7 +353,7 @@ async function chooseSubs(ctx: AppContext, args: string[]): Promise<void> {
   }
   // После «Выключены» дорожка заглушена: новая ссылка сама её не включит.
   const url = withLoc(sub.url, ctx.prefs.get().loc);
-  ctx.host.executeAction(chain(["back", `${SUBTITLE_CMD}:silent:false`, `${SUBTITLE_CMD}:url:${url}`]));
+  ctx.host.executeAction(chain(["back", playerMsg(`${SUBTITLE}:silent:false`), playerMsg(`${SUBTITLE}:url:${url}`)]));
 }
 
 /** `bm:<id>:<folder>:<add|remove|create>`; `create` — папка «MSX», когда папок нет (Plan B S10). */

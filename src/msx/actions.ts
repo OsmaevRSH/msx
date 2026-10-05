@@ -24,6 +24,11 @@ export function commitMsg(msg: string): string {
   return `interaction:commit:message:${msg}`;
 }
 
+/** Сообщение плееру: динамические свойства воспроизведения, например субтитры AVPlay (Plan B §5.10). */
+export function playerMsg(msg: string): string {
+  return `player:commit:message:${msg}`;
+}
+
 /** "[a|b]"; "[]" — пустое действие MSX. Вложенные цепочки и литеральный "|" MSX не разбирает. */
 export function chain(actions: string[]): string {
   for (const a of actions) {
