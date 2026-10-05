@@ -4,6 +4,9 @@ import { createApp } from "../../src/app/create-app.ts";
 import { TokenStore } from "../../src/auth/tokens.ts";
 import { KvStore } from "../../src/bridge/storage.ts";
 import type { Flags } from "../../src/config/flags.ts";
+import * as probeEntry from "../../src/probe/entry.ts";
+import { probeModule } from "../../src/probe/lazy.ts";
+import type { ProbeLoad } from "../../src/probe/lazy.ts";
 import { App } from "../../src/router/router.ts";
 import type { RouteTable } from "../../src/router/router.ts";
 import { startMock } from "../../tools/kpmock/server.ts";
@@ -31,6 +34,11 @@ export interface TestAppOptions {
   mock?: MockServer; storage?: MemoryStorage; clock?: FakeClock; loggedIn?: boolean; flags?: Partial<Flags>; P?: string;
   /** Подмена обработчиков маршрутов (`App`) — только для тестов маршрутизатора. */
   routes?: Partial<RouteTable>;
+  /**
+   * Пробник (probe.js, этап 23b): `eager` (по умолчанию) — загружен до возврата стенда, `ctx.probe` готов сразу;
+   * `lazy` — грузится по первому маршруту пробника, как в браузере; функция — свой загрузчик (сбой, задержка).
+   */
+  probe?: "eager" | "lazy" | ProbeLoad;
 }
 
 /**
@@ -47,8 +55,17 @@ export async function createTestApp(o: TestAppOptions = {}): Promise<TestApp> {
   const fetch = createCorsFetch({ origin: new URL(P).origin });
   if (o.loggedIn === true) new TokenStore(new KvStore(storage), clock).save({ ...mock.issueToken(), expiresIn: 3600 });
   const host = new FakeHost();
-  let { app, ctx } = createApp({ host, storage, fetch, P, clock, build: { apiBase: mock.url, apiFallbackBase: mock.url } });
+  const loadProbe: ProbeLoad = typeof o.probe === "function" ? o.probe : () => Promise.resolve(probeEntry);
+  let { app, ctx } = createApp({ host, storage, fetch, P, clock, build: { apiBase: mock.url, apiFallbackBase: mock.url }, loadProbe });
   if (o.routes !== undefined) app = new App(ctx, o.routes);
+  if (o.probe === undefined || o.probe === "eager") {
+    try {
+      await probeModule(ctx);
+    } catch (e) {
+      if (own) await mock.close();
+      throw e;
+    }
+  }
   for (const [k, v] of Object.entries(o.flags ?? {})) ctx.flags.set(k as keyof Flags, v as never);
   const run = <T>(p: Promise<T>): Promise<T> => clock.runUntilSettled(p);
   return {

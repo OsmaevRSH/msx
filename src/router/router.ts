@@ -5,7 +5,7 @@ import type { PluginApp } from "../bridge/host.ts";
 import { onFocus } from "../cache/prefetch.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { resolvePlay } from "../playback/resolve.ts";
-import { devScreen, onProbeAct, probeResolve, probeScreen } from "../probe/screens.ts";
+import { probeOnReady, withProbe } from "../probe/lazy.ts";
 import { bookmarksScreen } from "../screens/bookmarks.ts";
 import { errorScreen, errorText } from "../screens/error.ts";
 import { homeScreen, warmHome } from "../screens/home.ts";
@@ -37,11 +37,12 @@ const ROUTES: RouteTable = {
   panel: (ctx, r) => panelScreen(ctx, r.type, r.args),
   settings: (ctx) => settingsScreen(ctx),
   bookmarks: (ctx) => bookmarksScreen(ctx),
-  probe: (ctx, r) => probeScreen(ctx, r.page),
-  dev: (ctx) => devScreen(ctx),
+  // Пробник — в probe.js: ответ после его загрузки, отказ загрузки — экран ошибки KP-NET (этап 23b).
+  probe: (ctx, r) => withProbe(ctx, (m) => m.probeScreen(ctx, r.page)),
+  dev: (ctx) => withProbe(ctx, (m) => m.devScreen(ctx)),
   play: (ctx, r) => resolvePlay(ctx, r),
   playEp: (ctx, r) => resolvePlay(ctx, r),
-  probePlay: (ctx, r) => probeResolve(ctx, r),
+  probePlay: (ctx, r) => withProbe(ctx, (m) => m.probeResolve(ctx, r)),
   unknown: (ctx) => errorScreen(ctx, new KpError("KP-BAD", "unknown route")),
 };
 
@@ -102,7 +103,7 @@ export class App implements PluginApp {
       });
       this.spawn("warm", () => warmHome(ctx));
     }
-    this.spawn("probe", () => ctx.probe.onReady());
+    this.spawn("probe", () => probeOnReady(ctx));
   }
 
   async handleRequest(dataId: string, _data: unknown): Promise<unknown> {
@@ -229,7 +230,7 @@ export class App implements PluginApp {
         this.spawn(what, () => onSettingsAct(ctx, name, args));
         return;
       case "probe":
-        this.spawn(what, () => onProbeAct(ctx, name, args));
+        this.spawn(what, () => withProbe(ctx, (m) => m.onProbeAct(ctx, name, args)));
         return;
     }
   }

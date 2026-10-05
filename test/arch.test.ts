@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, posix, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Архитектурные запреты для src/**/*.ts (план §0.2, этап 16; спец. §3.5, §5.2, CM-05).
@@ -50,6 +50,24 @@ function importsOf(code: string): ImportRef[] {
 }
 
 const TIME_FILES = new Set(["src/core/clock.ts", "src/main.ts"]);
+/**
+ * Пробник в app.js (этап 23b): остальной src/probe/ попадает только в probe.js. Значением из src/probe/ app.js
+ * импортирует только lazy.ts, а lazy.ts — только store.ts (замеры запуска); probe.js не берёт lazy.ts себе —
+ * копия загрузчика в probe.js была бы со своим состоянием.
+ */
+const PROBE_LAZY = "src/probe/lazy.ts";
+const PROBE_FROM_LAZY = new Set(["src/probe/store.ts"]);
+
+function probeImportViolation(path: string, imp: ImportRef): string | undefined {
+  if (imp.typeOnly || !imp.spec.startsWith(".")) return undefined;
+  const target = posix.normalize(posix.join(posix.dirname(path), imp.spec));
+  if (!target.startsWith("src/probe/") || target === path) return undefined;
+  const inProbe = path.startsWith("src/probe/");
+  if (!inProbe && target !== PROBE_LAZY) return `probe module in app.js ${imp.spec}`;
+  if (path === PROBE_LAZY && !PROBE_FROM_LAZY.has(target)) return `probe module in app.js ${imp.spec}`;
+  if (inProbe && path !== PROBE_LAZY && target === PROBE_LAZY) return `lazy.ts in probe.js ${imp.spec}`;
+  return undefined;
+}
 
 /** Нарушения одного файла `src/…` (путь относительно корня, через `/`). */
 function violations(path: string, text: string): string[] {
@@ -61,9 +79,13 @@ function violations(path: string, text: string): string[] {
       const ok = path === "src/main.ts" || (path === "src/bridge/tvx-handler.ts" && imp.typeOnly);
       if (!ok) found.push(`vendor import ${imp.spec}${imp.typeOnly ? " (type)" : ""}`);
     }
+    const probe = probeImportViolation(path, imp);
+    if (probe !== undefined) found.push(probe);
   }
   if (code.includes("Authorization")) found.push("Authorization");
   if (code.includes("TVXServices")) found.push("TVXServices");
+  // `ctx.probe` ставит probe.js при загрузке (этап 23b): до неё в app.js его нет.
+  if (!path.startsWith("src/probe/") && /\bctx\s*\.\s*probe\b/.test(code)) found.push("ctx.probe outside probe.js");
   if (code.includes("localStorage") && path !== "src/main.ts") found.push("localStorage");
   if (!TIME_FILES.has(path)) {
     if (/\bDate\s*\.\s*now\s*\(/.test(code)) found.push("Date.now(");
@@ -123,6 +145,20 @@ describe("architecture rules: the checker itself", () => {
 
   it("TVXServices (CM-05)", () => {
     assert.deepEqual(v("src/a.ts", "TVXServices.storage.get('x');"), ["TVXServices"]);
+  });
+
+  it("probe modules stay in probe.js: app.js imports only probe/lazy.ts by value (stage 23b)", () => {
+    assert.deepEqual(v("src/router/router.ts", 'import { withProbe } from "../probe/lazy.ts";'), []);
+    assert.deepEqual(v("src/app/context.ts", 'import type { ProbeRunner } from "../probe/runner.ts";'), []);
+    assert.deepEqual(v("src/router/router.ts", 'import { probeScreen } from "../probe/screens.ts";'), [
+      "probe module in app.js ../probe/screens.ts",
+    ]);
+    assert.deepEqual(v("src/probe/lazy.ts", 'import { coldOnReady } from "./store.ts";\nimport type * as E from "./entry.ts";'), []);
+    assert.deepEqual(v("src/probe/lazy.ts", 'import { install } from "./entry.ts";'), ["probe module in app.js ./entry.ts"]);
+    assert.deepEqual(v("src/probe/screens.ts", 'import { gridBegin } from "./tv-checks.ts";'), []);
+    assert.deepEqual(v("src/probe/screens.ts", 'import { probeModule } from "./lazy.ts";'), ["lazy.ts in probe.js ./lazy.ts"]);
+    assert.deepEqual(v("src/router/router.ts", "ctx.probe.onReady();"), ["ctx.probe outside probe.js"]);
+    assert.deepEqual(v("src/probe/screens.ts", "ctx.probe.results(); s.probe;"), []);
   });
 });
 

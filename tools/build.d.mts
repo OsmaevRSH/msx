@@ -25,6 +25,8 @@ export interface BuildOptions {
 export interface BuildResult {
   /** Первые 10 hex SHA-256 содержимого `app/app.js`. */
   hash: string;
+  /** Версия `app/probe.js` (его `?v=`): первые 10 hex SHA-256 кода внутри обёртки `kpProbe` (этап 23b). */
+  probeHash: string;
   /** Абсолютный путь каталога результата. */
   outDir: string;
   /** Записанные файлы относительно `outDir`. */

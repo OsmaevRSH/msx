@@ -1,12 +1,11 @@
 import type { AppContext } from "../app/context.ts";
 import { toKpError } from "../core/errors.ts";
 import { checkApi, checkCors, checkOauthPost, checkPostBody, checkProgress } from "./checks-api.ts";
-import {
-  checkColdStart, checkStorage, coldOnReady, fillInit, loadResults, persistOnReady, persistWrite, result, saveResults, watchBlocks,
-} from "./store.ts";
+import { checkColdStart, checkStorage, fillInit, loadResults, persistWrite, result, saveResults } from "./store.ts";
 
 // Пробник Phase 0 (спец. §16.2). Проверки уровня API, хранилища и холодного старта — здесь (этап 20);
-// CDG-05…07, 11, 12 записывает по событиям плеера этап 23 через `record`.
+// CDG-05…07, 11, 12 записывает по событиям плеера этап 23 через `record`. Замеры каждого запуска (CDG-09, CDG-10)
+// делает app.js без probe.js (src/probe/lazy.ts, этап 23b).
 
 export type CheckId = "CDG-01" | "CDG-02" | "CDG-03" | "CDG-04" | "CDG-05" | "CDG-06" | "CDG-07" | "CDG-08" | "CDG-09" | "CDG-10" | "CDG-11" | "CDG-12";
 
@@ -27,13 +26,6 @@ export class ProbeRunner {
 
   constructor(ctx: AppContext) {
     this.ctx = ctx;
-    watchBlocks(ctx);
-  }
-
-  /** Вызывается из `App.ready()` при каждой загрузке плагина: замер холодного старта (CDG-10) и маркер хранилища (CDG-09). */
-  onReady(): void {
-    coldOnReady(this.ctx);
-    persistOnReady(this.ctx);
   }
 
   /** Повторный запуск той же проверки, пока идёт прежний, получает её результат. */

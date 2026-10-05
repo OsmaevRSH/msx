@@ -1,4 +1,4 @@
-// Бюджет размера сборки: CNFR-15 (app.js с библиотекой TVX) и спец. §15.3 (index.html < 1 КБ).
+// Бюджет размера сборки: CNFR-15 (app.js с библиотекой TVX), спец. §15.3 (index.html < 1 КБ) и probe.js (этап 23b).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -7,6 +7,9 @@ import { gzipSync } from "node:zlib";
 export const LIMITS = {
   "app/app.js": { bytes: 256_000, gzip: 81_920 },
   "app/index.html": { bytes: 1023 },
+  // Пробник грузится только при открытии «Диагностики». ~1,2× его размера на этапе 23b (34 КБ, 13,5 КБ gzip):
+  // запас на правки по итогам Phase 0, а модули app.js, скопированные в probe.js по ошибке сборки, сразу видны.
+  "app/probe.js": { bytes: 40_960, gzip: 16_384 },
 };
 
 /**
