@@ -1,11 +1,7 @@
-// Локальный тип до этапа 16, который заменит его на MsxHost из src/bridge/host.ts.
-export interface MsxHostLike {
-  executeAction(action: string, data?: unknown): void;
-  requestData(dataId: string): Promise<any>;
-}
+import type { MsxHost } from "../../src/bridge/host.ts";
 
 /** Хост MSX для тестов: записывает действия и отвечает на requestData из `responses`. */
-export class FakeHost implements MsxHostLike {
+export class FakeHost implements MsxHost {
   actions: { action: string; data?: unknown }[] = [];
   /** Ответы requestData по dataId; функция вызывается при каждом запросе. */
   responses = new Map<string, unknown>();
