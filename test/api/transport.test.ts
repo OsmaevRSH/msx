@@ -1,0 +1,307 @@
+import { after, before, beforeEach, describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { Breaker } from "../../src/api/breaker.ts";
+import { Limiter } from "../../src/api/limiter.ts";
+import { Transport } from "../../src/api/transport.ts";
+import type { ApiRequest, FetchLike } from "../../src/api/transport.ts";
+import { KvStore } from "../../src/bridge/storage.ts";
+import { DEFAULT_FLAGS, FlagStore } from "../../src/config/flags.ts";
+import { KpError } from "../../src/core/errors.ts";
+import { Logger } from "../../src/core/log.ts";
+import { Metrics } from "../../src/core/metrics.ts";
+import { startMock } from "../../tools/kpmock/server.ts";
+import type { MockServer } from "../../tools/kpmock/server.ts";
+import { createCorsFetch } from "../helpers/cors-fetch.ts";
+import type { CorsFetch } from "../helpers/cors-fetch.ts";
+import { FakeClock } from "../helpers/fake-clock.ts";
+import { MemoryStorage } from "../helpers/memory-storage.ts";
+
+const ORIGIN = "https://example.github.io";
+const PROBE = "GET /v1/types?access_token=x";
+
+interface Rig {
+  t: Transport; clock: FakeClock; log: Logger; metrics: Metrics; flags: FlagStore; limiter: Limiter; breaker: Breaker;
+  cors: CorsFetch; inits: { url: string; init: RequestInit }[];
+}
+
+const get = (path: string, over: Partial<ApiRequest> = {}): ApiRequest =>
+  ({ method: "GET", path, retry: "auto", timeoutMs: 8000, cls: "fg", ...over });
+
+/** KpError с нужным кодом; для assert.rejects. */
+const kp = (code: string, message?: string) => (e: unknown): boolean => {
+  assert.ok(e instanceof KpError, `expected KpError, got ${String(e)}`);
+  assert.equal(e.code, code);
+  if (message !== undefined) assert.equal(e.message, message);
+  return true;
+};
+
+describe("Transport", () => {
+  let mock: MockServer;
+  let token = "";
+
+  const rig = (): Rig => {
+    const clock = new FakeClock();
+    const log = new Logger(clock);
+    const metrics = new Metrics();
+    const flags = new FlagStore(new KvStore(new MemoryStorage()), { ...DEFAULT_FLAGS, apiBase: mock.url, apiFallbackBase: mock.url });
+    const limiter = new Limiter(clock);
+    const breaker = new Breaker(clock);
+    const cors = createCorsFetch({ origin: ORIGIN });
+    const inits: { url: string; init: RequestInit }[] = [];
+    const fetch: FetchLike = (url, init) => {
+      inits.push({ url, init });
+      return cors(url, init);
+    };
+    return { t: new Transport({ fetch, clock, log, metrics, flags, limiter, breaker }), clock, log, metrics, flags, limiter, breaker, cors, inits };
+  };
+
+  const calls = (): string[] => mock.calls().map((c) => `${c.method} ${c.path}${c.query ? `?${c.query}` : ""}`);
+
+  /** CC-01, CNFR-19: ни одного preflight и ни одного заголовка с токеном. */
+  const assertSimple = (r: Rig): void => {
+    assert.equal(r.cors.preflights, 0);
+    assert.ok(mock.calls().every((c) => c.method !== "OPTIONS" && !c.hasAuthHeader && c.origin === ORIGIN));
+    for (const { init } of r.inits) {
+      assert.equal(init.headers, undefined);
+      assert.equal(init.credentials, "omit");
+    }
+  };
+
+  before(async () => {
+    mock = await startMock({
+      port: 0,
+      extraRoutes: (router) => {
+        router.add("POST", "/v1/test/echo", (ctx) => ({
+          status: 200,
+          json: { formAccepted: ctx.formAccepted, form: ctx.form ? Object.fromEntries(ctx.form) : null, query: Object.fromEntries(ctx.query) },
+        }));
+        router.add("GET", "/v1/test/html", () => ({ status: 200, text: "<html>captive portal</html>", headers: { "content-type": "text/html" } }));
+        router.add("GET", "/v1/test/broken-json", () => ({ status: 200, text: "{", headers: { "content-type": "application/json" } }));
+        router.add("GET", "/v1/test/bad-request", () => ({ status: 400, json: { status: 400, error: "authorization_pending" } }));
+      },
+    });
+  });
+  after(async () => {
+    await mock.close();
+  });
+  beforeEach(() => {
+    mock.reset();
+    token = mock.issueToken().access;
+  });
+
+  describe("simple requests (CC-01, CNFR-19)", () => {
+    it("GET with the token in query: no preflight, no own headers, credentials omit", async () => {
+      const r = rig();
+      const res = await r.t.send(get("/v1/types", { query: { access_token: token } }));
+      assert.equal(res.status, 200);
+      assert.equal((res.json as { items: unknown[] }).items.length, 7);
+      assert.equal(typeof res.ms, "number");
+      assert.equal(r.inits[0].init.mode, "cors");
+      assert.equal(r.inits[0].init.method, "GET");
+      assert.equal(r.inits[0].init.body, undefined);
+      assertSimple(r);
+    });
+
+    it("POST with a form sends a URLSearchParams body", async () => {
+      const r = rig();
+      const res = await r.t.send({ method: "POST", path: "/v1/test/echo", query: { access_token: token }, form: { title: "MSX Тест", n: 2 }, retry: "auto", timeoutMs: 8000, cls: "fg" });
+      assert.deepEqual(res.json, { formAccepted: true, form: { title: "MSX Тест", n: "2" }, query: { access_token: token } });
+      assert.ok(r.inits[0].init.body instanceof URLSearchParams);
+      assert.match(mock.calls()[0].contentType ?? "", /^application\/x-www-form-urlencoded/);
+      assertSimple(r);
+    });
+
+    it("POST with postBody: query sends the form in query and an empty body", async () => {
+      const r = rig();
+      r.flags.set("postBody", "query");
+      const res = await r.t.send({ method: "POST", path: "/v1/test/echo", query: { access_token: token }, form: { title: "x", n: 2 }, retry: "auto", timeoutMs: 8000, cls: "fg" });
+      assert.deepEqual(res.json, { formAccepted: false, form: null, query: { access_token: token, title: "x", n: "2" } });
+      assert.equal(r.inits[0].init.body, undefined);
+      assert.equal(mock.calls()[0].contentType, undefined);
+      assertSimple(r);
+    });
+  });
+
+  describe("buildUrl", () => {
+    it("drops undefined query values and encodes the rest", () => {
+      const r = rig();
+      const url = r.t.buildUrl(get("/v1/items", { query: { type: "movie", genre: undefined, page: 2, q: "а b&c" } }));
+      assert.equal(url, `${mock.url}/v1/items?type=movie&page=2&q=%D0%B0+b%26c`);
+      assert.equal(r.t.buildUrl(get("/v1/types")), `${mock.url}/v1/types`);
+    });
+
+    it("puts the form into query only with postBody: query", () => {
+      const r = rig();
+      const post: ApiRequest = { method: "POST", path: "/oauth2/device", query: { grant_type: "device_code" }, form: { a: 1 }, retry: "none", timeoutMs: 15_000, cls: "fg" };
+      assert.equal(r.t.buildUrl(post), `${mock.url}/oauth2/device?grant_type=device_code`);
+      r.flags.set("postBody", "query");
+      assert.equal(r.t.buildUrl(post), `${mock.url}/oauth2/device?grant_type=device_code&a=1`);
+    });
+  });
+
+  describe("statuses", () => {
+    it("429 twice with retry auto → success after pauses of 3 s and 6 s; fg limit is 1 for 30 s", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/types$", status: 429, times: 2 }] });
+      const r = rig();
+      const t0 = r.clock.perf();
+      const res = await r.clock.runUntilSettled(r.t.send(get("/v1/types", { query: { access_token: token } })));
+      assert.equal(res.status, 200);
+      assert.equal(r.clock.perf() - t0, 9000);
+      assert.equal(mock.calls().length, 3);
+      assert.equal(r.limiter.fgLimit(), 1);
+      await r.clock.advance(23_999);
+      assert.equal(r.limiter.fgLimit(), 1, "30 s after the last 429 have not passed yet");
+      await r.clock.advance(1);
+      assert.equal(r.limiter.fgLimit(), 3);
+      assert.equal(r.metrics.summary().counters["api:429"], 2);
+    });
+
+    it("429 with retry none → KP-429 after exactly one call", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/types$", status: 429 }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/types", { retry: "none" }))), (e: unknown) => {
+        kp("KP-429")(e);
+        assert.equal((e as KpError).status, 429);
+        return true;
+      });
+      assert.deepEqual(calls(), ["GET /v1/types"]);
+      assert.equal(r.limiter.fgLimit(), 1);
+    });
+
+    it("500 with retry auto → 3 attempts, then KP-5XX", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/items$", status: 500 }] });
+      const r = rig();
+      const t0 = r.clock.perf();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-5XX"));
+      assert.equal(mock.calls().length, 3);
+      assert.equal(r.clock.perf() - t0, 9000);
+    });
+
+    it("401 → KP-AUTH and 404 → KP-404, without retries", async () => {
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/types"))), kp("KP-AUTH"));
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/nothing", { query: { access_token: token } }))), kp("KP-404"));
+      assert.equal(mock.calls().length, 2);
+    });
+
+    it("other 4xx come back as a response, not an error", async () => {
+      const r = rig();
+      const res = await r.t.send(get("/v1/test/bad-request"));
+      assert.equal(res.status, 400);
+      assert.deepEqual(res.json, { status: 400, error: "authorization_pending" });
+    });
+
+    it("HTML or broken JSON → KP-BAD without retries", async () => {
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/test/html"))), kp("KP-BAD"));
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/test/broken-json"))), kp("KP-BAD"));
+      assert.equal(mock.calls().length, 2);
+    });
+  });
+
+  describe("network errors and the no-cors probe (CC-13, CM-01)", () => {
+    it("3 dropped /v1/items in a row, /v1/types reachable → one probe, KP-429, api_no_cors", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { query: { access_token: token } }))), kp("KP-429"));
+      assert.deepEqual(calls(), [`GET /v1/items?access_token=${token}`, `GET /v1/items?access_token=${token}`, `GET /v1/items?access_token=${token}`, PROBE]);
+      const noCors = r.inits.filter((i) => i.init.mode === "no-cors");
+      assert.deepEqual(noCors.map((i) => [i.url, i.init.credentials]), [[`${mock.url}/v1/types?access_token=x`, "omit"]]);
+      assert.ok(r.log.entries().some((e) => e.tag === "api" && e.level === "warn" && e.msg === "api_no_cors"));
+      assert.equal(r.limiter.fgLimit(), 1);
+    });
+
+    it("everything dropped → KP-NET; the probe also fails", async () => {
+      mock.setScenario({ rules: [{ path: ".*", drop: true }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-NET"));
+      assert.deepEqual(calls(), ["GET /v1/items", "GET /v1/items", "GET /v1/items", PROBE]);
+      assert.equal(r.limiter.fgLimit(), 3);
+      assert.ok(!r.log.entries().some((e) => e.msg === "api_no_cors"));
+    });
+
+    it("noCorsErrors + 429: the emulator gives TypeError, the transport says KP-429, never KP-CORS", async () => {
+      mock.setScenario({ noCorsErrors: true, rules: [{ path: "^/v1/items$", status: 429 }] });
+      const r = rig();
+      let err: unknown;
+      await r.clock.runUntilSettled(r.t.send(get("/v1/items")).catch((e: unknown) => (err = e)));
+      kp("KP-429")(err);
+      assert.notEqual((err as KpError).code, "KP-CORS");
+      assert.deepEqual(calls(), ["GET /v1/items", "GET /v1/items", "GET /v1/items", PROBE]);
+      assert.equal(r.limiter.fgLimit(), 1);
+    });
+
+    it("the TypeError counter spans requests; a probe verdict pauses 6 s before the retry", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true, times: 3 }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { retry: "none" }))), kp("KP-NET"));
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { retry: "none" }))), kp("KP-NET"));
+      const t0 = r.clock.perf();
+      const res = await r.clock.runUntilSettled(r.t.send(get("/v1/items", { query: { access_token: token } })));
+      assert.equal(res.status, 200);
+      assert.equal(r.clock.perf() - t0, 6000);
+      assert.equal(calls().filter((c) => c === PROBE).length, 1);
+    });
+
+    it("a response resets the TypeError counter", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true }] });
+      const r = rig();
+      const once = (path: string): Promise<unknown> => r.clock.runUntilSettled(r.t.send(get(path, { retry: "none" }))).catch((e: unknown) => e);
+      await once("/v1/items");
+      await once("/v1/items");
+      await once("/v1/types");
+      await once("/v1/items");
+      await once("/v1/items");
+      assert.equal(calls().filter((c) => c === PROBE).length, 0);
+    });
+
+    it("a mock reply slower than the timeout → KP-NET by FakeClock, 3 attempts", async () => {
+      // Ответ mock дольше ioGraceMs (250 мс реального времени) FakeClock считает долгим: таймаут 8 с срабатывает раньше.
+      mock.setScenario({ rules: [{ path: "^/v1/items$", delayMs: 1500 }] });
+      const r = rig();
+      const t0 = r.clock.perf();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-NET", "timeout"));
+      assert.equal(r.clock.perf() - t0, 8000 + 3000 + 8000 + 6000 + 8000);
+      assert.equal(mock.calls().length, 3, "a timeout is not a TypeError: no probe");
+    });
+
+    it("an open breaker fails fast with KP-NET and sends nothing", async () => {
+      const r = rig();
+      for (let i = 0; i < 5; i++) r.breaker.failure();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/types"))), kp("KP-NET", "breaker-open"));
+      assert.equal(mock.calls().length, 0);
+    });
+
+    it("5 network failures open the breaker", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), KpError);
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { retry: "none" }))), KpError);
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { retry: "none" }))), KpError);
+      assert.equal(r.breaker.state(), "open");
+    });
+
+    it("probeNoCors() always uses the fixed safe URL", async () => {
+      const r = rig();
+      assert.equal(await r.clock.runUntilSettled(r.t.probeNoCors()), true);
+      mock.setScenario({ rules: [{ path: ".*", drop: true }] });
+      assert.equal(await r.clock.runUntilSettled(r.t.probeNoCors()), false);
+      assert.deepEqual(calls(), [PROBE, PROBE]);
+      assert.ok(r.inits.every((i) => i.init.mode === "no-cors" && i.init.credentials === "omit"));
+    });
+  });
+
+  describe("journal and metrics", () => {
+    it("logs METHOD path status ms class without the access_token; metric without ids", async () => {
+      const r = rig();
+      await r.t.send(get("/v1/items/2001", { query: { access_token: token, nolinks: 1 }, timeoutMs: 15_000 }));
+      mock.setScenario({ rules: [{ path: "^/v1/types$", drop: true }] });
+      await r.clock.runUntilSettled(r.t.send(get("/v1/types", { query: { access_token: token }, retry: "none", cls: "bg" }))).catch(() => {});
+      const api = r.log.entries().filter((e) => e.tag === "api");
+      assert.match(api[0].msg, /^GET \/v1\/items\/2001 200 \d+ms fg$/);
+      assert.ok(api.some((e) => /^GET \/v1\/types \S+ \d+ms bg$/.test(e.msg)), JSON.stringify(api));
+      assert.ok(!JSON.stringify(r.log.entries()).includes(token), "access_token value leaked into the journal");
+      assert.ok("api:/v1/items/:id" in r.metrics.summary().values);
+    });
+  });
+});
