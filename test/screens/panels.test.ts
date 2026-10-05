@@ -319,6 +319,7 @@ describe("panelScreen: bookmarks (S10)", () => {
   it("no folders: «Создать папку „MSX“ и добавить» creates the folder and adds the title", async () => {
     const t = await make();
     t.mock.state.folders.clear();
+    await t.request(ids.item(A12));
     const s = await panel(t, "bookmarks", A12);
     assert.deepEqual(labels(s), ["Создать папку „MSX“ и добавить"]);
     assert.equal(rows(s)[0].action, commitMsg(msgs.act("panel", "bm", A12, 0, "create")));
@@ -329,6 +330,16 @@ describe("panelScreen: bookmarks (S10)", () => {
     assert.deepEqual(folders[0].items, [A12]);
     assert.deepEqual(actions(t), ["[reload:panel|reload:content]"]);
     assert.deepEqual(labels(await panel(t, "bookmarks", A12)), [`${CHECK}MSX`]);
+  });
+
+  it("the answer comes after the user left the card → the title is added, nothing is reloaded (spec §6.3)", async () => {
+    const t = await make();
+    await t.request(ids.item(A12));
+    await panel(t, "bookmarks", A12);
+    t.ctx.current.onRequest(ids.list("abc"));
+    await act(t, "bm", A12, 1, "add");
+    assert.ok(t.mock.state.folders.get(1)?.items.includes(A12));
+    assert.deepEqual(actions(t), []);
   });
 
   it("a failed request: a message instead of reloads", async () => {

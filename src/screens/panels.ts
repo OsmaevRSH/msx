@@ -375,7 +375,8 @@ async function bookmark(ctx: AppContext, args: string[]): Promise<void> {
   // Пометка «устаревшее» отдала бы прежний список (без новой папки) и прежние отметки: панель ждёт свежие.
   ctx.cache.delete(cacheKeys.bookmarks());
   await freshItem(ctx, id, "fg").catch((e: unknown) => ctx.log.debug(TAG, "item_refresh_failed", { id, err: toKpError(e).code }));
-  ctx.host.executeAction(chain(["reload:panel", "reload:content"]));
+  // Спец. §6.3: ответы API приходят не сразу — перерисовка, только если под панелью всё ещё карточка этого тайтла.
+  if (ctx.current.isCurrent(ids.item(id))) ctx.host.executeAction(chain(["reload:panel", "reload:content"]));
 }
 
 /** `mode:<id>:<auto|hls1|hls2>`; ручной режим отключает автоцепочку fallback (Р-28, Plan B §5.11). */
