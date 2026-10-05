@@ -283,6 +283,14 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.deepEqual(r.loggedOut, ["logout"]);
     });
 
+    it("unlink → 401 → rejected refresh: onLoggedOut fires once, with 'refresh-rejected'", async () => {
+      const r = env.authRig({ login: true });
+      env.mock().setScenario({ refreshInvalid: true });
+      await env.control("/__mock/expire-access");
+      await r.run(r.auth.logout());
+      assert.deepEqual([env.calls("/oauth2/token").length, env.authKeys(r), r.loggedOut], [1, [], ["refresh-rejected"]]);
+    });
+
     it("after logout every API call is KP-AUTH without a request", async () => {
       const r = env.authRig({ login: true });
       await r.run(r.auth.logout());

@@ -117,6 +117,7 @@ export class AuthService implements TokenSource {
 
   /** `device/unlink` (ошибка игнорируется) → удаление `kp.auth.*` → `onLoggedOut("logout")`. */
   async logout(): Promise<void> {
+    const epoch = this.epoch;
     if (this.isLoggedIn()) {
       try {
         await this.requireApi().deviceUnlink();
@@ -124,6 +125,8 @@ export class AuthService implements TokenSource {
         this.log.warn(TAG, "unlink_failed", errData(e));
       }
     }
+    // Отказ refresh во время unlink уже вышел с "refresh-rejected": второй onLoggedOut не нужен.
+    if (epoch !== this.epoch && !this.isLoggedIn()) return;
     this.signOut("logout");
   }
 
