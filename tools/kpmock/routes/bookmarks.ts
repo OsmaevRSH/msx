@@ -2,7 +2,8 @@ import { findItem } from "../fixtures.ts";
 import { HttpError, requireAuth } from "../router.ts";
 import type { HandlerCtx, MockResponse, Router } from "../router.ts";
 import type { FolderRec, MockState } from "../state.ts";
-import { listItem, num } from "./watching.ts";
+import { listItem } from "./catalog.ts";
+import { num } from "./watching.ts";
 
 // Закладки (research kinopub-api §8.2, Plan B §12.3). POST-параметры берутся из формы только при
 // `Content-Type: application/x-www-form-urlencoded`, иначе тело игнорируется (ловушка Apple, спец. §14.2);

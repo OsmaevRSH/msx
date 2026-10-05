@@ -19,6 +19,13 @@ export function unitsOf(it: FxItem): FxUnit[] {
   return [...(it.videos ?? []), ...(it.seasons ?? []).flatMap((s) => s.episodes)];
 }
 
+export function posters(base: string, id: number): Record<"small" | "medium" | "big" | "wide", string> {
+  return {
+    small: posterUrl(base, "small", id), medium: posterUrl(base, "medium", id),
+    big: posterUrl(base, "big", id), wide: posterUrl(base, "wide", id),
+  };
+}
+
 /**
  * Элемент списка в форме research kinopub-api §6.2 (без videos/seasons). Для проверки толерантного разбора
  * у каждого 7-го id `year` — строка, у каждого 5-го — `imdb_rating`.
@@ -38,10 +45,7 @@ export function listItem(it: FxItem, base: string): Record<string, unknown> {
     quality: it.quality, subtitles: first?.subsFull.length ?? 0, plot: it.plot,
     imdb_rating: it.id % 5 === 0 ? String(it.imdb_rating) : it.imdb_rating, kinopoisk_rating: it.kinopoisk_rating,
     rating: it.rating, views: it.views, comments: 0,
-    posters: {
-      small: posterUrl(base, "small", it.id), medium: posterUrl(base, "medium", it.id),
-      big: posterUrl(base, "big", it.id), wide: posterUrl(base, "wide", it.id),
-    },
+    posters: posters(base, it.id),
     finished: SERIES_TYPES.has(it.type) && it.id % 2 === 0, advert: false, poor_quality: false,
     in_watchlist: false, subscribed: false, created_at: it.created_at, updated_at: it.updated_at,
   };

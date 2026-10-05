@@ -4,6 +4,7 @@ import { HttpError, requireAuth } from "../router.ts";
 import type { HandlerCtx, MockResponse, Router } from "../router.ts";
 import { watchKey } from "../state.ts";
 import type { HistoryRec, MockState } from "../state.ts";
+import { SERIES_TYPES, listItem, posters } from "./catalog.ts";
 
 // Просмотры и история (research kinopub-api §8.1, §8.3; Plan B §9.3, §12.3; спец. §10.3, §14.2).
 // `video` и `season` — номера (`number`), а не id; у фильма сезон 0.
@@ -11,7 +12,6 @@ import type { HistoryRec, MockState } from "../state.ts";
 type Status = -1 | 0 | 1;
 
 const NOT_FOUND = { status: 404, error: "Requested item or video not found." };
-const SERIES_TYPES = new Set(["serial", "docuserial", "tvshow"]);
 const HISTORY_MAX_PERPAGE = 50;
 
 const nowSec = (): number => Math.floor(Date.now() / 1000);
@@ -20,32 +20,11 @@ const isSeries = (it: FxItem): boolean => it.seasons !== undefined || SERIES_TYP
 /** Поля истории сверх `HistoryRec` (state.ts общий): у записей из фикстур их нет, берутся значения по умолчанию. */
 type HistoryRow = HistoryRec & { firstSeen?: number; counter?: number };
 
-export function posters(base: string, id: number): Record<"small" | "medium" | "big" | "wide", string> {
-  const p = (size: string): string => `${base}/poster/${size}/${id}.svg`;
-  return { small: p("small"), medium: p("medium"), big: p("big"), wide: p("wide") };
-}
-
 function allUnits(it: FxItem): { season: number; unit: FxUnit }[] {
   return [
     ...(it.videos ?? []).map((unit) => ({ season: 0, unit })),
     ...(it.seasons ?? []).flatMap((s) => s.episodes.map((unit) => ({ season: s.number, unit }))),
   ];
-}
-
-/** Элемент списка в форме `/v1/items*` (research kinopub-api §6.2) — для истории и закладок. */
-export function listItem(it: FxItem, base: string): Record<string, unknown> {
-  const units = allUnits(it).map((x) => x.unit);
-  const total = units.reduce((n, u) => n + u.duration, 0);
-  return {
-    id: it.id, type: it.type, subtype: it.subtype, title: it.title, year: it.year, cast: "", director: "", voice: null,
-    genres: it.genres.map((g) => ({ ...g })), countries: it.countries.map((c) => ({ ...c })),
-    duration: { average: units.length > 0 ? Math.round(total / units.length) : 0, total },
-    langs: units[0]?.audios.length ?? 0, ac3: units.some((u) => u.audios.some((a) => a.codec === "ac3")) ? 1 : 0,
-    quality: it.quality, subtitles: units[0]?.subsFull.length ?? 0, plot: it.plot,
-    imdb_rating: it.imdb_rating, kinopoisk_rating: it.kinopoisk_rating, rating: it.rating, views: it.views,
-    posters: posters(base, it.id), finished: false, in_watchlist: false, subscribed: false,
-    created_at: it.created_at, updated_at: it.updated_at,
-  };
 }
 
 /** Число из query; пусто или не число → undefined. */
