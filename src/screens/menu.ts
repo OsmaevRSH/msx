@@ -1,16 +1,57 @@
 import type { AppContext } from "../app/context.ts";
 import { req } from "../msx/actions.ts";
-import type { MsxMenuRoot } from "../msx/types.ts";
-import { ids } from "../router/ids.ts";
+import type { MsxMenuItem, MsxMenuRoot } from "../msx/types.ts";
+import { encodeListKey, ids } from "../router/ids.ts";
 
-// Заглушка этапа 16; полное меню S3 — этап 17. Без сети и без ожидания (CNFR-03).
+// Меню S3 (спец. §7.1, §11; Plan B §8.3 S3). Строится без сети и без ожидания (CNFR-03).
+
+const HEADLINE = "KinoPub";
+const EXTENSION = "{ico:msx-white:access-time} {now:time:hh:mm}";
+const DICTIONARY = "http://msx.benzac.de/dic/ru.json";
+const CATALOG_SORT = "-updated";
+
+const T = {
+  login: "Вход",
+  home: "Главная",
+  search: "Поиск",
+  catalog: "Каталог",
+  bookmarks: "Закладки",
+  settings: "Настройки KinoPub",
+  probe: "Диагностика",
+  msxSettings: "Настройки MSX",
+};
+
+/** Разделы каталога как в официальном приложении; «Мультфильмы» — жанр 23 (research kinopub-api §6.4). */
+const SECTIONS: readonly { id: string; label: string; icon: string; type: string; genre?: string }[] = [
+  { id: "movies", label: "Фильмы", icon: "movie", type: "movie" },
+  { id: "serials", label: "Сериалы", icon: "tv", type: "serial" },
+  { id: "cartoons", label: "Мультфильмы", icon: "child-care", type: "movie,serial", genre: "23" },
+  { id: "docs", label: "Документальное", icon: "public", type: "documovie,docuserial" },
+  { id: "tvshows", label: "ТВ-шоу", icon: "live-tv", type: "tvshow" },
+  { id: "concerts", label: "Концерты", icon: "music-note", type: "concert" },
+];
 
 export function buildMenu(ctx: AppContext): MsxMenuRoot {
-  return {
-    headline: "KinoPub",
-    menu: [
-      { icon: "login", label: "Вход", data: req(ctx.P, ids.login()) },
-      { icon: "build", label: "Диагностика", data: req(ctx.P, ids.probe()) },
-    ],
-  };
+  const item = (id: string, icon: string, label: string, dataId: string): MsxMenuItem =>
+    ({ id, icon, label, data: req(ctx.P, dataId) });
+  const probe = item("probe", "build", T.probe, ids.probe());
+  const msxSettings: MsxMenuItem = { id: "msx_settings", type: "settings", label: T.msxSettings };
+
+  const menu: MsxMenuItem[] = !ctx.auth.isLoggedIn()
+    ? [item("login", "login", T.login, ids.login()), probe, msxSettings]
+    : [
+      item("home", "home", T.home, ids.home()),
+      item("search", "search", T.search, ids.search()),
+      { id: "sep_catalog", type: "separator", label: T.catalog },
+      ...SECTIONS.map((s) => {
+        const key = encodeListKey({ src: "catalog", type: s.type, sort: CATALOG_SORT, ...(s.genre !== undefined ? { genre: s.genre } : {}) });
+        return item(s.id, s.icon, s.label, ids.list(key));
+      }),
+      { id: "sep_personal", type: "separator" },
+      item("bookmarks", "bookmark", T.bookmarks, ids.bookmarks()),
+      item("settings", "tune", T.settings, ids.settings()),
+      probe,
+      msxSettings,
+    ];
+  return { headline: HEADLINE, extension: EXTENSION, dictionary: DICTIONARY, cache: true, menu };
 }
