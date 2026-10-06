@@ -93,8 +93,8 @@ describe("probeScreen (spec §16.2, decision R-11)", () => {
 
   it("rows show ✓/✗/— as MSX icons and the summary", async () => {
     const t = await make();
-    t.ctx.probe.record({ id: "CDG-01", ok: true, summary: "ответ 401 прочитан", values: {}, at: 1 });
-    t.ctx.probe.record({ id: "CDG-09", ok: false, summary: "квота {мала}", values: {}, at: 1 });
+    t.ctx.probe!.record({ id: "CDG-01", ok: true, summary: "ответ 401 прочитан", values: {}, at: 1 });
+    t.ctx.probe!.record({ id: "CDG-09", ok: false, summary: "квота {мала}", values: {}, at: 1 });
     const root = await probe(t);
     const row = (id: string): string => String(root.items?.find((i) => i.id === `c_${id}`)?.label);
     assert.equal(row("CDG-01"), "CDG-01 {ico:msx-green:check} ответ 401 прочитан");
@@ -111,17 +111,17 @@ describe("onProbeAct", () => {
     t.host.clearActions();
     t.app.handleData({ message: msgs.act("probe", "runApi") });
     await until(t, () => t.host.actions.some((a) => a.action === "reload:content"), "reload:content");
-    assert.deepEqual(t.ctx.probe.results().map((r) => r.id), [...API_CHECKS]);
-    for (const r of t.ctx.probe.results()) assert.equal(r.ok, true, `${r.id}: ${r.summary}`);
+    assert.deepEqual(t.ctx.probe!.results().map((r) => r.id), [...API_CHECKS]);
+    for (const r of t.ctx.probe!.results()) assert.equal(r.ok, true, `${r.id}: ${r.summary}`);
   });
 
   it("run:<id> runs one API check; a TV check id or the screen not current → no reload", async () => {
     const t = await make();
     await t.run(onProbeAct(t.ctx, "run", ["CDG-05"]));
-    assert.deepEqual(t.ctx.probe.results(), []);
+    assert.deepEqual(t.ctx.probe!.results(), []);
     await t.request(ids.dev());
     await t.run(onProbeAct(t.ctx, "run", ["CDG-01"]));
-    assert.deepEqual(t.ctx.probe.results().map((r) => r.id), ["CDG-01"]);
+    assert.deepEqual(t.ctx.probe!.results().map((r) => r.id), ["CDG-01"]);
     assert.ok(!t.host.actions.some((a) => a.action.includes("reload:content")));
   });
 

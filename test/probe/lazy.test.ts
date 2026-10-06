@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import type { AppContext } from "../../src/app/context.ts";
 import type { MsxContentRoot, MsxResolveResponse } from "../../src/msx/types.ts";
 import { pickTestTitle } from "../../src/probe/checks-api.ts";
 import * as probeEntry from "../../src/probe/entry.ts";
@@ -46,9 +47,18 @@ function assertNetError(root: MsxContentRoot): void {
   assert.equal(items[1]?.action, RETRY_CONTENT);
 }
 
-const probeLoaded = (t: TestApp): boolean => (t.ctx as { probe?: unknown }).probe !== undefined;
+const probeLoaded = (t: TestApp): boolean => t.ctx.probe !== undefined;
 
 describe("probe.js: loaded on first use (stage 23b)", () => {
+  it("ctx.probe is optional in AppContext: there is no ProbeRunner until probe.js is loaded", async () => {
+    const optional: undefined extends AppContext["probe"] ? true : false = true;
+    assert.equal(optional, true);
+    const t = await make({ probe: "lazy" });
+    assert.equal(t.ctx.probe, undefined);
+    await t.request(ids.probe());
+    assert.ok(t.ctx.probe !== undefined);
+  });
+
   it("init, home, ready and an ordinary playback do not load it; ready() still records the cold start and the storage run", async () => {
     const l = loader();
     const t = await make({ probe: l });
@@ -106,7 +116,7 @@ describe("probe.js: loaded on first use (stage 23b)", () => {
     load(t, kpProps(unit, { "kp:p": "a1" }), 0, u.duration);
     player(t, "play", { position: 0, duration: u.duration });
     await pass(t, 100);
-    const r = t.ctx.probe.results().find((x) => x.id === "CDG-05");
+    const r = t.ctx.probe!.results().find((x) => x.id === "CDG-05");
     assert.equal(typeof r?.values.a1, "number", "TTFF of the a1 tile");
   });
 
@@ -147,7 +157,7 @@ describe("probe.js: loaded on first use (stage 23b)", () => {
   it("CDG-09: probe.c* blocks evicted by the L2 budget are noted without the probe loaded", async () => {
     const storage = new MemoryStorage();
     const t = await make({ storage });
-    t.ctx.probe.persistWrite();
+    t.ctx.probe!.persistWrite();
     const l = loader();
     const t2 = await make({ storage, mock: t.mock, probe: l });
     t2.ctx.l2.put("item:1:", "x".repeat(300_000));

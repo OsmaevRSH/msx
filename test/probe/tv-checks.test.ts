@@ -15,12 +15,12 @@ import { EP, kpProps, load, pass, player, snapshot, useApps } from "../progress/
 const make = useApps();
 
 function check(t: TestApp, id: CheckId): CheckResult {
-  const r = t.ctx.probe.results().find((x) => x.id === id);
+  const r = t.ctx.probe!.results().find((x) => x.id === id);
   assert.ok(r !== undefined, `${id} not recorded`);
   return r;
 }
 
-const recorded = (t: TestApp, id: CheckId): boolean => t.ctx.probe.results().some((x) => x.id === id);
+const recorded = (t: TestApp, id: CheckId): boolean => t.ctx.probe!.results().some((x) => x.id === id);
 
 async function title(t: TestApp): Promise<TestTitle> {
   const tt = await t.run(pickTestTitle(t.ctx));
@@ -85,7 +85,7 @@ describe("CDG-07: player events, ticks, Back snapshot, requestData(\"video\")", 
     snapshot(t, 10);
     player(t, "stop", { position: 10 });
     await pass(t, 100);
-    assert.deepEqual(t.ctx.probe.results(), []);
+    assert.deepEqual(t.ctx.probe!.results(), []);
   });
 });
 

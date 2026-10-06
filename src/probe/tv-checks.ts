@@ -51,7 +51,7 @@ const isAudio = (p: string | undefined): p is AudioVariant => (AUDIO_VARIANTS as
 const short = (names: readonly string[]): string => names.map((n) => n.replace("video:", "")).join(",");
 
 function record(ctx: AppContext, id: CheckId, ok: boolean | null, summary: string, values: CheckResult["values"]): void {
-  ctx.probe.record(result(ctx, id, ok, summary, values));
+  ctx.probe!.record(result(ctx, id, ok, summary, values));
 }
 
 export function installTvChecks(ctx: AppContext): void {
@@ -181,7 +181,7 @@ function onStop(ctx: AppContext, st: TvState, s: PlaybackSession): void {
 
 /** CDG-05: TTFF трёх плиток; значения копятся в сохранённом результате (плитки запускаются по одной). */
 function recordAudio(ctx: AppContext, v: AudioVariant, value: number | boolean): void {
-  const prev = ctx.probe.results().find((r) => r.id === "CDG-05")?.values ?? {};
+  const prev = ctx.probe!.results().find((r) => r.id === "CDG-05")?.values ?? {};
   const got: Partial<Record<AudioVariant, number | boolean>> = {};
   for (const k of AUDIO_VARIANTS) {
     const x = prev[k];
