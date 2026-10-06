@@ -148,7 +148,11 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
       assert.ok(id > 0, `tile action ${tile.action}`);
       assert.deepEqual(tile.selection, { action: commitMsg(msgs.pf(id)) });
       assert.ok(tile.image !== undefined && tile.title !== undefined);
+      // V-04: подпись под постером, как в каталоге; шаблон корня MSX к `pages` не применяет — вид в самой плитке.
+      assert.deepEqual([tile.type, tile.imageFiller, tile.color, tile.round], ["separate", "cover", "msx-glass", true]);
+      assert.match(tile.stamp ?? "", /^\d{4} · \d,\d$/);
     }
+    assert.deepEqual([tiles[0]?.title, tiles[0]?.titleFooter], ["Тестовый", "{col:msx-white}фильм 1000"]);
     assert.equal(shelf(s, "Горячее: сериалы").at(-1)?.action, contentAction(P, ids.list(encodeListKey({ src: "hot", type: "serial" }))));
   });
 
@@ -172,8 +176,10 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     assert.equal(big?.tag, "S1E4");
     assert.equal(big?.badge, "+2");
     assert.equal(big?.progressColor, "msx-blue");
+    assert.deepEqual([big?.type, big?.title, big?.titleFooter], ["separate", "Тестовый", "{col:msx-white}сериал «Большой»"]);
     assert.equal(movie?.action, contentAction(P, ids.item(FIX.MOVIE_SIMPLE)));
-    assert.equal(movie?.stamp, "осталось 1 ч 10 мин");
+    // V-05: короткий остаток, который MSX не режет до «ОСТАЛО…».
+    assert.equal(movie?.stamp, "1 ч 10 м");
     assert.equal(movie?.progress, 0.22);
   });
 
@@ -198,16 +204,30 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     assert.ok(tiles.every((i) => i.title !== "Ещё →"));
   });
 
-  it("«Закладки»: folder tiles to the folder list, «Ещё →» to bookmarks", async () => {
+  it("«Закладки»: a folder tile with the icon above its name (V-30), no «Ещё →» for fewer than 7 folders (V-06)", async () => {
     const t = await make();
     const tiles = shelf(await open(t), "Закладки");
-    assert.equal(tiles.length, 2);
-    assert.equal(tiles[0]?.title, "Избранное");
-    assert.equal(tiles[0]?.titleFooter, "2 шт.");
-    assert.equal(tiles[0]?.icon, "bookmark");
-    assert.equal(tiles[0]?.action, contentAction(P, ids.list(encodeListKey({ src: "folder", folder: 1 }))));
-    assert.equal(tiles[1]?.layout, "2,5,2,3");
-    assert.equal(tiles[1]?.action, contentAction(P, ids.bookmarks()));
+    assert.equal(tiles.length, 1);
+    const [fav] = tiles;
+    assert.deepEqual([fav?.type, fav?.icon, fav?.title, fav?.stamp], ["separate", "bookmark", "Избранное", "2 шт."]);
+    assert.equal(fav?.titleFooter, undefined);
+    assert.equal(fav?.action, contentAction(P, ids.list(encodeListKey({ src: "folder", folder: 1 }))));
+  });
+
+  it("«Закладки»: 7 folders fit without «Ещё →»; the 8th brings «Ещё →» to the bookmarks screen", async () => {
+    const t = await make();
+    for (let id = 2; id <= 7; id++) t.mock.state.folders.set(id, { title: `Смотреть с детьми ${id}`, items: [], created: id });
+    const seven = shelf(await open(t), "Закладки");
+    assert.equal(seven.length, 7);
+    assert.ok(seven.every((i) => i.title !== "Ещё →"));
+    assert.deepEqual([seven[1]?.title, seven[1]?.titleFooter], ["Смотреть с", "{col:msx-white}детьми 2"]);
+    t.mock.state.folders.set(8, { title: "Восьмая", items: [], created: 8 });
+    t.ctx.cache.markStale(cacheKeys.bookmarks());
+    await open(t);
+    await driveToAction(t);
+    const eight = shelf(await open(t), "Закладки");
+    assert.equal(eight.length, 8);
+    assert.deepEqual([eight[7]?.title, eight[7]?.layout, eight[7]?.action], ["Ещё →", "14,5,2,3", contentAction(P, ids.bookmarks())]);
   });
 
   it("focus prefetch off — no selection on tiles", async () => {

@@ -35,9 +35,13 @@ describe("fmtMinutes / fmtRemaining", () => {
     assert.equal(fmtMinutes(-30), "0 мин");
   });
 
-  it("fmtRemaining prefixes «осталось»", () => {
-    assert.equal(fmtRemaining(2820), "осталось 47 мин");
-    assert.equal(fmtRemaining(7260), "осталось 2 ч 01 мин");
+  it("fmtRemaining: short enough for a poster stamp (≤ 8 characters, V-05)", () => {
+    assert.equal(fmtRemaining(2820), "47 мин");
+    assert.equal(fmtRemaining(4200), "1 ч 10 м");
+    assert.equal(fmtRemaining(7260), "2 ч 1 м");
+    assert.equal(fmtRemaining(7200), "2 ч");
+    assert.equal(fmtRemaining(20), "1 мин");
+    for (const sec of [59, 3599, 3600, 35_940]) assert.ok(fmtRemaining(sec).length <= 8, fmtRemaining(sec));
   });
 });
 

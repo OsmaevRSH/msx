@@ -42,7 +42,7 @@ describe("buildContinue: films (Plan B §8.3.1 п. 2)", () => {
   it("progress = time / duration, stamp with the remaining time, title and posters of the history item", () => {
     const [tile] = buildContinue([entry(1, { time: 1800, duration: 2 * HOUR })], [], [], none);
     assert.deepEqual(tile, {
-      id: 1, type: "movie", title: "Тайтл 1 / Title 1", posters: POSTERS, progress: 0.25, stamp: "осталось 1 ч 30 мин",
+      id: 1, type: "movie", title: "Тайтл 1 / Title 1", posters: POSTERS, progress: 0.25, stamp: "1 ч 30 м",
     });
   });
 
@@ -78,7 +78,7 @@ describe("buildContinue: TV overlay (спец. §10.2, Р-21)", () => {
     const ov = overlayOf([[1, 0, 1, { time: 3600, status: 0, at: (SEEN + 60) * 1000 }]]);
     const [tile] = buildContinue([entry(1, { time: 600 })], [], [], ov);
     assert.equal(tile?.progress, 0.5);
-    assert.equal(tile?.stamp, "осталось 1 ч 00 мин");
+    assert.equal(tile?.stamp, "1 ч");
   });
 
   it("an overlay older than history is ignored", () => {
@@ -189,7 +189,7 @@ describe("buildContinue: kpmock fixtures", () => {
     assert.equal(w.watched, 3);
     assert.equal(big.progress, 3 / w.total);
     const movie = out.find((x) => x.id === FIX.MOVIE_SIMPLE);
-    assert.equal(movie?.stamp, "осталось 1 ч 10 мин");
+    assert.equal(movie?.stamp, "1 ч 10 м");
     assert.equal(movie?.progress, 1200 / 5400);
     assert.deepEqual(out.map((x) => x.id), [FIX.SERIAL_BIG, FIX.MOVIE_SIMPLE, FIX.SERIAL_SMALL]);
   });

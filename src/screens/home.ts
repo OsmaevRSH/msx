@@ -15,7 +15,7 @@ import { buildContinue } from "./continue.ts";
 import { RETRY_CONTENT, errorItems } from "./error.ts";
 import { MAX_BYTES, bytes } from "./list.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
-import { posterTiles } from "./tiles.ts";
+import { posterTiles, titleLines } from "./tiles.ts";
 
 // Главная S4 (спец. §8.4, §11; Plan B S4, D-34, D-40). Всё, что есть в кэше, отдаётся сразу, персональное — с оверлеем
 // прогресса ТВ; KinoPub ждём, только если из кэша показать нечего, и не дольше 1,5 с (CNFR-05). Запись старше stale-max
@@ -32,6 +32,8 @@ const TILES = 7;
 /** Р-22: у «Продолжить» нет «Ещё» — до 8 плиток. */
 const CONTINUE_TILES = 8;
 const WIDTH = 16;
+/** V-04: подпись под постером, как в каталоге (`gridTemplate`); шаблон корня к элементам `pages` MSX не применяет. */
+const TILE: MsxContentItem = { type: "separate", color: "msx-glass", imageFiller: "cover", round: true };
 const T = {
   title: "Главная",
   more: "Ещё →",
@@ -124,11 +126,9 @@ const withMore = (ctx: AppContext, d: Def, tiles: MsxContentItem[], dataId: stri
   tiles.length === 0 ? [] : [...tiles, { id: `${d.id}_more`, title: T.more, action: contentAction(ctx.P, dataId) }];
 
 function titles(ctx: AppContext, d: Def, items: ItemSummary[]): MsxContentItem[] {
-  return posterTiles(ctx, items).map((t, i) => {
+  return posterTiles(ctx, items).map(({ kid: _kid, ...t }, i) => {
     const id = items[i]?.id ?? 0;
-    delete t.kid;
-    t.id = `${d.id}${id}`;
-    return focus(ctx, t, id);
+    return focus(ctx, { ...TILE, ...t, id: `${d.id}${id}` }, id);
   });
 }
 
@@ -145,7 +145,7 @@ async function continueShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> 
   const size = ctx.prefs.get().posterSize;
   const tiles = items.map((c) => {
     const t: MsxContentItem = {
-      id: `${d.id}${c.id}`, title: ruTitle(c.title), image: c.posters[size] || c.posters.medium,
+      ...TILE, id: `${d.id}${c.id}`, ...titleLines(ruTitle(c.title)), image: c.posters[size] || c.posters.medium,
       action: contentAction(ctx.P, ids.item(c.id)), tag: c.tag, badge: c.badge, stamp: c.stamp,
     };
     if (c.progress !== undefined) Object.assign(t, { progress: pct(c.progress), progressColor: "msx-blue" });
@@ -165,13 +165,16 @@ async function loadShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> {
   if (d.kind === "bookmarks") {
     const g = await src.folders();
     const folders = g.value.slice(0, TILES);
+    // V-30: у `separate` без картинки значок — в поле картинки, над названием, а не поверх него.
     const tiles = folders.map((f): MsxContentItem => ({
-      id: `${d.id}${f.id}`, icon: "bookmark", title: f.title, titleFooter: `${f.count} ${T.pcs}`,
+      ...TILE, id: `${d.id}${f.id}`, icon: "bookmark", ...titleLines(f.title), stamp: `${f.count} ${T.pcs}`,
       action: contentAction(ctx.P, ids.list(encodeListKey({ src: "folder", folder: f.id }))),
     }));
+    // V-06: «Ещё» — только если папки не поместились; его появление тоже меняет экран.
+    const more = g.value.length > TILES;
     return {
-      def: d, tiles: withMore(ctx, d, tiles, ids.bookmarks()), personal: folders.map((f) => [f.id, f.count]), stale: g.stale,
-      offline: g.offline !== undefined,
+      def: d, tiles: more ? withMore(ctx, d, tiles, ids.bookmarks()) : tiles,
+      personal: [folders.map((f) => [f.id, f.count, f.title]), more], stale: g.stale, offline: g.offline !== undefined,
     };
   }
   const g = await src.shelf(d.kind, d.type ?? "");
