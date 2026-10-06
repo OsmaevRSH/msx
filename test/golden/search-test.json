@@ -5,12 +5,20 @@
   "cache": false,
   "reuse": false,
   "headline": "Поиск",
+  "extension": "{ico:search} «тест» · 505 результатов",
   "header": {
     "items": [
       {
         "type": "space",
-        "layout": "0,0,16,1",
-        "headline": "{ico:search} тест_ {col:msx-white-soft}· Найдено: 505"
+        "layout": "0,0,11,1",
+        "color": "msx-glass",
+        "headline": "{ico:search} тест_"
+      },
+      {
+        "type": "space",
+        "layout": "11,0,5,1",
+        "alignment": "right",
+        "text": "Найдено: 505"
       },
       {
         "type": "button",
@@ -306,8 +314,13 @@
         "id": "k_lang",
         "type": "button",
         "layout": "12,4,4,1",
-        "label": "{ico:language} RU/EN",
+        "label": "{ico:language} Раскладка: RU",
         "action": "interaction:commit:message:search:control:lang"
+      },
+      {
+        "type": "space",
+        "layout": "0,7,16,1",
+        "text": "{ico:arrow-downward} Результаты ниже"
       }
     ]
   },

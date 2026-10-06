@@ -2,6 +2,7 @@ import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import type { SearchState } from "../../src/app/context.ts";
+import { fmtCount } from "../../src/core/format.ts";
 import type { MsxContentItem, MsxContentPage, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids } from "../../src/router/ids.ts";
 import { LAYOUTS, keyboardPage } from "../../src/screens/keyboard.ts";
@@ -51,7 +52,8 @@ const kb = (s: MsxContentRoot): MsxContentPage => {
   assert.ok(page !== undefined, "keyboard page");
   return page;
 };
-const line = (s: MsxContentRoot): string | undefined => kb(s).items[0]?.headline;
+/** V-28: поле запроса и подсказка справа от него — «<поле> | <подсказка>». */
+const line = (s: MsxContentRoot): string => `${kb(s).items[0]?.headline ?? ""} | ${kb(s).items[1]?.text ?? ""}`;
 const items = (s: MsxContentRoot): MsxContentItem[] => s.items ?? [];
 
 /** Ждать в поддельном времени (через `t.run`), пока условие не выполнится. */
@@ -73,7 +75,7 @@ describe("searchScreen (S7, CC-06)", () => {
       type: "list", compress: true, flag: "search", cache: false, reuse: false, headline: "Поиск",
       pages: [keyboardPage(t.ctx, st(t))],
     });
-    assert.equal(line(s), "{ico:search} _ {col:msx-white-soft}· Наберите название");
+    assert.equal(line(s), "{ico:search} _ | Наберите название");
     assert.equal(t.mock.calls().filter((c) => c.path.startsWith("/v1/")).length, 0);
     assert.equal(t.ctx.current.get(), "search");
   });
@@ -108,7 +110,7 @@ describe("searchScreen (S7, CC-06)", () => {
     assert.equal(matches("мат"), 0);
     assert.equal(st(t).status, "empty");
     const s: MsxContentRoot = await t.request(ids.search());
-    assert.equal(line(s), "{ico:search} мат_ {col:msx-white-soft}· Ничего не найдено");
+    assert.equal(line(s), "{ico:search} мат_ | Ничего не найдено");
     assert.equal(s.items, undefined);
     assert.equal(s.template, undefined);
     assert.equal(s.pages?.length, 1);
@@ -125,7 +127,7 @@ describe("searchScreen (S7, CC-06)", () => {
     await t.clock.advance(2000);
     assert.equal(searches(t).length, 0);
     const s: MsxContentRoot = await t.request(ids.search());
-    assert.equal(line(s), "{ico:search} _ {col:msx-white-soft}· Минимум 2 символа");
+    assert.equal(line(s), "{ico:search} _ | Наберите название", "V-29: an empty field always asks to type");
   });
 
   it("one letter → short, no request", async () => {
@@ -172,13 +174,16 @@ describe("searchScreen (S7, CC-06)", () => {
     assert.equal(t.mock.calls().length, before);
     assert.ok(ms <= 50, `${ms.toFixed(1)} ms`);
     const { header, template, items: tiles, ...root } = s;
-    assert.deepEqual(root, { type: "list", compress: true, flag: "search", cache: false, reuse: false, headline: "Поиск" });
+    assert.deepEqual(root, {
+      type: "list", compress: true, flag: "search", cache: false, reuse: false, headline: "Поиск",
+      extension: `{ico:search} «фи» · ${fmtCount(matches("фи"), ["результат", "результата", "результатов"])}`,
+    });
     assert.deepEqual(header, keyboardPage(t.ctx, st(t)));
     assert.deepEqual(template, gridTemplate(t.ctx, "0,0,2,4"));
     assert.equal(tiles?.length, 48);
     assert.deepEqual(tiles?.map(({ live: _l, ...tile }) => tile), posterTiles(t.ctx, st(t).items));
     assert.deepEqual(tiles?.at(-1)?.live, EXTEND_LIVE);
-    assert.equal(line(s), `{ico:search} фи_ {col:msx-white-soft}· Найдено: ${matches("фи")}`);
+    assert.equal(line(s), `{ico:search} фи_ | Найдено: ${matches("фи")}`);
     assert.equal(t.ctx.current.get(), "search");
   });
 
@@ -189,6 +194,27 @@ describe("searchScreen (S7, CC-06)", () => {
     const s = await t.request(ids.search());
     assert.equal(items(s).length, 48);
     assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
+  });
+});
+
+describe("searchScreen: the input field and the results (V-09, V-25, V-28)", () => {
+  it("results start on the next MSX page: the keyboard page fills all 8 rows and points down", async () => {
+    const t = await opened();
+    type(t, "фи");
+    await settle(t);
+    const s: MsxContentRoot = await t.request(ids.search());
+    const rows = Math.max(...kb(s).items.map((i) => { const [, y, , h] = (i.layout ?? "").split(",").map(Number); return y + h; }));
+    assert.equal(rows, 8);
+    assert.deepEqual(kb(s).items.at(-1), { type: "space", layout: "0,7,16,1", text: "{ico:arrow-downward} Результаты ниже" });
+  });
+
+  it("no results — no extension and no pointer", async () => {
+    const t = await opened();
+    type(t, "мат");
+    await settle(t);
+    const s: MsxContentRoot = await t.request(ids.search());
+    assert.equal(s.extension, undefined);
+    assert.ok(kb(s).items.every((i) => i.layout !== "0,7,16,1"));
   });
 });
 
@@ -217,7 +243,7 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.equal(st(t).done, true);
     const s: MsxContentRoot = await t.request(ids.search());
     assert.ok(items(s).every((i) => i.live === undefined));
-    assert.equal(line(s), `{ico:search} фи_ {col:msx-white-soft}· Найдено: ${matches("фи")}, показаны первые 96 — уточните запрос`);
+    assert.equal(line(s), `{ico:search} фи_ | Найдено: ${matches("фи")}, показаны первые 96 — уточните запрос`);
     assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
     send(t, "extend:search");
     await t.clock.advance(1000);
@@ -236,7 +262,7 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     const n = items(s).length;
     assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
     assert.ok(n < 96 && n >= 16 && n % 16 === 0, `${n} tiles`);
-    assert.equal(line(s), `{ico:search} фи_ {col:msx-white-soft}· Найдено: 500, показаны первые ${n} — уточните запрос`);
+    assert.equal(line(s), `{ico:search} фи_ | Найдено: 500, показаны первые ${n} — уточните запрос`);
   });
 
   it("extend while another screen is current → appended in memory, no reload", async () => {
@@ -301,7 +327,7 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.deepEqual([st(t).status, st(t).error], ["error", "KP-NET"]);
     assert.equal(t.host.actions.at(-1)?.action, RELOAD);
     const s: MsxContentRoot = await t.request(ids.search());
-    assert.equal(line(s), "{ico:search} фи_ {col:msx-white-soft}· Нет связи с KinoPub. Проверьте VPN (KP-NET)");
+    assert.equal(line(s), "{ico:search} фи_ | Нет связи с KinoPub. Проверьте VPN (KP-NET)");
     assert.equal(s.items, undefined);
   });
 
@@ -345,6 +371,6 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     const before = t.mock.calls().length;
     const s = await searchScreen(t.ctx);
     assert.equal(t.mock.calls().length, before);
-    assert.equal(line(s), "{ico:search} фи_ {col:msx-white-soft}· Ищу…");
+    assert.equal(line(s), "{ico:search} фи_ | Ищу…");
   });
 });

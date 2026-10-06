@@ -30,11 +30,13 @@ const isLetter = (i: MsxContentItem): boolean => i.type === "button" && !DIGITS.
 const letters = (p: MsxContentPage): MsxContentItem[] => p.items.filter(isLetter);
 const digits = (p: MsxContentPage): MsxContentItem[] => p.items.filter((i) => i.key !== undefined && DIGITS.includes(i.key));
 const controls = (p: MsxContentPage): MsxContentItem[] => p.items.filter((i) => i.type === "button" && box(i)[2] === 4);
-const inputRow = (p: MsxContentPage): MsxContentItem => {
-  const row = p.items.find((i) => i.layout === "0,0,16,1");
-  assert.ok(row !== undefined, "input row");
-  return row;
+const at = (p: MsxContentPage, layout: string): MsxContentItem => {
+  const it = p.items.find((i) => i.layout === layout);
+  assert.ok(it !== undefined, layout);
+  return it;
 };
+/** V-28: поле запроса над буквами и подсказка справа: «<поле> | <подсказка>». */
+const inputRow = (p: MsxContentPage): string => `${at(p, "0,0,11,1").headline ?? ""} | ${at(p, "11,0,5,1").text ?? ""}`;
 
 describe("LAYOUTS (decision Р-13)", () => {
   it("RU: 33 letters in alphabetical order, EN: 26, digits 1…0, no duplicates", () => {
@@ -78,7 +80,7 @@ describe("keyboardPage (S7, spec §3.4)", () => {
     }
   });
 
-  it("controls on the right: erase (Delete key), space, clear, RU/EN with stable ids", async () => {
+  it("controls on the right: erase (Delete key), space, clear, layout with stable ids; the layout button names the current one (V-29)", async () => {
     const t = await make();
     for (const lang of ["ru", "en"] as const) {
       const cs = controls(keyboardPage(t.ctx, state({ lang })));
@@ -90,6 +92,7 @@ describe("keyboardPage (S7, spec §3.4)", () => {
       ]);
       assert.equal(cs[0].key, "delete");
       assert.ok(cs.every((i) => (i.label ?? "") !== ""));
+      assert.equal(cs[3].label, `{ico:language} Раскладка: ${lang.toUpperCase()}`);
     }
   });
 
@@ -108,37 +111,35 @@ describe("keyboardPage (S7, spec §3.4)", () => {
           }
         }
       }
-      assert.equal(page.items.length, 1 + LAYOUTS[lang].length + 10 + 4);
+      assert.equal(page.items.length, 2 + LAYOUTS[lang].length + 10 + 4);
     }
   });
 
-  it("the input row shows the query with a cursor and the state hint", async () => {
+  it("V-28: a glass field with the query and a cursor above the letters, the state hint on the right", async () => {
     const t = await make();
-    const row = (over: Partial<SearchState>): string | undefined => {
-      const r = inputRow(keyboardPage(t.ctx, state(over)));
-      assert.equal(r.type, "space");
-      return r.headline;
-    };
-    assert.equal(row({}), "{ico:search} _ {col:msx-white-soft}· Наберите название");
-    assert.equal(row({ query: "м", status: "short" }), "{ico:search} м_ {col:msx-white-soft}· Минимум 2 символа");
-    assert.equal(row({ query: "мат", status: "loading" }), "{ico:search} мат_ {col:msx-white-soft}· Ищу…");
-    assert.equal(row({ query: "мат", status: "empty" }), "{ico:search} мат_ {col:msx-white-soft}· Ничего не найдено");
-    assert.equal(row({ query: "фи", status: "ready", items: [], totalPages: 6 }), "{ico:search} фи_ {col:msx-white-soft}· Найдено: 0");
-    assert.equal(row({ query: "фи", status: "error", error: "KP-NET" }),
-      "{ico:search} фи_ {col:msx-white-soft}· Нет связи с KinoPub. Проверьте VPN (KP-NET)");
+    const page = keyboardPage(t.ctx, state({ query: "мат", status: "loading" }));
+    assert.deepEqual(at(page, "0,0,11,1"), { type: "space", layout: "0,0,11,1", color: "msx-glass", headline: "{ico:search} мат_" });
+    assert.deepEqual(at(page, "11,0,5,1"), { type: "space", layout: "11,0,5,1", alignment: "right", text: "Ищу…" });
+    const row = (over: Partial<SearchState>): string => inputRow(keyboardPage(t.ctx, state(over)));
+    assert.equal(row({}), "{ico:search} _ | Наберите название");
+    assert.equal(row({ query: "м", status: "short" }), "{ico:search} м_ | Минимум 2 символа");
+    assert.equal(row({ query: "", status: "short" }), "{ico:search} _ | Наберите название", "V-29: after «Очистить»");
+    assert.equal(row({ query: " ", status: "short" }), "{ico:search}  _ | Наберите название");
+    assert.equal(row({ query: "мат", status: "empty" }), "{ico:search} мат_ | Ничего не найдено");
+    assert.equal(row({ query: "фи", status: "ready", items: [], totalPages: 6 }), "{ico:search} фи_ | Найдено: 0");
+    assert.equal(row({ query: "фи", status: "error", error: "KP-NET" }), "{ico:search} фи_ | Нет связи с KinoPub. Проверьте VPN (KP-NET)");
   });
 
   it("«Найдено» takes the API total when the screen knows it", async () => {
     const t = await make();
     const s = Object.assign(state({ query: "фи", status: "ready" }), { total: 263 });
-    assert.equal(inputRow(keyboardPage(t.ctx, s)).headline, "{ico:search} фи_ {col:msx-white-soft}· Найдено: 263");
+    assert.equal(inputRow(keyboardPage(t.ctx, s)), "{ico:search} фи_ | Найдено: 263");
   });
 
   it("a cut result list: «Найдено» tells how many are shown and asks to refine the query", async () => {
     const t = await make();
     const s = Object.assign(state({ query: "фи", status: "ready" }), { total: 263, shown: 96 });
-    assert.equal(inputRow(keyboardPage(t.ctx, s)).headline,
-      "{ico:search} фи_ {col:msx-white-soft}· Найдено: 263, показаны первые 96 — уточните запрос");
+    assert.equal(inputRow(keyboardPage(t.ctx, s)), "{ico:search} фи_ | Найдено: 263, показаны первые 96 — уточните запрос");
   });
 
   it("the keyboard page JSON is light: ≤ 6 KB in both layouts (it is redrawn on every key)", async () => {
