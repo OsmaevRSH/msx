@@ -14,8 +14,11 @@ const MIN_TIMER_MS = 1000;
 
 type Kind = "m" | "w";
 interface Base { item: number; season: number; video: number; createdAt: number; attempts: number; nextAt: number }
-/** `marktime`: последняя позиция (секунды). */
-interface MarkRec extends Base { time: number }
+/**
+ * `marktime`: последняя позиция (секунды) и время решения о ней `at` (этап 33c). Порядок позиций — по `at`, а не
+ * по `createdAt`: запрос, решённый раньше, может упасть позже. У записей прежних версий `at` нет — берётся `createdAt`.
+ */
+interface MarkRec extends Base { time: number; at?: number }
 /** «Просмотрено»: желаемое состояние, а не команда «переключить» (CM-01). */
 interface WatchRec extends Base { desired: 0 | 1 }
 type Rec = MarkRec | WatchRec;
@@ -43,6 +46,8 @@ function errData(e: unknown): Record<string, unknown> {
   return { err: err.code, status: err.status, msg: err.message };
 }
 
+const stampOf = (r: MarkRec): number => r.at ?? r.createdAt;
+
 const isInt = (v: unknown, min: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min;
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -52,7 +57,10 @@ function recFrom(kind: Kind, v: unknown): Rec | undefined {
   if (!isInt(r.item, 1) || !isInt(r.season, 0) || !isInt(r.video, 1)) return undefined;
   if (!isNum(r.createdAt) || !isInt(r.attempts, 0) || !isNum(r.nextAt)) return undefined;
   const base: Base = { item: r.item, season: r.season, video: r.video, createdAt: r.createdAt, attempts: r.attempts, nextAt: r.nextAt };
-  if (kind === "m") return isInt(r.time, 0) ? { ...base, time: r.time } : undefined;
+  if (kind === "m") {
+    if (!isInt(r.time, 0)) return undefined;
+    return isNum(r.at) ? { ...base, time: r.time, at: r.at } : { ...base, time: r.time };
+  }
   return r.desired === 0 || r.desired === 1 ? { ...base, desired: r.desired } : undefined;
 }
 
@@ -68,6 +76,11 @@ export class Outbox {
   private ctx: AppContext;
   private timer: TimerId | undefined;
   private queue: Promise<void> = Promise.resolve();
+  /** `marktime` одного ключа уходят по одному: иначе более старая позиция (повторы транспорта, outbox) дошла бы позже. */
+  private lanes = new Map<string, Promise<void>>();
+  /** Время решения последней позиции ключа, дошедшей до KinoPub: решённое раньше уже устарело. */
+  private delivered = new Map<string, number>();
+  private lastAt = 0;
 
   constructor(ctx: AppContext) {
     this.ctx = ctx;
@@ -87,21 +100,55 @@ export class Outbox {
     return this.keys().length;
   }
 
-  putMarktime(itemId: number, season: number, video: number, time: number): void {
-    const now = this.ctx.clock.now();
-    const rec: MarkRec = { item: itemId, season, video, time: Math.max(0, Math.floor(time)), createdAt: now, attempts: 0, nextAt: now + RETRY_MS[0] };
-    this.write(keyOf("m", itemId, season, video), rec);
-    this.schedule();
+  /**
+   * `marktime` из трекера: сразу, но после запроса того же ключа, который ещё в полёте. Сеть, 429, 5xx → запись
+   * с временем решения, `"queued"`; позиция, которую уже обогнала более новая, — `"superseded"`; прочие ошибки —
+   * исключение.
+   */
+  sendMarktime(itemId: number, season: number, video: number, time: number): Promise<"done" | "queued" | "superseded"> {
+    const key = keyOf("m", itemId, season, video);
+    const at = this.stamp();
+    return this.inLane(key, async () => {
+      try {
+        await this.ctx.api.marktime(itemId, video, time, seasonArg(season));
+      } catch (e) {
+        if (!isTransient(e)) throw e;
+        if (!this.putMarktime(itemId, season, video, time, at)) return "superseded";
+        this.ctx.log.warn(TAG, "marktime_queued", { key, time, ...errData(e) });
+        return "queued";
+      }
+      this.forgetMarktime(itemId, season, video, at);
+      return "done";
+    });
   }
 
   /**
-   * Позиция, отправленная напрямую в `sentAt`, дошла до KinoPub: запись, поставленная раньше, откатила бы её назад.
-   * Запись, поставленная после `sentAt`, новее — она остаётся.
+   * Позиция для повтора; `at` — время решения о ней. Решение старше записи или позиции, уже дошедшей до KinoPub,
+   * не записывается (`false`): повтор откатил бы прогресс назад.
    */
-  forgetMarktime(itemId: number, season: number, video: number, sentAt: number = Number.POSITIVE_INFINITY): void {
+  putMarktime(itemId: number, season: number, video: number, time: number, at: number = this.stamp()): boolean {
     const key = keyOf("m", itemId, season, video);
-    const rec = this.read(key);
-    if (rec !== undefined && rec.createdAt <= sentAt) {
+    const cur = this.readMark(key);
+    if (at <= (this.delivered.get(key) ?? Number.NEGATIVE_INFINITY) || (cur !== undefined && at < stampOf(cur))) {
+      this.ctx.log.info(TAG, "marktime_stale_dropped", { key, time });
+      return false;
+    }
+    const now = this.ctx.clock.now();
+    const rec: MarkRec = { item: itemId, season, video, time: Math.max(0, Math.floor(time)), at, createdAt: now, attempts: 0, nextAt: now + RETRY_MS[0] };
+    this.write(key, rec);
+    this.schedule();
+    return true;
+  }
+
+  /**
+   * Позиция, решённая в `sentAt`, дошла до KinoPub: запись, решённая раньше, откатила бы её назад, а решённая
+   * позже новее — она остаётся. Сравниваются времена решений, не записи: старый запрос мог упасть позже нового.
+   */
+  forgetMarktime(itemId: number, season: number, video: number, sentAt: number = this.stamp()): void {
+    const key = keyOf("m", itemId, season, video);
+    if (sentAt > (this.delivered.get(key) ?? Number.NEGATIVE_INFINITY)) this.delivered.set(key, sentAt);
+    const rec = this.readMark(key);
+    if (rec !== undefined && stampOf(rec) <= sentAt) {
       this.ctx.store.remove("out", key);
       this.schedule();
     }
@@ -177,11 +224,24 @@ export class Outbox {
     }
   }
 
-  private async send(key: string, rec: Rec): Promise<void> {
+  /** `marktime` — в очереди своего ключа; пока запись ждала, её могла заменить или снять более новая позиция. */
+  private send(key: string, rec: Rec): Promise<void> {
+    if (!("time" in rec)) return this.attempt(key, rec);
+    return this.inLane(key, async () => {
+      const cur = this.read(key);
+      if (cur !== undefined && same(cur, rec)) await this.attempt(key, rec);
+    });
+  }
+
+  private async attempt(key: string, rec: Rec): Promise<void> {
     const { api, clock, log } = this.ctx;
     try {
-      if ("time" in rec) await api.marktime(rec.item, rec.video, rec.time, seasonArg(rec.season), "bg");
-      else await this.apply(rec.item, rec.season, rec.video, rec.desired, "bg");
+      if ("time" in rec) {
+        await api.marktime(rec.item, rec.video, rec.time, seasonArg(rec.season), "bg");
+        this.forgetMarktime(rec.item, rec.season, rec.video, stampOf(rec));
+      } else {
+        await this.apply(rec.item, rec.season, rec.video, rec.desired, "bg");
+      }
       this.removeIfSame(key, rec);
       log.info(TAG, "outbox_sent", { key, attempts: rec.attempts });
     } catch (e) {
@@ -222,6 +282,37 @@ export class Outbox {
   private read(key: string): Rec | undefined {
     const m = KEY_RE.exec(key);
     return m === null ? undefined : recFrom(m[1] as Kind, this.ctx.store.get<unknown>("out", key));
+  }
+
+  private readMark(key: string): MarkRec | undefined {
+    const rec = this.read(key);
+    return rec !== undefined && "time" in rec ? rec : undefined;
+  }
+
+  /**
+   * Время решения о позиции: строго растёт, чтобы два решения в одну миллисекунду тоже были упорядочены. Отсчёт —
+   * не раньше записей в хранилище: если часы ТВ ушли назад после перезапуска, новое решение всё равно новее записи.
+   */
+  private stamp(): number {
+    if (this.lastAt === 0) {
+      for (const key of this.keys("m")) {
+        const r = this.readMark(key);
+        if (r !== undefined) this.lastAt = Math.max(this.lastAt, stampOf(r));
+      }
+    }
+    this.lastAt = Math.max(this.ctx.clock.now(), this.lastAt + 1);
+    return this.lastAt;
+  }
+
+  /** `fn` стартует, когда завершится (успехом или ошибкой) предыдущий запрос того же ключа. */
+  private inLane<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const run = (this.lanes.get(key) ?? Promise.resolve()).then(fn);
+    const tail = run.then(() => undefined, () => undefined);
+    this.lanes.set(key, tail);
+    tail.then(() => {
+      if (this.lanes.get(key) === tail) this.lanes.delete(key);
+    }).catch(() => undefined);
+    return run;
   }
 
   private write(key: string, rec: Rec): void {

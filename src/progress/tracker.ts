@@ -3,8 +3,7 @@ import type { ItemDetail, MediaUnit } from "../api/models.ts";
 import type { TimerId } from "../core/clock.ts";
 import { toKpError } from "../core/errors.ts";
 import { refreshAfterPlayback } from "../screens/refresh.ts";
-import { isTransient } from "./outbox.ts";
-import { MIN_POSITION, decideMarktime, decideWatched, isWatchedPosition } from "./rules.ts";
+import { MIN_POSITION, decideMarktime, decideWatched, isWatchedPosition, judgePosition } from "./rules.ts";
 import { positionFrom, propsFrom } from "./samples.ts";
 import { sessionFromProps } from "./session.ts";
 import type { PlaybackSession } from "./session.ts";
@@ -25,10 +24,19 @@ const COALESCE_MS = 2000;
 const REFRESH_DELAY_MS = 2000;
 /** Конец серии без `ended`: позиция останавливается за секунды до длительности. */
 const END_SLACK_SEC = 3;
+/**
+ * Этап 33c: после `stop` ещё приходят запоздалые снимки того же видео — `trigger:back` гонится с `eject`, тик
+ * совпадает с выходом (в web MSX пришёл снимок 0 с сразу после `stop`). 10 с — запас на медленную очередь ТВ.
+ * Законных данных окно не съедает: новый запуск начинается с `video:load`, который оно не задерживает, а первый
+ * тик нового запуска приходит не раньше чем через `heartbeatTicks` с (60, в e2e — 10).
+ */
+const LATE_MS = 10_000;
 
 type MarkKind = "hb" | "pause" | "stop" | "snapshot";
 type SnapshotSource = "handleData" | "timer";
 interface Pending { s: PlaybackSession; pos: number; kind: MarkKind; timer: TimerId }
+/** Видео закрытой сессии и время закрытия: его снимки в окне `LATE_MS` — запоздалые. */
+interface Closed { itemId: number; mid: number; video: number; at: number }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -45,6 +53,8 @@ function unitOf(item: ItemDetail, season: number, video: number): MediaUnit | un
 /**
  * События плеера → прогресс в KinoPub (спец. §10, Plan B §9.2–9.4): сессия по свойствам `kp:*`, `marktime` по
  * правилам с склейкой снимков, «просмотрено» с 90 % через outbox со сверкой, перерисовка экрана после `stop`.
+ * Этап 33c: сессию открывает явный старт, запоздалые снимки закрытой сессии и откаты без подтверждения
+ * (`judgePosition`) прогресс не трогают.
  */
 export class ProgressTracker {
   private ctx: AppContext;
@@ -52,6 +62,9 @@ export class ProgressTracker {
   private current: PlaybackSession | undefined;
   private pending: Pending | undefined;
   private refreshTimer: TimerId | undefined;
+  private closed: Closed | undefined;
+  /** Был явный старт (`video:load` без `kp:*`, `video:play` без сессии): снимок с `kp:*` может открыть сессию. */
+  private armed = false;
   /** Запросы прогресса сессии в полёте: после `stop` карточка помечается устаревшей, когда они завершатся. */
   private work = new WeakMap<PlaybackSession, Set<Promise<unknown>>>();
 
@@ -88,12 +101,16 @@ export class ProgressTracker {
     const { position } = positionFrom(payload);
     this.emit(position === undefined ? { kind: "raw", source, name: "video" } : { kind: "raw", source, name: "video", position });
     const fresh = sessionFromProps(propsFrom(payload), this.ctx.clock.now());
-    if (fresh !== undefined && (this.current === undefined || this.current.mid !== fresh.mid)) this.open(fresh);
-    const s = this.current;
+    if (this.isLate(fresh)) {
+      this.ctx.log.info(TAG, "late_snapshot_ignored", { mid: fresh?.mid, pos: position });
+      return;
+    }
+    const s = this.sessionFor(fresh);
     if (s === undefined || position === undefined) return;
-    s.lastPos = position;
     if (position > 0 && !s.started) this.markStarted(s, false);
     this.emit({ kind: "snapshot", s, pos: position });
+    if (!this.trusted(s, position)) return;
+    s.lastPos = position;
     const kind: MarkKind = source === "timer" ? "hb" : "snapshot";
     this.watch(s, position, kind);
     this.defer(s, position, kind);
@@ -117,15 +134,20 @@ export class ProgressTracker {
       this.open(s);
       return;
     }
-    // Чужое видео без наших маркеров: прежняя сессия закончилась.
+    // Чужое видео или `kp:*` не дошли до `video:load` (CDG-06): прежняя сессия закончилась, а новую откроет снимок.
     this.flushPending();
-    this.current = undefined;
+    this.close();
+    this.armed = true;
     this.ctx.log.debug(TAG, "load_without_kp");
   }
 
   private onPlay(): void {
     const s = this.current;
-    if (s === undefined) return;
+    if (s === undefined) {
+      // Запоздалый `play` закрытого видео — не старт: новый запуск всё равно начнётся с `video:load`.
+      if (!this.recentlyClosed()) this.armed = true;
+      return;
+    }
     if (!s.started) this.markStarted(s, true);
     if (this.ctx.flags.get().heartbeat === "timer") this.ctx.heartbeat.start();
   }
@@ -134,24 +156,29 @@ export class ProgressTracker {
     this.ctx.heartbeat.stop();
     const s = this.current;
     if (s === undefined) return;
-    if (pos !== undefined) {
+    // Plan B §9.2: пауза без позиции пропускается; откат без подтверждения — тоже, ожидающий снимок остаётся.
+    const p = pos !== undefined && this.trusted(s, pos) ? pos : undefined;
+    if (p !== undefined) {
       this.cancelPending();
-      s.lastPos = pos;
+      s.lastPos = p;
     }
     this.emit(pos === undefined ? { kind: "pause", s } : { kind: "pause", s, pos });
-    // Plan B §9.2: пауза без позиции пропускается.
-    if (pos !== undefined) this.position(s, pos, "pause");
+    if (p !== undefined) this.position(s, p, "pause");
   }
 
-  /** Позиция события или последний снимок: Back-снимок приходит раньше `stop`, который после `eject` бывает без неё (M-02). */
+  /**
+   * Позиция события или последняя проверенная: Back-снимок приходит раньше `stop`, который после `eject` бывает
+   * без неё (M-02). Откат в позиции события без подтверждения не принимается — тогда тоже последняя проверенная.
+   */
   private onStop(evPos: number | undefined, endedFlag: boolean): void {
     this.ctx.heartbeat.stop();
+    this.armed = false;
     const s = this.current;
     if (s === undefined) return;
     this.cancelPending();
-    const pos = evPos !== undefined && evPos > 0 ? evPos : s.lastPos ?? evPos;
+    const pos = evPos !== undefined && evPos > 0 && this.trusted(s, evPos) ? evPos : s.lastPos;
     s.ended = endedFlag || (pos !== undefined && s.duration > 0 && pos >= s.duration - END_SLACK_SEC);
-    this.current = undefined;
+    this.close();
     this.ctx.log.info(TAG, "stop", { item: s.itemId, mid: s.mid, pos, ended: s.ended });
     this.emit(pos === undefined ? { kind: "stop", s } : { kind: "stop", s, pos });
     if (pos !== undefined) this.position(s, pos, "stop");
@@ -179,9 +206,56 @@ export class ProgressTracker {
 
   private open(s: PlaybackSession): void {
     this.flushPending();
+    this.close();
     this.current = s;
-    this.ctx.log.info(TAG, "load", { item: s.itemId, mid: s.mid, season: s.season, video: s.video, probe: s.probe });
+    this.armed = false;
+    this.ctx.log.info(TAG, "load", { item: s.itemId, mid: s.mid, season: s.season, video: s.video, probe: s.probe, peak: s.peak });
     this.emit({ kind: "load", s });
+  }
+
+  /** Сессия закрыта (`stop`) или вытеснена другой: её запоздалые снимки ещё `LATE_MS` не слушаем. */
+  private close(): void {
+    const s = this.current;
+    this.current = undefined;
+    if (s !== undefined) this.closed = { itemId: s.itemId, mid: s.mid, video: s.video, at: this.ctx.clock.now() };
+  }
+
+  private recentlyClosed(): boolean {
+    return this.closed !== undefined && this.ctx.clock.now() - this.closed.at < LATE_MS;
+  }
+
+  /** Снимок закрытого видео (или без `kp:*`: не отличить) в окне после закрытия сессии. */
+  private isLate(fresh: PlaybackSession | undefined): boolean {
+    const c = this.closed;
+    if (c === undefined || !this.recentlyClosed()) return false;
+    return fresh === undefined || (fresh.itemId === c.itemId && fresh.mid === c.mid && fresh.video === c.video);
+  }
+
+  /**
+   * Сессия снимка. Новую снимок открывает только после явного старта: `video:load` без `kp:*` (CDG-06) или
+   * `video:play` без сессии. В режиме `events: triggers` событий плеера нет — стартом служит сам снимок (спец. §16.6).
+   */
+  private sessionFor(fresh: PlaybackSession | undefined): PlaybackSession | undefined {
+    const cur = this.current;
+    if (fresh === undefined || cur?.mid === fresh.mid) return cur;
+    if (this.ctx.flags.get().events !== "triggers" && (cur !== undefined || !this.armed)) {
+      this.ctx.log.debug(TAG, "snapshot_without_start", { mid: fresh.mid, current: cur?.mid });
+      return undefined;
+    }
+    this.open(fresh);
+    return fresh;
+  }
+
+  /** Откат дальше `BACK_SLACK_SEC` от максимума сессии — только после подтверждения (`judgePosition`). */
+  private trusted(s: PlaybackSession, pos: number): boolean {
+    const j = judgePosition(s, pos);
+    s.peak = j.peak;
+    if (j.held === undefined) delete s.held;
+    else s.held = j.held;
+    if (j.reason === "held" || j.reason === "seek-back") {
+      this.ctx.log.info(TAG, j.reason === "held" ? "position_held" : "seek_back", { mid: s.mid, pos, peak: s.peak });
+    }
+    return j.ok;
   }
 
   private markStarted(s: PlaybackSession, fromPlay: boolean): void {
@@ -256,29 +330,25 @@ export class ProgressTracker {
     overlay.set(s.itemId, s.season, s.video, { time: Math.floor(pos), status: s.watchedDone || status === 1 ? 1 : 0 });
   }
 
-  /** Сеть, 429, 5xx → outbox (позиция абсолютная, повтор безопасен); прочие ошибки — в журнал без повтора. */
+  /**
+   * Через outbox: запросы одного ключа идут по одному; сеть, 429, 5xx → запись (позиция абсолютная, повтор безопасен);
+   * прочие ошибки — в журнал без повтора.
+   */
   private mark(s: PlaybackSession, pos: number, kind: MarkKind): void {
     const d = decideMarktime(s, pos, kind);
     if (!d.send || d.time === undefined) return;
     const time = d.time;
-    const { api, clock, log, outbox } = this.ctx;
+    const { clock, log, outbox } = this.ctx;
     // Переданная дальше (отправленная или в outbox) позиция повторно не отправляется (Plan B §9.3).
     s.lastSentPos = time;
-    const sentAt = clock.now();
-    this.track(s, api.marktime(s.itemId, s.video, time, s.season > 0 ? s.season : undefined).then(
-      () => {
-        s.lastSentAt = clock.now();
-        outbox.forgetMarktime(s.itemId, s.season, s.video, sentAt);
-        log.debug(TAG, "marktime", { item: s.itemId, season: s.season, video: s.video, time });
-        this.emit({ kind: "marktime", s, time, ok: true });
+    this.track(s, outbox.sendMarktime(s.itemId, s.season, s.video, time).then(
+      (result) => {
+        if (result === "done") s.lastSentAt = clock.now();
+        log.debug(TAG, "marktime", { item: s.itemId, season: s.season, video: s.video, time, result });
+        this.emit({ kind: "marktime", s, time, ok: result === "done" });
       },
       (e: unknown) => {
-        if (isTransient(e)) {
-          outbox.putMarktime(s.itemId, s.season, s.video, time);
-          log.warn(TAG, "marktime_queued", { item: s.itemId, season: s.season, video: s.video, time, ...errData(e) });
-        } else {
-          log.error(TAG, "marktime_failed", { item: s.itemId, season: s.season, video: s.video, time, ...errData(e) });
-        }
+        log.error(TAG, "marktime_failed", { item: s.itemId, season: s.season, video: s.video, time, ...errData(e) });
         this.emit({ kind: "marktime", s, time, ok: false });
       },
     ));

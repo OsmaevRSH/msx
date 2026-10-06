@@ -29,6 +29,28 @@ export function decideMarktime(
   return { send: true, time, reason: "ok" };
 }
 
+/**
+ * Откат дальше чем на 60 с от максимума сессии одному наблюдению не доверяем (этап 33c). 60 с — период heartbeat
+ * (Р-26): тик, отставший на период, проходит; столько же прогресса теряется и при выключении ТВ (CNFR-13).
+ */
+export const BACK_SLACK_SEC = 60;
+
+/** Максимум позиции за сессию и откат, который ждёт подтверждения. */
+export interface PositionGuard { peak: number; held?: number }
+
+/**
+ * Можно ли верить позиции плеера. Вперёд и назад до `BACK_SLACK_SEC` — сразу. Дальше назад — запоздалый снимок
+ * или перемотка пользователем: перемотку подтверждает второе наблюдение не дальше назад, чем первое (воспроизведение
+ * идёт с нового места); после подтверждения отсчёт максимума начинается заново. Откат ниже `MIN_POSITION` — шум
+ * (старт до перемотки на `resume:position`, сброс плеера после `eject`): он не отправился бы и ничего не подтверждает.
+ */
+export function judgePosition(g: PositionGuard, pos: number): PositionGuard & { ok: boolean; reason: "near" | "seek-back" | "held" | "noise" } {
+  if (pos >= g.peak - BACK_SLACK_SEC) return { ok: true, peak: Math.max(g.peak, pos), reason: "near" };
+  if (pos < MIN_POSITION) return g.held === undefined ? { ok: false, peak: g.peak, reason: "noise" } : { ok: false, peak: g.peak, held: g.held, reason: "noise" };
+  if (g.held !== undefined && pos >= g.held) return { ok: true, peak: pos, reason: "seek-back" };
+  return { ok: false, peak: g.peak, held: pos, reason: "held" };
+}
+
 /** Plan B §9.4: никогда при старте; `toggle` — переключатель, поэтому при статусе 1 его не шлём. */
 export function decideWatched(
   s: PlaybackSession,

@@ -192,3 +192,52 @@ describe("Outbox: records and flush", () => {
     assert.equal(t.ctx.outbox.size(), 0);
   });
 });
+
+describe("Outbox: an older marktime never replaces a newer one (этап 33c)", () => {
+  it("records carry the decision time: an older decision does not overwrite a newer record", async () => {
+    const t = await make();
+    const now = t.clock.now();
+    t.ctx.outbox.putMarktime(EP.item, 1, 5, 2000, now - 1000);
+    t.ctx.outbox.putMarktime(EP.item, 1, 5, 600, now - 5000);
+    assert.equal(t.ctx.store.get<{ time: number }>("out", "m_2001_1_5")?.time, 2000);
+    assert.equal(logged(t, "marktime_stale_dropped"), 1);
+  });
+
+  it("a position decided before a delivered one is not queued, even if its request failed only now", async () => {
+    const t = await make();
+    const now = t.clock.now();
+    t.ctx.outbox.forgetMarktime(EP.item, 1, 5, now - 1000);
+    t.ctx.outbox.putMarktime(EP.item, 1, 5, 600, now - 5000);
+    assert.equal(t.ctx.outbox.size(), 0);
+    t.ctx.outbox.putMarktime(EP.item, 1, 5, 2100, now);
+    assert.equal(t.ctx.outbox.size(), 1, "a later decision is queued as usual");
+  });
+
+  it("forgetMarktime compares decision times, not the moment the record was written", async () => {
+    const t = await make();
+    const now = t.clock.now();
+    t.ctx.outbox.putMarktime(EP.item, 1, 5, 600, now - 5000);
+    t.ctx.outbox.forgetMarktime(EP.item, 1, 5, now - 1000);
+    assert.equal(t.ctx.outbox.size(), 0);
+  });
+
+  it("the TV clock went back after a restart: a new decision is still newer than the stored record", async () => {
+    const t = await make();
+    const later = t.clock.now() + 3_600_000;
+    t.ctx.store.set("out", "m_2001_1_5", { item: EP.item, season: 1, video: 5, time: 600, at: later, createdAt: later, attempts: 0, nextAt: later });
+    assert.equal(t.ctx.outbox.putMarktime(EP.item, 1, 5, 2000), true);
+    assert.equal(t.ctx.store.get<{ time: number }>("out", "m_2001_1_5")?.time, 2000);
+    t.ctx.outbox.forgetMarktime(EP.item, 1, 5);
+    assert.equal(t.ctx.outbox.size(), 0);
+  });
+
+  it("a record from an older version without the decision time still works (createdAt)", async () => {
+    const t = await make();
+    const now = t.clock.now();
+    t.ctx.store.set("out", "m_2001_1_5", { item: EP.item, season: 1, video: 5, time: 300, createdAt: now, attempts: 0, nextAt: now });
+    t.ctx.outbox.forgetMarktime(EP.item, 1, 5, now - 1);
+    assert.equal(t.ctx.outbox.size(), 1);
+    t.ctx.outbox.forgetMarktime(EP.item, 1, 5, now);
+    assert.equal(t.ctx.outbox.size(), 0);
+  });
+});
