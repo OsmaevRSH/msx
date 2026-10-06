@@ -9,8 +9,9 @@ import { NO_START_TEXT, NO_SUBSCRIPTION_TEXT, onTrackerEvent } from "../../src/p
 import { sessionFromProps } from "../../src/progress/session.ts";
 import { ids } from "../../src/router/ids.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
+import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
-import type { TestApp } from "../helpers/harness.ts";
+import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 
 const P = TEST_P;
 const BIG = FIX.SERIAL_BIG;
@@ -26,8 +27,8 @@ afterEach(async () => {
   apps = [];
 });
 
-async function make(): Promise<TestApp> {
-  const t = await createTestApp({ loggedIn: true });
+async function make(o: TestAppOptions = {}): Promise<TestApp> {
+  const t = await createTestApp({ loggedIn: true, ...o });
   apps.push(t);
   return t;
 }
@@ -149,6 +150,24 @@ describe("resolvePlay: «Продолжить» и свойства (CC-08)", ()
     assert.equal(props(await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4, { at: 120 })))["resume:position"], "120");
     assert.equal(props(await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4, { start: true })))["resume:position"], "none");
     assert.equal(props(await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4)))["resume:position"], "597");
+  });
+
+  it("every resolve has its own launch nonce kp:r: plugin start time in ms plus the resolve number, base36 (fix 34b)", async () => {
+    const t = await make();
+    const first = props(await play(t, ids.playContinue(BIG)))["kp:r"];
+    const again = props(await play(t, ids.playContinue(BIG)))["kp:r"];
+    const next = props(await play(t, ids.playEp(BIG, BIG_S1E5, 1, 5)))["kp:r"];
+    assert.deepEqual([first, again, next], [1, 2, 3].map((n) => (FAKE_EPOCH + n).toString(36)));
+    // Перезагруженный плагин начинает со своего времени старта: nonce прежнего iframe не повторится.
+    const reloaded = await make({ clock: new FakeClock(FAKE_EPOCH + 60_000) });
+    assert.equal(props(await play(reloaded, ids.playContinue(BIG)))["kp:r"], (FAKE_EPOCH + 60_001).toString(36));
+  });
+
+  it("playerPropsIn: item → the static kp:* are in the item, the launch nonce is still in the resolve response", async () => {
+    const t = await make({ flags: { playerPropsIn: "item" } });
+    const p = props(await play(t, ids.playContinue(BIG)));
+    assert.equal(p["kp:m"], undefined);
+    assert.equal(p["kp:r"], (FAKE_EPOCH + 1).toString(36));
   });
 
   it("an unknown mid of a known title → { error }", async () => {

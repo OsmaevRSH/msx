@@ -16,6 +16,8 @@ export interface PlayerPropsInput { itemId: number; ref: EpRef; duration: number
 export interface ResolvedPlay {
   url: string; label: string; position: number | "none"; quality: string; audio: string;
   mode: "hls1" | "hls2"; step: 1 | 2 | 3; subtitle?: Subtitle; props: PlayerPropsInput;
+  /** Nonce запуска (`kp:r`, фикс 34b): свой у каждого resolve, по нему трекер отличает запуски одного видео. */
+  run: string;
 }
 
 /** Снимок позиции: свойства-действия не несут своих данных, поэтому все триггеры шлют одно и то же (спец. §10.1). */
@@ -143,12 +145,17 @@ export function contextFields(ctx: AppContext, p: PlayerPropsInput): Record<stri
 export const idleContextFields = (): Record<string, string> =>
   ({ kid: "", kmid: "", ks: "", ke: "", kd: "", kn: "0", knextAction: NOP, kprevAction: NOP, kcomplete: NOP });
 
-/** Свойства, зависящие от конкретного запуска: позиция, метка, субтитры, режим и шаг цепочки fallback. */
+/**
+ * Свойства, зависящие от конкретного запуска: позиция, метка, субтитры, режим и шаг цепочки fallback, nonce. Nonce —
+ * и при `playerPropsIn: item`: MSX дополняет свойства элемента свойствами resolve (msx-platform §3.5), а не применит —
+ * трекер без nonce различает запуски окном (спец. §10.2).
+ */
 export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, string> {
   const out: Record<string, string> = {
     // Позиция KinoPub; `resume:key` не задаём, иначе MSX хранит свою и расходится с KinoPub (Plan B §5.7).
     "resume:position": String(r.position),
     "label:extension": [r.quality, r.audio, r.props.probe === undefined ? "" : MODE_LABEL[r.mode]].filter((s) => s !== "").join(" · "),
+    [KP_PROPS.run]: r.run,
   };
   if (r.subtitle !== undefined) {
     out["tizen:subtitle:url"] = r.subtitle.url;

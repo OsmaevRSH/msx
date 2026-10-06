@@ -178,7 +178,7 @@ function resolved(
 
   const out: ResolvedPlay = {
     url: withLoc(url, prefs.loc), label: playLabel(item, ref), position, quality, audio: audioText,
-    mode: step.mode, step: step.step, props,
+    mode: step.mode, step: step.step, props, run: ctx.tracker.newRun(),
   };
   const sub = pickSubtitle(links.subtitles, sp, audio?.lang);
   if (sub !== undefined) out.subtitle = { ...sub, url: withLoc(sub.url, prefs.loc) };

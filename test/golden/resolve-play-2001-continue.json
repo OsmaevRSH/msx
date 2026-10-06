@@ -29,6 +29,7 @@
     "trigger:60t": "[interaction:commit:video|player:ticking:restart]",
     "trigger:90%": "shot:interaction:commit:video",
     "resume:position": "597",
-    "label:extension": "1080p · Студия Бета"
+    "label:extension": "1080p · Студия Бета",
+    "kp:r": "mjuohs01"
   }
 }
