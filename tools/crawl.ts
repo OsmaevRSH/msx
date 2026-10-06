@@ -35,6 +35,11 @@ const CACHE_MS = 50;
 /** На время повторного запроса mock отвечает с такой задержкой: экран, который ждёт сеть, в `CACHE_MS` не уложится. */
 const NET_DELAY_MS = 200;
 /**
+ * Реальное время повтора — только «не ждал сеть»: оно ниже `NET_DELAY_MS` с запасом. Бюджет `CACHE_MS` проверяет
+ * поддельное время — реальные 50 мс на загруженном раннере CI превышаются и без сети (этап 35).
+ */
+const CACHE_REAL_MS = NET_DELAY_MS / 2;
+/**
  * Сообщения плагин обрабатывает в фоне (`App.spawn`): поддельное время идёт шагами, пока mock получает запросы
  * (не меньше паузы ввода поиска 500 мс и ответа на неё, не больше 10 с — опрос входа идёт бесконечно).
  */
@@ -212,7 +217,7 @@ class Crawler {
     return isPanelId(n.id) || RESOLVE_KINDS.has(k) ? n.screen : n.id;
   }
 
-  /** Повтор того же `dataId` — из кэша: ≤ 50 мс, хотя mock на это время медленнее. */
+  /** Повтор того же `dataId` — из кэша: ≤ 50 мс поддельного времени и без ожидания сети, хотя mock на это время медленнее. */
   private async fromCache(n: Extract<Node, { k: "req" }>): Promise<void> {
     const { t } = this;
     t.mock.setScenario({ delayMs: NET_DELAY_MS });
@@ -229,7 +234,9 @@ class Crawler {
     t.host.clearActions();
     const real = Math.round(t1 - t0);
     const fake = t.clock.perf() - fake0;
-    if (real > CACHE_MS || fake > CACHE_MS) this.fail(label(n), "cache", `repeat took ${real} ms (fake ${fake} ms) > ${CACHE_MS} ms`);
+    if (real > CACHE_REAL_MS || fake > CACHE_MS) {
+      this.fail(label(n), "cache", `repeat took ${real} ms (fake ${fake} ms) > ${CACHE_REAL_MS} ms (fake ${CACHE_MS} ms)`);
+    }
   }
 
   // --- Проверки ---
