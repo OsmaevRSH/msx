@@ -1,9 +1,11 @@
 import { after, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { HistoryEntry, ItemSummary, ItemType, SerialWatching } from "../../src/api/models.ts";
+import { Overlay } from "../../src/progress/overlay.ts";
 import type { OverlayEntry, OverlayLookup } from "../../src/progress/overlay.ts";
 import { buildContinue } from "../../src/screens/continue.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
+import { FakeClock } from "../helpers/fake-clock.ts";
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -119,6 +121,35 @@ describe("buildContinue: serials (Plan B §8.3.1 п. 3)", () => {
 
   it("a serial missing from watching/serials is skipped", () => {
     assert.deepEqual(buildContinue([entry(5, { type: "serial", s: 1, e: 1 })], [serial(7)], [], none), []);
+  });
+});
+
+describe("buildContinue: TV overlay on serials (спец. §10.2, Р-21)", () => {
+  const h = [entry(5, { type: "serial", s: 1, e: 5 })];
+  /** Оверлей ТВ, записи сделаны в `at` (мс эпохи); `forItem` отдаёт их по сезону и серии. */
+  function tv(at: number, rows: [number, number, number, -1 | 0 | 1][]): (id: number) => ReturnType<Overlay["forItem"]> {
+    const ov = new Overlay(new FakeClock(at));
+    for (const [item, season, video, status] of rows) ov.set(item, season, video, { time: 100, status });
+    return (id) => ov.forItem(id);
+  }
+
+  it("episodes marked on the TV after the history entry: tag of the furthest one, watched ones add to the progress", () => {
+    const ov = tv((SEEN + 60) * 1000, [[5, 2, 1, 0], [5, 1, 6, 1], [5, 1, 7, 1], [6, 1, 9, 1]]);
+    const [tile] = buildContinue(h, [serial(5, { total: 10, watched: 4 })], [], none, ov);
+    assert.deepEqual([tile?.tag, tile?.progress], ["S2E1", 0.6]);
+  });
+
+  it("an overlay older than the history entry is ignored", () => {
+    const ov = tv((SEEN - 60) * 1000, [[5, 1, 6, 1]]);
+    const [tile] = buildContinue(h, [serial(5, { total: 10, watched: 4 })], [], none, ov);
+    assert.deepEqual([tile?.tag, tile?.progress], ["S1E5", 0.4]);
+  });
+
+  it("the last episode watched on the TV skips a serial without new episodes; with new ones it stays", () => {
+    const ov = tv((SEEN + 60) * 1000, [[5, 1, 10, 1], [6, 1, 10, 1]]);
+    const hh = [entry(5, { type: "serial", s: 1, e: 9 }), entry(6, { type: "serial", s: 1, e: 9 })];
+    const s = [serial(5, { total: 10, watched: 9 }), serial(6, { total: 10, watched: 9, fresh: 1 })];
+    assert.deepEqual(buildContinue(hh, s, [], none, ov).map((t) => [t.id, t.tag, t.progress, t.badge]), [[6, "S1E10", 1, "+1"]]);
   });
 });
 

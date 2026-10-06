@@ -97,7 +97,8 @@ async function continueShelf(ctx: AppContext, d: Def, o: ReqOpts): Promise<Shelf
   const hist = ok(h)?.value ?? [];
   // Фильмы в просмотре нужны, только если история пуста (Plan B §8.3.1 п. 4).
   const m = hist.length === 0 ? await ctx.repo.watchingMovies(o).catch(noop) : undefined;
-  const items = buildContinue(hist, ok(s)?.value ?? [], m?.value ?? [], ctx.overlay.get).slice(0, CONTINUE_TILES);
+  const items = buildContinue(hist, ok(s)?.value ?? [], m?.value ?? [], ctx.overlay.get, (id) => ctx.overlay.forItem(id))
+    .slice(0, CONTINUE_TILES);
   const size = ctx.prefs.get().posterSize;
   const tiles = items.map((c) => {
     const t: MsxContentItem = {

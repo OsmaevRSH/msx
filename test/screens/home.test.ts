@@ -163,6 +163,17 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     assert.equal(movie?.progress, 0.22);
   });
 
+  it("«Продолжить»: a serial episode marked on this TV after the history entry gives the tag (Р-21)", async () => {
+    const t = await make({ clock: new FakeClock(Date.now()) });
+    const big = (s: MsxContentRoot): MsxContentItem | undefined => shelf(s, "Продолжить просмотр").find((i) => i.id === `c${FIX.SERIAL_BIG}`);
+    const before = big(await open(t));
+    assert.equal(before?.tag, "S1E4");
+    t.ctx.overlay.set(FIX.SERIAL_BIG, 1, 5, { time: 0, status: 1 });
+    // Прогресс — 4 из 200 серий вместо 3: после округления до сотых те же 0,02, его проверяет continue.test.ts.
+    const after = big(await open(t));
+    assert.deepEqual([after?.tag, after?.badge], ["S1E5", "+2"]);
+  });
+
   it("«Продолжить» holds up to 8 titles, x = 0…14", async () => {
     const t = await make();
     const now = Math.floor(Date.now() / 1000);
