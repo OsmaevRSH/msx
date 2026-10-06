@@ -2,10 +2,11 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { chain, commitMsg, contentAction, panelAction, replaceContent, resolveAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids, listFlag, msgs } from "../src/router/ids.ts";
+import { MIN_POSITION } from "../src/progress/rules.ts";
 import { FIX, findItem } from "../tools/kpmock/fixtures.ts";
 import { P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press, stats } from "./fixtures.ts";
 import {
-  ITEM_PATH, acts, answer, answered, attachDiagnostics, callCount, callsSince, closePlayer, evs, installTimeline, isPf, kpWith, mark, open,
+  ITEM_PATH, acts, answer, answered, attachDiagnostics, callCount, callsSince, closePlayer, evs, installTimeline, isPf, kpWith, mark, msxPos, open,
   otherTvMarktime, panel, playing, refreshes, resAfter, seek, selected, sleep, switchAudio, timeline, until, watchCalls,
 } from "./flows-kit.ts";
 import type { Tl } from "./flows-kit.ts";
@@ -415,7 +416,12 @@ test("E-15: три смены озвучки подряд в плеере — б
     .filter((e: any) => e.tag === "resolve" && e.msg === "resolved" && e.data?.mid === m).slice(-4)
     .map((e: any) => `${e.data.step} ${e.data.mode}`), S1E1);
   expect(steps, "цепочка fallback не сдвинулась: hls1, шаг 1").toEqual(["1 hls1", "1 hls1", "1 hls1", "1 hls1"]);
+  // Три смены по ~10 с кончаются около 30 с, а `marktime` уходит только с `MIN_POSITION` (Plan B §9.3): закрытие на 29 с
+  // ничего бы не отправило. Ждём позицию MSX (её пришлёт `video:stop`) заведомо за порогом; опрос в трекер не попадает.
+  const exitAfter = MIN_POSITION + 1;
+  await expect.poll(() => msxPos(page), { message: `MSX дошёл до ${exitAfter} с`, timeout: 15_000, intervals: [250] }).toBeGreaterThan(exitAfter);
   const stop = await closePlayer(page);
+  expect(stop.pos ?? 0, "выход — за порогом marktime").toBeGreaterThan(MIN_POSITION);
   expect(stop.pos ?? 0, "выход — дальше последней смены").toBeGreaterThan(last);
   await expect.poll(async () => (await callsSince(c0, /^\/v1\/watching\/marktime$/)).filter((c) => c.q.get("video") === "1").map((c) => Number(c.q.get("time"))),
     { message: "marktime выхода", timeout: 5000 }).toContain(Math.floor(stop.pos!));
