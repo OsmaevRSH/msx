@@ -154,7 +154,7 @@ test("CE-05: за всю сессию iframe плагина не перезаг�
   expect(page.frames().filter((f) => f.url() === P)).toHaveLength(1);
 });
 
-test("X-3, V-34, V-39: выход из KinoPub с вложенного экрана — меню гостевое, «Вы вышли из KinoPub», iframe тот же", async () => {
+test("CE-07 (X-3, V-34, V-39): выход из KinoPub с вложенного экрана — меню гостевое, «Вы вышли из KinoPub», iframe тот же", async () => {
   // Вложенный экран: карточка открыта действием content: поверх «Для разработчика» — `replace:menu` MSX здесь не выполнит.
   await exec(page, contentAction(P, ids.item(FIX.MOVIE_SIMPLE)));
   await expectContent(page, "Тестовый фильм «Простой»");
