@@ -339,7 +339,7 @@ test("E-09: панель озвучки поверх плеера → перез
   expect((await answer(page, again.v)).properties["label:extension"], "играет выбранная озвучка").toContain("Оригинал");
   await playing(page, S1E3, again.i);
   // До конца: «просмотрено» с 54 с, `trigger:complete` нажимает кнопку «следующая» — S2E1 (D-29). С 40 с: 90 % наступают
-  // позже 10 с после перезапуска — раньше снимки перезапущенной серии теряются (баг, тест «E-09 (баг)» ниже).
+  // позже 10 с после перезапуска; перезапуск ближе к 90 % — тест «E-09b» ниже (фикс 34b).
   await seek(page, 40);
   const next = ids.playEp(SMALL, S2E1, 2, 1);
   const end = await until(page, (x) => resAfter(x, next) !== undefined && evs(x, "load").some((e) => e.s?.mid === S2E1), 25_000, "автопереход на S2E1", again.i);
@@ -349,12 +349,11 @@ test("E-09: панель озвучки поверх плеера → перез
   expect((await watchCalls("toggle", SMALL)).map((c) => `${c.q.get("season")}:${c.q.get("video")}`), "по одному toggle на досмотренную серию").toEqual(["1:2", "1:3"]);
 });
 
-// Баг src/progress/tracker.ts (этап 34): `isLate` (этап 33c) 10 с не слушает снимки видео закрытой сессии, даже когда та
-// же серия уже снова открыта явным `video:load` — а так её перезапускает панель озвучки или качества в плеере (X-2).
-// `trigger:90%` и снимок конца серии в эти 10 с теряются (`late_snapshot_ignored`), `stop` при автопереходе MSX не шлёт:
-// досмотренная серия остаётся «начатой» на позиции перезапуска — без `toggle` и последнего `marktime`. Воспроизведение —
-// этот тест без `fixme` (`npm run e2e -- e2e/flows.spec.ts`): падает на проверке «отмечена «просмотрено»».
-test.fixme("E-09 (баг): перезапуск из панели за 10 с до 90 % — при автопереходе серия не отмечается просмотренной", async () => {
+// Регресс фикса 34b: до него `isLate` (этап 33c) 10 с не слушал снимки видео закрытой сессии, даже когда та же серия
+// уже снова открыта явным `video:load` — а так её перезапускает панель озвучки или качества в плеере (X-2). `trigger:90%`
+// и снимок конца серии терялись, `stop` при автопереходе MSX не шлёт — серия оставалась «начатой». Теперь сессия — это
+// запуск с nonce `kp:r` из resolve (спец. §10.2): снимки закрытого запуска отбрасываются по nonce, а не окном 10 с.
+test("E-09b: перезапуск из панели за 10 с до 90 % — при автопереходе серия отмечается просмотренной", async () => {
   const season = ids.season(SMALL, 2);
   await open(page, season);
   await expect(selected(page), "фокус на серии «Продолжить»").toContainText("Серия 1");
@@ -374,21 +373,27 @@ test.fixme("E-09 (баг): перезапуск из панели за 10 с д�
   await closePlayer(page);
 });
 
-test("E-11: 429 без CORS на список — экран KP-429 с «Повторить»; сбой снят — «Повторить» открывает список", async () => {
+test("E-11: 429 без CORS на список — через 6 с KP-NET с «Повторить», поздний 429 его не меняет; сбой снят — «Повторить» открывает список", async () => {
   // Как nginx без `always`: 429 без CORS-заголовков, браузер видит TypeError; проба `no-cors` доказывает, что сервер жив.
   await mock.scenario({ rules: [{ path: "^/v1/items$", method: "GET", status: 429, noCors: true }] });
   const c0 = await callCount();
   const m = await mark(page);
   await exec(page, contentAction(P, ids.list(concerts)));
-  // Срок до экрана ошибки не фиксируется (V-40 его меняет): только факт, с запасом.
-  await expectContent(page, "KinoPub сейчас не отвечает", { timeout: 20_000 });
-  await expectContent(page, "Код: KP-429");
+  // Повторы §5.3 (3 с и 6 с) дольше срока экрана: через 6 с — «не отвечает» (V-40, спец. §12), а не KP-429.
+  await expectContent(page, "KinoPub не отвечает. Проверьте VPN", { timeout: 15_000 });
+  await expectContent(page, "Код: KP-NET");
   await expect(content(page), "не «нужен Plan B»: CORS у API есть").not.toContainText("KP-CORS");
   await expect(selected(page), "фокус на «Повторить»").toContainText("Повторить");
+  // Запрос не отменяется: повторы доходят до пробы `no-cors`, её вердикт «ответ без CORS» — как 429.
+  const probes = async (): Promise<string[]> => (await callsSince(c0, /^\/v1\/types$/)).map((c) => c.query);
+  await expect.poll(probes, { message: "проба no-cors — фиксированный запрос (CM-01)", timeout: 20_000 }).toContain("access_token=x");
   const failed = (await callsSince(c0, /^\/v1\/items$/)).filter((c) => c.q.get("type") === "concert");
   expect(failed.length, "список пробовал загрузиться").toBeGreaterThanOrEqual(1);
   expect(failed.every((c) => c.status === 429)).toBe(true);
-  expect((await callsSince(c0, /^\/v1\/types$/)).map((c) => c.query), "проба no-cors — фиксированный запрос (CM-01)").toContain("access_token=x");
+  // Поздняя ошибка ничего не меняет: экран тот же, KP-429 не появляется.
+  await sleep(1000);
+  await expectContent(page, "Код: KP-NET");
+  await expect(content(page), "поздний 429 не заменяет экран срока").not.toContainText("KP-429");
 
   // `mock.reset()` из плана сбросил бы и токены этого входа: снимается только правило сбоя.
   await mock.scenario({ rules: [] });
