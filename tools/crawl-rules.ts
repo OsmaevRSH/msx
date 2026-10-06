@@ -54,10 +54,36 @@ export function rootIssues(root: MsxContentRoot, at: string): string[] {
     if (!p.items.some((i) => focusable(i, template))) out.push(`${at}: на странице ${n} нет фокусируемого элемента`);
   });
   if (root.options !== undefined) out.push(...rootIssues(root.options, `${at} options`));
-  const all = [...(items ?? []), ...(pages ?? []).flatMap((p) => p.items), ...(root.header?.items ?? [])];
+  const all = [...(items ?? []), ...(pages ?? []).flatMap((p) => p.items), ...(root.header?.items ?? []), ...(root.inserts ?? []).flatMap((p) => p.items)];
   all.forEach((i, n) => {
     if (i.options !== undefined) out.push(...rootIssues(i.options, `${at} item ${i.id ?? n} options`));
   });
+  return out;
+}
+
+/**
+ * Стражи краёв (`src/msx/edges.ts`): `focus:<id>` в `selection.action` ведёт на элемент этого же ответа, а не на
+ * другого стража; у вставок `inserts` — шаблон и элементы корня, разрыв `context:<ID>` есть у элемента.
+ */
+export function edgeIssues(root: MsxContentRoot, at: string): string[] {
+  const out: string[] = [];
+  const pages = [...(root.pages ?? []), ...(root.header === undefined ? [] : [root.header]), ...(root.inserts ?? [])];
+  const all = [...(root.items ?? []), ...pages.flatMap((p) => p.items)];
+  const ids = new Map(all.filter((i) => typeof i.id === "string").map((i) => [i.id as string, i]));
+  for (const i of all) {
+    const m = /^focus:(.+)$/.exec(typeof i.selection?.action === "string" ? i.selection.action : "");
+    if (m === null) continue;
+    const target = ids.get(m[1] as string);
+    if (target === undefined) out.push(`${at}: ${i.id ?? "?"} → focus:${m[1]} — нет такого элемента`);
+    else if (/^focus:/.test(String(target.selection?.action ?? ""))) out.push(`${at}: ${i.id ?? "?"} → focus:${m[1]} — цель сама страж`);
+  }
+  if (root.inserts !== undefined) {
+    if (root.template === undefined || root.items === undefined) out.push(`${at}: inserts без template и items — MSX их не покажет`);
+    for (const p of root.inserts) {
+      const ctxId = /^context:(.+)$/.exec(p.position ?? "")?.[1];
+      if (ctxId !== undefined && !(root.items ?? []).some((i) => i.break === `context:${ctxId}`)) out.push(`${at}: вставка ${p.position} без разрыва у элемента`);
+    }
+  }
   return out;
 }
 
@@ -156,7 +182,7 @@ export function splitChain(a: string): string[] {
 
 /** Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник). */
 const FORMS: readonly RegExp[] = [
-  /^back$/, /^home$/, /^cleanup$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/,
+  /^back$/, /^home$/, /^cleanup$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/, /^focus:[A-Za-z0-9_]+$/,
   /^interaction:commit:message:[^|]+$/, /^(?:shot:)?interaction:commit:video$/,
   /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+)$/,
 ];
@@ -232,6 +258,7 @@ export function answerIssues(dataId: string, answer: unknown): Issue[] {
   else if (k === "init") add("markup", menuIssues(answer as unknown as MsxMenuRoot));
   else {
     add("markup", rootIssues(answer as MsxContentRoot, dataId));
+    add("edges", edgeIssues(answer as MsxContentRoot, dataId));
     const tiles = Array.isArray(answer.items) ? answer.items.length : 0;
     if ((k === "list" || k === "search") && tiles > WINDOW) add("window", [`${dataId}: ${tiles} tiles > ${WINDOW}`]);
   }

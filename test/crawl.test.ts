@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { crawl } from "../tools/crawl.ts";
 import {
-  actionIssues, addressIssues, answerIssues, contextIssues, expandContext, placeholderIssues, sizeLimit, splitChain,
+  actionIssues, addressIssues, answerIssues, contextIssues, edgeIssues, expandContext, placeholderIssues, sizeLimit, splitChain,
 } from "../tools/crawl-rules.ts";
 import { TEST_P } from "./helpers/harness.ts";
 
@@ -44,6 +44,8 @@ describe("crawl rules", () => {
       "player:commit:message:subs:off",
       // X-3: меню после входа и выхода — `home`, `cleanup`, затем `replace:menu` после анимации.
       `[home|cleanup|lazy:replace:menu:menu:${req("init")}|info:Готово]`,
+      // Страж края (src/msx/edges.ts): фокус обратно на плитку — внутреннее действие MSX.
+      "focus:i1001", "focus:k3_1",
     ]) assert.deepEqual(actionIssues(a), [], a);
     assert.deepEqual(actionIssues("lazy:reload:menu"), ["lazy:reload:menu: unknown action"]);
     assert.deepEqual(actionIssues("reload:menu"), ["reload:menu: unknown action"]);
@@ -78,6 +80,23 @@ describe("crawl rules", () => {
       "items[0].kid: {context:kid} needs a string field, got number",
       "items[1].kid: {context:kid} needs a string field, got undefined",
       "items[1].kname: {context:kname} needs a string field, got undefined",
+    ]);
+  });
+
+  it("edge guards: focus targets exist and are not guards; inserts need template and items, a context insert — its break", () => {
+    const guard = (target: string) => ({ layout: "0,0,2,1", selection: { action: `focus:${target}` } });
+    const ok = {
+      template: { layout: "0,0,2,4" }, items: [{ id: "i1" }, { id: "i2", break: "context:end" }],
+      inserts: [{ position: "page:0", items: [guard("i1")] }, { position: "context:end", items: [guard("i2")] }],
+    };
+    assert.deepEqual(edgeIssues(ok, "list:x"), []);
+    assert.deepEqual(edgeIssues({ pages: [{ items: [{ id: "a" }, guard("a"), guard("b")] }] }, "home"), ["home: ? → focus:b — нет такого элемента"]);
+    assert.deepEqual(edgeIssues({ pages: [{ items: [{ id: "g", ...guard("a") }, { id: "a", ...guard("g") }] }] }, "x"), [
+      "x: g → focus:a — цель сама страж", "x: a → focus:g — цель сама страж",
+    ]);
+    assert.deepEqual(edgeIssues({ ...ok, items: [{ id: "i1" }, { id: "i2" }] }, "list:x"), ["list:x: вставка context:end без разрыва у элемента"]);
+    assert.deepEqual(edgeIssues({ inserts: ok.inserts, pages: [{ items: [{ id: "i1" }, { id: "i2" }] }] }, "list:x"), [
+      "list:x: inserts без template и items — MSX их не покажет", "list:x: вставка context:end без разрыва у элемента",
     ]);
   });
 

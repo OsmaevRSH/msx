@@ -1,12 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { chain, commitMsg, contentAction, panelAction, playerMsg, replaceContent, req, resolveAction } from "../../src/msx/actions.ts";
+import { chain, commitMsg, contentAction, focusAction, panelAction, playerMsg, replaceContent, req, resolveAction } from "../../src/msx/actions.ts";
 
 const P = "https://u.github.io/msx/app/index.html";
 
 describe("MSX action builders", () => {
   it("req", () => {
     assert.equal(req(P, "init"), "request:interaction:init@https://u.github.io/msx/app/index.html");
+  });
+
+  it("focusAction: an internal MSX action, no plugin round trip", () => {
+    assert.equal(focusAction("i1001"), "focus:i1001");
   });
 
   it("contentAction", () => {

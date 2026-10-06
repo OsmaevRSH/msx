@@ -45,3 +45,8 @@ export function chain(actions: string[]): string {
   }
   return `[${actions.join("|")}]`;
 }
+
+/** Фокус на элемент текущего экрана по `id` (внутреннее действие MSX, без плагина). */
+export function focusAction(id: string): string {
+  return `focus:${id}`;
+}
