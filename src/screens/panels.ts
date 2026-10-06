@@ -15,7 +15,8 @@ import { type ListKey, decodeListKey, encodeListKey, ids, listFlag, msgs } from 
 import { errorScreen, errorText } from "./error.ts";
 import { genresOrStatic } from "./genres-static.ts";
 import { freshItem } from "./item.ts";
-import { SORTS } from "./list.ts";
+import { sortChoices } from "./list-head.ts";
+import { menuPanel } from "./menu-edit.ts";
 import { MODE_NAMES, audioName, countryName, dim, folderName, subsName } from "./panels-labels.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
 import { settingPanel } from "./settings.ts";
@@ -39,8 +40,6 @@ const ROW = "0,0,8,1";
 const HALF = "0,0,4,1";
 const BACK_RELOAD = chain(["back", "reload:content"]);
 const MSX_FOLDER = "MSX";
-/** «Обновлённые» — первая в списке и сортировка по умолчанию у ключей без `sort` (list.ts). */
-const DEFAULT_SORT = SORTS[0].id;
 /** Название локации устройства — подсказка к «По умолчанию»; панель не ждёт его дольше этого. */
 const DEVICE_WAIT_MS = 1500;
 const SUBS_VALUE = /^(off|[a-z]{2,8}(\.forced)?)$/i;
@@ -86,6 +85,7 @@ export async function panelScreen(ctx: AppContext, type: string, args: string[])
       case "loc": return await locPanel(ctx);
       case "seasons": return await seasonsPanel(ctx, int(args[0], 1), int(args[1], 0));
       case "setting": return await settingPanel(ctx, args[0] ?? "");
+      case "menu": return menuPanel(ctx);
       default: throw bad(type);
     }
   } catch (e) {
@@ -107,10 +107,11 @@ function listArg(arg: string | undefined, sources: readonly ListKey["src"][]): {
 const switchList = (ctx: AppContext, key: string, next: ListKey): string =>
   chain(["back", replaceContent(listFlag(key), ctx.P, ids.list(encodeListKey(next)))]);
 
+/** Сортировки каталога или подборок (`sortChoices`); у ключа без `sort` текущая — сортировка по умолчанию. */
 function sortPanel(ctx: AppContext, arg: string | undefined): MsxContentRoot {
-  const { key, k } = listArg(arg, ["catalog"]);
-  const cur = k.sort || DEFAULT_SORT;
-  return choicePanel(ctx, T.sort, SORTS.map((s) => ({ label: s.title, action: switchList(ctx, key, { ...k, sort: s.id }), current: s.id === cur })));
+  const { key, k } = listArg(arg, ["catalog", "collections"]);
+  const { sorts, cur } = sortChoices(k);
+  return choicePanel(ctx, T.sort, sorts.map((s) => ({ label: s.title, action: switchList(ctx, key, { ...k, sort: s.id }), current: s.id === cur })));
 }
 
 async function genrePanel(ctx: AppContext, arg: string | undefined): Promise<MsxContentRoot> {

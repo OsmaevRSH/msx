@@ -82,7 +82,7 @@ describe("KpApi against kpmock (contract)", () => {
       const vo = await r.run(r.api.voiceoverTypes());
       assert.ok(vo.some((v) => v.id === 6 && v.title === "Оригинал"));
       const raw = (await r.run(r.api.raw("/v1/types"))) as { items: unknown[] };
-      assert.equal(raw.items.length, 7);
+      assert.equal(raw.items.length, 8);
     });
   });
 

@@ -1,12 +1,16 @@
 import type { AppContext } from "../app/context.ts";
 import type { LogoutReason } from "../auth/auth-service.ts";
+import { MenuStore } from "../config/menu.ts";
 import { KpError } from "../core/errors.ts";
 import { chain, replaceMenu, req } from "../msx/actions.ts";
 import type { MsxMenuItem, MsxMenuRoot } from "../msx/types.ts";
 import { encodeListKey, ids } from "../router/ids.ts";
+import type { ListKey } from "../router/ids.ts";
 import { errorText } from "./error.ts";
+import { UHD_QUALITY } from "./list-head.ts";
 
-// Меню S3 (спец. §7.1, §11; Plan B §8.3 S3). Строится без сети и без ожидания (CNFR-03).
+// Меню S3 (спец. §7.1, §11; Plan B §8.3 S3). Строится без сети и без ожидания (CNFR-03). Порядок и видимость пунктов —
+// настройка «Пункты меню» (S12, `kp.cfg.menu`); «Просмотр и аккаунт» скрыть нельзя, «Настройки MSX» — всегда последние.
 
 const HEADLINE = "KinoPub";
 const EXTENSION = "{ico:msx-white:access-time} {now:time:hh:mm}";
@@ -17,25 +21,64 @@ export const MENU_FLAG = "menu";
 
 const T = {
   login: "Вход",
-  home: "Главная",
-  search: "Поиск",
-  catalog: "Каталог",
-  bookmarks: "Закладки",
   settings: "Просмотр и аккаунт",
   probe: "Диагностика",
   msxSettings: "Настройки MSX",
   bye: "Вы вышли из KinoPub",
 };
 
-/** Разделы каталога как в официальном приложении; «Мультфильмы» — жанр 23 (research kinopub-api §6.4). */
-const SECTIONS: readonly { id: string; label: string; icon: string; type: string; genre?: string }[] = [
-  { id: "movies", label: "Фильмы", icon: "movie", type: "movie" },
-  { id: "serials", label: "Сериалы", icon: "tv", type: "serial" },
-  { id: "cartoons", label: "Мультфильмы", icon: "child-care", type: "movie,serial", genre: "23" },
-  { id: "docs", label: "Документальное", icon: "public", type: "documovie,docuserial" },
-  { id: "tvshows", label: "ТВ-шоу", icon: "live-tv", type: "tvshow" },
-  { id: "concerts", label: "Концерты", icon: "music-note", type: "concert" },
+/**
+ * Раздел меню: `id` — и пункта MSX, и записи в `kp.cfg.menu`; `g` — группа для разделителей. `dataId` — функция: ключи
+ * списков считаются при построении меню, а не при загрузке модуля.
+ */
+export interface Section { id: string; icon: string; label: string; dataId: () => string; g: number }
+
+/** Подписи разделителей групп: «Каталог» над типами, «Ещё» над разделами, добавленными в v1.11. */
+const GROUPS = ["", "Каталог", "", "Ещё", ""];
+
+const list = (k: ListKey) => (): string => ids.list(encodeListKey(k));
+const cat = (type: string, genre?: string) => list({ src: "catalog", type, sort: CATALOG_SORT, ...(genre === undefined ? {} : { genre }) });
+const s = (id: string, icon: string, label: string, dataId: () => string, g: number): Section => ({ id, icon, label, dataId, g });
+
+/**
+ * Все разделы в порядке по умолчанию: «Главная», «Я смотрю», «Поиск», «Новинки», затем прежние пункты, затем новые
+ * разделы официальных клиентов (спец. §11 S3): «История», подборки, полки без типа, разделы-жанры конфига PWA (25, 101),
+ * 3D, 4K (`quality=4`) и «Спорт» — каналы эфира `/v1/tv` (`sporttv` PWA, «Спорт» webOS).
+ */
+export const SECTIONS: readonly Section[] = [
+  s("home", "home", "Главная", ids.home, 0),
+  s("watching", "visibility", "Я смотрю", ids.watching, 0),
+  s("search", "search", "Поиск", ids.search, 0),
+  s("fresh", "new-releases", "Новинки", list({ src: "fresh" }), 0),
+  s("movies", "movie", "Фильмы", cat("movie"), 1),
+  s("serials", "tv", "Сериалы", cat("serial"), 1),
+  s("cartoons", "child-care", "Мультфильмы", cat("movie,serial", "23"), 1),
+  s("docs", "public", "Документальное", cat("documovie,docuserial"), 1),
+  s("tvshows", "live-tv", "ТВ-шоу", cat("tvshow"), 1),
+  s("concerts", "music-note", "Концерты", cat("concert"), 1),
+  s("bookmarks", "bookmark", "Закладки", ids.bookmarks, 2),
+  s("history", "history", "История", list({ src: "history" }), 2),
+  s("collections", "collections-bookmark", "Подборки", list({ src: "collections" }), 3),
+  s("popular", "trending-up", "Популярное", list({ src: "popular" }), 3),
+  s("hot", "whatshot", "Горячее", list({ src: "hot" }), 3),
+  s("anime", "animation", "Аниме", cat("movie,serial", "25"), 3),
+  s("standup", "theater-comedy", "Стендап", cat("movie", "101"), 3),
+  s("s3d", "3d-rotation", "3D", cat("3d"), 3),
+  s("uhd", "4k", "4K", list({ src: "catalog", sort: CATALOG_SORT, quality: UHD_QUALITY }), 3),
+  s("sport", "sports-soccer", "Спорт", ids.tv, 3),
+  s("settings", "tune", T.settings, ids.settings, 4),
+  s("probe", "build", T.probe, ids.probe, 4),
 ];
+
+/** Пункт, который нельзя скрыть: без него не вернуть скрытое. */
+export const LOCKED = "settings";
+
+export const sectionOf = (id: string): Section | undefined => SECTIONS.find((x) => x.id === id);
+
+/** Настройка «Пункты меню» поверх `kp.cfg.menu`. */
+export function menuStore(ctx: AppContext): MenuStore {
+  return new MenuStore(ctx.store, SECTIONS.map((x) => x.id), [LOCKED]);
+}
 
 /**
  * Перерисовать меню после входа и выхода. Меню загружено из start parameter, а такое MSX по `reload:menu` не
@@ -60,27 +103,33 @@ export function loggedOutAction(P: string, reason: LogoutReason): string {
   return toMenu(P, reason === "logout" ? T.bye : errorText(new KpError("KP-AUTH", reason)).text);
 }
 
-export function buildMenu(ctx: AppContext): MsxMenuRoot {
-  const item = (id: string, icon: string, label: string, dataId: string): MsxMenuItem =>
-    ({ id, icon, label, data: req(ctx.P, dataId) });
-  const probe = item("probe", "build", T.probe, ids.probe());
-  const msxSettings: MsxMenuItem = { id: "msx_settings", type: "settings", label: T.msxSettings };
+/**
+ * Видимые разделы в порядке пользователя. Между группами — разделитель; подпись группы — только у первого её
+ * разделителя: в своём порядке пользователя группы могут встречаться несколько раз.
+ */
+function sections(ctx: AppContext): MsxMenuItem[] {
+  const { order, hidden } = menuStore(ctx).get();
+  const out: MsxMenuItem[] = [];
+  const used = new Set<string>();
+  let g: number | undefined;
+  for (const id of order) {
+    const x = sectionOf(id);
+    if (x === undefined || hidden.includes(id)) continue;
+    if (g !== undefined && x.g !== g) {
+      const label = GROUPS[x.g] ?? "";
+      out.push(label === "" || used.has(label) ? { id: `sep_${id}`, type: "separator" } : { id: `sep_${id}`, type: "separator", label });
+      used.add(label);
+    }
+    g = x.g;
+    out.push({ id, icon: x.icon, label: x.label, data: req(ctx.P, x.dataId()) });
+  }
+  return out;
+}
 
+export function buildMenu(ctx: AppContext): MsxMenuRoot {
+  const msxSettings: MsxMenuItem = { id: "msx_settings", type: "settings", label: T.msxSettings };
   const menu: MsxMenuItem[] = !ctx.auth.isLoggedIn()
-    ? [item("login", "login", T.login, ids.login()), probe, msxSettings]
-    : [
-      item("home", "home", T.home, ids.home()),
-      item("search", "search", T.search, ids.search()),
-      { id: "sep_catalog", type: "separator", label: T.catalog },
-      ...SECTIONS.map((s) => {
-        const key = encodeListKey({ src: "catalog", type: s.type, sort: CATALOG_SORT, ...(s.genre !== undefined ? { genre: s.genre } : {}) });
-        return item(s.id, s.icon, s.label, ids.list(key));
-      }),
-      { id: "sep_personal", type: "separator" },
-      item("bookmarks", "bookmark", T.bookmarks, ids.bookmarks()),
-      item("settings", "tune", T.settings, ids.settings()),
-      probe,
-      msxSettings,
-    ];
+    ? [{ id: "login", icon: "login", label: T.login, data: req(ctx.P, ids.login()) }, { id: "probe", icon: "build", label: T.probe, data: req(ctx.P, ids.probe()) }, msxSettings]
+    : [...sections(ctx), msxSettings];
   return { headline: HEADLINE, extension: EXTENSION, dictionary: DICTIONARY, flag: MENU_FLAG, cache: true, menu };
 }

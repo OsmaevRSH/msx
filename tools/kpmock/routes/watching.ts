@@ -173,9 +173,15 @@ export function register(r: Router, s: MockState, base: () => string): void {
     return { status: 200, json: { status: 200, item: watchingItem(s, item) } };
   });
 
+  // `subscribed=1` — список «Я смотрю» («Буду смотреть»): начатые сериалы, кроме досмотренных без новых серий; без
+  // параметра — сериалы с просмотренными сериями (их берёт «Продолжить» главной).
   r.add("GET", "/v1/watching/serials", (ctx) => {
     requireAuth(ctx);
-    const items = watchedItems(s).filter((w) => isSeries(w.item) && w.statuses.includes(1)).map(({ item, statuses }) => ({
+    const sub = ctx.query.get("subscribed") === "1";
+    const wanted = (w: { item: FxItem; statuses: Status[] }): boolean => !sub
+      ? w.statuses.includes(1)
+      : w.statuses.some((x) => x !== -1) && (w.statuses.some((x) => x !== 1) || (s.newEpisodes.get(w.item.id) ?? 0) > 0);
+    const items = watchedItems(s).filter((w) => isSeries(w.item) && wanted(w)).map(({ item, statuses }) => ({
       id: item.id, type: item.type, title: item.title, posters: posters(ctx.base, item.id),
       total: String(statuses.length),   // строкой, как у боевого API (research kinopub-api §8.1)
       watched: statuses.filter((x) => x === 1).length, new: s.newEpisodes.get(item.id) ?? 0,

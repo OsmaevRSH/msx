@@ -8,7 +8,7 @@ export type ProbeVariant = "a1" | "a2" | "hls2" | "props" | "ticks" | "autonext"
 
 export type Route =
   | { k: "init" } | { k: "login" } | { k: "home" } | { k: "search" }
-  | { k: "settings" } | { k: "bookmarks" } | { k: "dev" }
+  | { k: "settings" } | { k: "bookmarks" } | { k: "dev" } | { k: "watching" } | { k: "tv" }
   | { k: "list"; key: string }
   | { k: "item"; id: number }
   /** `from` — первая серия части длинного сезона (индекс в сезоне, с 0); без него — часть с «Продолжить» (CNFR-16). */
@@ -23,7 +23,7 @@ export type Route =
 export type PlayRoute = Extract<Route, { k: "play" } | { k: "playEp" }>;
 
 export type SearchControl = "back" | "clear" | "space" | "lang";
-export type ActModule = "login" | "item" | "panel" | "set" | "probe";
+export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu";
 
 export type Msg =
   | { k: "extend"; key: string }
@@ -33,17 +33,18 @@ export type Msg =
   | { k: "act"; module: string; name: string; args: string[] }
   | { k: "unknown"; raw: string };
 
+/** `quality` — id качества «не ниже» (`4` — 4K, research kinopub-api §6.1); `id` — тайтл «Похожих» или подборка. */
 export interface ListKey {
-  src: "catalog" | "fresh" | "popular" | "hot" | "folder" | "similar";
-  type?: string; sort?: string; genre?: string; folder?: number; id?: number;
+  src: "catalog" | "fresh" | "popular" | "hot" | "folder" | "similar" | "history" | "collections" | "collection";
+  type?: string; sort?: string; genre?: string; folder?: number; id?: number; quality?: string;
 }
 
-const SIMPLE = new Set(["init", "login", "home", "search", "settings", "bookmarks", "dev"]);
+const SIMPLE = new Set(["init", "login", "home", "search", "settings", "bookmarks", "dev", "watching", "tv"]);
 const VARIANTS: readonly ProbeVariant[] = ["a1", "a2", "hls2", "props", "ticks", "autonext"];
 const CONTROLS: readonly SearchControl[] = ["back", "clear", "space", "lang"];
-const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe"];
-const SOURCES: readonly ListKey["src"][] = ["catalog", "fresh", "popular", "hot", "folder", "similar"];
-const KEY_FIELDS = ["type", "sort", "genre", "folder", "id"] as const;
+const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu"];
+const SOURCES: readonly ListKey["src"][] = ["catalog", "fresh", "popular", "hot", "folder", "similar", "history", "collections", "collection"];
+const KEY_FIELDS = ["type", "sort", "genre", "folder", "id", "quality"] as const;
 const NUM_FIELDS = new Set<string>(["folder", "id"]);
 
 /** Неотрицательное целое без знака и ведущих нулей; иначе undefined. */
@@ -170,6 +171,8 @@ export const ids = {
   panel: (type: string, ...args: (string | number)[]): string => join(["panel", type, ...args]),
   settings: (): string => "settings",
   bookmarks: (): string => "bookmarks",
+  watching: (): string => "watching",
+  tv: (): string => "tv",
   probe: (page?: string): string => (page === undefined || page === "" ? "probe" : `probe:${page}`),
   dev: (): string => "dev",
   playContinue: (id: number): string => `play:${id}:continue`,
@@ -191,7 +194,7 @@ export const msgs = {
   act: (module: string, name: string, ...args: (string | number)[]): string => join(["act", module, name, ...args]),
 };
 
-/** b64url("src|type=…|sort=…|genre=…|folder=…|id=…"): только заданные поля, в этом порядке. */
+/** b64url("src|type=…|sort=…|genre=…|folder=…|id=…|quality=…"): только заданные поля, в этом порядке. */
 export function encodeListKey(k: ListKey): string {
   const parts: string[] = [k.src];
   for (const f of KEY_FIELDS) {

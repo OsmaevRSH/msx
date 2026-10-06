@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 import type { MsxMenuItem, MsxMenuRoot } from "../../src/msx/types.ts";
 import { decodeListKey, encodeListKey } from "../../src/router/ids.ts";
 import type { ListKey } from "../../src/router/ids.ts";
-import { buildMenu } from "../../src/screens/menu.ts";
+import { SECTIONS, buildMenu, menuStore } from "../../src/screens/menu.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -50,11 +50,13 @@ describe("buildMenu (S3)", () => {
     ]);
   });
 
-  it("with login: full menu with the catalog sections", async () => {
+  it("with login: «Главная», «Я смотрю», «Поиск», «Новинки», the former items, the new sections, settings last (v1.11)", async () => {
     const t = await make(true);
     assert.deepEqual(shape(buildMenu(t.ctx)), [
       { icon: "home", label: "Главная", data: req("home") },
+      { icon: "visibility", label: "Я смотрю", data: req("watching") },
       { icon: "search", label: "Поиск", data: req("search") },
+      { icon: "new-releases", label: "Новинки", data: list({ src: "fresh" }) },
       { type: "separator", label: "Каталог" },
       { icon: "movie", label: "Фильмы", data: list(catalog("movie")) },
       { icon: "tv", label: "Сериалы", data: list(catalog("serial")) },
@@ -64,10 +66,65 @@ describe("buildMenu (S3)", () => {
       { icon: "music-note", label: "Концерты", data: list(catalog("concert")) },
       { type: "separator" },
       { icon: "bookmark", label: "Закладки", data: req("bookmarks") },
+      { icon: "history", label: "История", data: list({ src: "history" }) },
+      { type: "separator", label: "Ещё" },
+      { icon: "collections-bookmark", label: "Подборки", data: list({ src: "collections" }) },
+      { icon: "trending-up", label: "Популярное", data: list({ src: "popular" }) },
+      { icon: "whatshot", label: "Горячее", data: list({ src: "hot" }) },
+      { icon: "animation", label: "Аниме", data: list(catalog("movie,serial", "25")) },
+      { icon: "theater-comedy", label: "Стендап", data: list(catalog("movie", "101")) },
+      { icon: "3d-rotation", label: "3D", data: list(catalog("3d")) },
+      { icon: "4k", label: "4K", data: list({ src: "catalog", sort: "-updated", quality: "4" }) },
+      { icon: "sports-soccer", label: "Спорт", data: req("tv") },
+      { type: "separator" },
       { icon: "tune", label: "Просмотр и аккаунт", data: req("settings") },
       { icon: "build", label: "Диагностика", data: req("probe") },
       { type: "settings", label: "Настройки MSX" },
     ]);
+  });
+
+  it("existing item ids keep their values: MSX keeps the selected item by id across replace:menu", async () => {
+    const t = await make(true);
+    const got = buildMenu(t.ctx).menu.map((i) => i.id);
+    for (const id of ["home", "search", "movies", "serials", "cartoons", "docs", "tvshows", "concerts", "bookmarks", "settings", "probe", "msx_settings"]) {
+      assert.ok(got.includes(id), id);
+    }
+  });
+
+  it("«Пункты меню»: hidden items disappear, the order is the user's, «Настройки MSX» stays last", async () => {
+    const t = await make(true);
+    const store = menuStore(t.ctx);
+    const order = store.get().order;
+    store.set({ order: ["sport", ...order.filter((id) => id !== "sport")], hidden: ["home", "fresh", "probe"] });
+    const m = buildMenu(t.ctx).menu;
+    const labels = m.map((i) => i.label ?? "—");
+    assert.deepEqual(labels.slice(0, 5), ["Спорт", "—", "Я смотрю", "Поиск", "Каталог"]);
+    assert.ok(!labels.includes("Главная") && !labels.includes("Новинки") && !labels.includes("Диагностика"));
+    assert.equal(m.at(-1)?.type, "settings");
+    assert.equal(m.at(-2)?.label, "Просмотр и аккаунт");
+    // Группа «Ещё» встречается дважды: «Спорт» первым пунктом (над ним разделителя нет), затем подборки — с подписью.
+    assert.equal(m.filter((i) => i.label === "Ещё").length, 1);
+    assert.equal(m.filter((i) => i.type === "separator" && i.label === "Каталог").length, 1);
+    assert.equal(m[0]?.type, undefined, "no separator above the first item");
+  });
+
+  it("«Просмотр и аккаунт» cannot be hidden even by a stored value", async () => {
+    const t = await make(true);
+    t.ctx.store.set("cfg", "menu", { hidden: ["settings", "watching"] });
+    const labels = buildMenu(t.ctx).menu.map((i) => i.label);
+    assert.ok(labels.includes("Просмотр и аккаунт"));
+    assert.ok(!labels.includes("Я смотрю"));
+  });
+
+  it("without login the menu ignores «Пункты меню»", async () => {
+    const t = await make(false);
+    t.ctx.store.set("cfg", "menu", { hidden: ["probe"] });
+    assert.deepEqual(buildMenu(t.ctx).menu.map((i) => i.label), ["Вход", "Диагностика", "Настройки MSX"]);
+  });
+
+  it("every section is in SECTIONS once, with an icon and a label", () => {
+    assert.equal(new Set(SECTIONS.map((x) => x.id)).size, SECTIONS.length);
+    for (const x of SECTIONS) assert.ok(x.icon !== "" && x.label !== "" && x.dataId() !== "", x.id);
   });
 
   it("«Мультфильмы» decodes to catalog movie,serial with genre 23", async () => {

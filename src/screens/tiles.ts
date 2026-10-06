@@ -1,11 +1,11 @@
 import type { AppContext } from "../app/context.ts";
-import type { ItemSummary, Posters } from "../api/models.ts";
+import type { Posters, Titled } from "../api/models.ts";
 import { fmtRating, ruTitle } from "../core/format.ts";
 import { commitMsg, contentAction } from "../msx/actions.ts";
 import type { Grid } from "../msx/edges.ts";
 import type { MsxContentItem } from "../msx/types.ts";
 import type { Prefs } from "../playback/prefs.ts";
-import { ids, msgs } from "../router/ids.ts";
+import { encodeListKey, ids, msgs } from "../router/ids.ts";
 
 // Крупные плитки постеров — одни на главной S4, в списках S5 (и папках закладок S11) и в поиске S7 (спец. §11).
 // Сетка 12×6 без `compress`, плитка 2×4: 6 плиток в ряд при 1080p. Тип `default` с обёрткой картинки (`imageHeight`):
@@ -29,12 +29,12 @@ const POSTER_H_COMPRESSED = 3.67;
 /** Знаков в строке названия, которые помещаются без «…» (ширина текста 216 px, проверено в web MSX 0.1.167). */
 const LINE = 12;
 const UHD = 2160;
-const T = { uhd: "4K", white: "{col:msx-white}", br: "{br}" };
+const T = { uhd: "4K", white: "{col:msx-white}", br: "{br}", pcs: "шт." };
 
 type PosterSize = Prefs["posterSize"];
 
-/** Что плитка знает о тайтле: элемент списка, запись «Продолжить» или истории. */
-export type TileSource = Pick<ItemSummary, "id" | "title" | "posters"> & Partial<Pick<ItemSummary, "year" | "kpRating" | "quality">>;
+/** Что плитка знает о тайтле: элемент списка, запись «Продолжить» или истории, подборка. */
+export type TileSource = Titled;
 
 /** Вид плитки постера; у плиток шаблона — в `template`, у главной — в каждой плитке. */
 export const TILE_STYLE: Readonly<MsxContentItem> = {
@@ -102,14 +102,23 @@ function titleData(ctx: AppContext, it: TileSource, size: PosterSize): MsxConten
  * полное название для шапки `{context:kt}`: нестроковое поле MSX подставляет пустой строкой (CD-10, Р-36). Имена полей
  * короткие: их 96 в каждом ответе списка, а предел — 32 КБ.
  */
-export function posterTiles(ctx: AppContext, items: readonly ItemSummary[]): MsxContentItem[] {
+export function posterTiles(ctx: AppContext, items: readonly TileSource[]): MsxContentItem[] {
   const size = ctx.prefs.get().posterSize;
   return items.map((it) => ({ id: `i${it.id}`, kid: String(it.id), kt: ruTitle(it.title), ...titleData(ctx, it, size) }));
 }
 
 /** Одна плитка шаблона. */
-export function posterTile(ctx: AppContext, it: ItemSummary): MsxContentItem {
+export function posterTile(ctx: AppContext, it: TileSource): MsxContentItem {
   return posterTiles(ctx, [it])[0] as MsxContentItem;
+}
+
+/** Плитки подборок (шаблон без префетча): постер подборки, «N шт.» серым, переход в её список S5. */
+export function collectionTiles(ctx: AppContext, items: readonly TileSource[]): MsxContentItem[] {
+  const size = ctx.prefs.get().posterSize;
+  return items.map((c) => ({
+    id: `c${c.id}`, kt: c.title, titleHeader: titleLines(c.title), titleFooter: `${c.count ?? 0} ${T.pcs}`, image: posterUrl(c.posters, size),
+    action: contentAction(ctx.P, ids.list(encodeListKey({ src: "collection", id: c.id }))),
+  }));
 }
 
 /**
@@ -117,10 +126,11 @@ export function posterTile(ctx: AppContext, it: ItemSummary): MsxContentItem {
  * (спец. §8.3, CD-10); `{context:…}` в `template.selection` MSX раскрывает полем элемента (msx-platform §2.1).
  * `enumerate: false` убирает счётчик MSX «(57/96)»: он считает плитки окна (V-11). `compressed` — корень сжат (16×8):
  * плитки остаются в сетке 12×6 и с полным шрифтом (`decompress`, `compress: false`), высота постера — в единицах 108 px.
+ * `pf: false` — плитки ведут не на карточку тайтла (подборки): без префетча по фокусу.
  */
-export function gridTemplate(ctx: AppContext, compressed = false): MsxContentItem {
+export function gridTemplate(ctx: AppContext, compressed = false, pf = true): MsxContentItem {
   const selection: NonNullable<MsxContentItem["selection"]> = { headline: "{context:kt}" };
-  if (ctx.flags.get().focusPrefetch === "on") selection.action = commitMsg(msgs.pf("{context:kid}"));
+  if (pf && ctx.flags.get().focusPrefetch === "on") selection.action = commitMsg(msgs.pf("{context:kid}"));
   const t: MsxContentItem = { ...TILE_STYLE, layout: LAYOUT, enumerate: false, selection };
   return compressed ? { ...t, imageHeight: POSTER_H_COMPRESSED, decompress: true, compress: false } : t;
 }

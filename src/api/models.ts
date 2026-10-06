@@ -106,6 +106,8 @@ export interface Pagination {
 export interface Page<T> {
   items: T[];
   pagination: Pagination;
+  /** Название подборки из ответа `collections/view` — заголовок её списка. */
+  title?: string;
 }
 
 export interface HistoryEntry {
@@ -131,6 +133,30 @@ export interface WatchingUnit {
   status: -1 | 0 | 1;
   time: number;
   duration: number;
+}
+
+/** Что нужно плитке постера: тайтл каталога или подборка (`count` — тайтлов в ней). */
+export interface Titled {
+  id: number;
+  title: string;
+  posters: Posters;
+  year?: number;
+  kpRating?: number;
+  quality?: number;
+  count?: number;
+}
+
+/** Подборка `/v1/collections` (research kinopub-api §6.1). */
+export interface Collection extends Titled {
+  count: number;
+}
+
+/** Канал `/v1/tv`: прямой эфир HLS (`stream`), логотип 240×180 (research kinopub-api §7.4). */
+export interface TvChannel {
+  id: number;
+  title: string;
+  logo: string;
+  stream: string;
 }
 
 export interface BookmarkFolder {

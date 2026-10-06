@@ -15,10 +15,13 @@ import { itemScreen, onItemAct } from "../screens/item.ts";
 import { listScreen, onExtend } from "../screens/list.ts";
 import { loginScreen, onLoginAct } from "../screens/login.ts";
 import { buildMenu } from "../screens/menu.ts";
+import { onMenuAct } from "../screens/menu-edit.ts";
 import { onPanelAct, panelScreen } from "../screens/panels.ts";
 import { onSearchInput, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
 import { onSettingsAct, settingsScreen } from "../screens/settings.ts";
+import { tvScreen } from "../screens/tv.ts";
+import { watchingScreen } from "../screens/watching.ts";
 import { parseDataId, parseMessage } from "./ids.ts";
 import type { Msg, Route } from "./ids.ts";
 
@@ -49,6 +52,8 @@ const ROUTES: RouteTable = {
   panel: (ctx, r) => panelScreen(ctx, r.type, r.args),
   settings: (ctx) => settingsScreen(ctx),
   bookmarks: (ctx) => bookmarksScreen(ctx),
+  watching: (ctx) => watchingScreen(ctx),
+  tv: (ctx) => tvScreen(ctx),
   // Пробник — в probe.js: ответ после его загрузки, отказ загрузки — экран ошибки KP-NET (этап 23b).
   probe: (ctx, r) => withProbe(ctx, (m) => m.probeScreen(ctx, r.page)),
   dev: (ctx) => withProbe(ctx, (m) => m.devScreen(ctx)),
@@ -313,6 +318,9 @@ export class App implements PluginApp {
         return;
       case "set":
         this.spawn(what, () => onSettingsAct(ctx, name, args));
+        return;
+      case "menu":
+        this.spawn(what, () => onMenuAct(ctx, name, args));
         return;
       case "probe":
         this.spawn(what, () => withProbe(ctx, (m) => m.onProbeAct(ctx, name, args)));

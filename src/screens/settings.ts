@@ -10,6 +10,7 @@ import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import type { Prefs } from "../playback/prefs.ts";
 import { ids, msgs } from "../router/ids.ts";
 import { errorText } from "./error.ts";
+import { menuSummary } from "./menu-edit.ts";
 import { choicePanel } from "./panels.ts";
 import { MODE_NAMES, countryName } from "./panels-labels.ts";
 
@@ -78,6 +79,7 @@ const GROUPS: [string, ...string[]][] = [
   [T.play, "quality", "audioLang", "audioType", "authors", "subs"],
   [T.device, "uhd", "device"],
   [T.account, "account", "logout"],
+  ["Меню", "menu"],
   [T.expert, "mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
   [T.diag, "probe"],
 ];
@@ -122,6 +124,8 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
         add(key, T.name, dev?.title || DASH);
       } else if (key === "account") {
         add(key, T.sub, s === undefined ? DASH : s.active ? `${T.until} ${fmtDate(s.endTime)}, ${T.left} ${Math.floor(s.days)} ${T.days}` : T.inactive);
+      } else if (key === "menu") {
+        add(key, "Пункты меню", menuSummary(ctx), panelAction(ctx.P, ids.panel("menu")));
       } else if (key === "logout") {
         add(key, T.logout, "", panelAction(ctx.P, ids.panel("setting", "account")));
       } else {

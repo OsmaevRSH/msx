@@ -46,7 +46,12 @@ describe("crawl rules", () => {
       `[home|cleanup|lazy:replace:menu:menu:${req("init")}|info:Готово]`,
       // Страж края (src/msx/edges.ts): фокус обратно на плитку — внутреннее действие MSX.
       "focus:i1001", "focus:k3_1",
+      // Эфир канала «Спорт» (v1.11): адрес потока прямо, без resolve и `kp:*`.
+      "video:https://cdn.example/tv/sport1/playlist.m3u8?t=1",
+      // «Пункты меню» (v1.11): меню и панель перерисовываются вместе.
+      `[replace:menu:menu:${req("init")}|reload:panel]`,
     ]) assert.deepEqual(actionIssues(a), [], a);
+    assert.deepEqual(actionIssues("video:file:///etc/x"), ["video:file:///etc/x: unknown action"]);
     assert.deepEqual(actionIssues("lazy:reload:menu"), ["lazy:reload:menu: unknown action"]);
     assert.deepEqual(actionIssues("reload:menu"), ["reload:menu: unknown action"]);
     assert.deepEqual(actionIssues(req("home")), [`${req("home")}: unknown action`]);
@@ -128,7 +133,11 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
     const r = await crawl();
     assert.deepEqual(r.failures, []);
     assert.ok(r.nodes >= 60, `nodes: ${r.nodes}`);
-    for (const k of ["init", "home", "search", "item", "season", "play", "list:catalog", "panel:audio", "settings", "probe:"]) {
+    for (const k of [
+      "init", "home", "search", "item", "season", "play", "list:catalog", "panel:audio", "settings", "probe:",
+      // v1.11: «Я смотрю», «Спорт», «Новинки», «История», подборки и их содержимое, «Пункты меню».
+      "watching", "tv", "list:fresh", "list:history", "list:collections", "list:collection", "panel:menu",
+    ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }
     assert.ok((r.maxBytes["item"] ?? 0) <= 20 * 1024);

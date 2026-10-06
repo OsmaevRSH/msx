@@ -96,7 +96,7 @@ describe("Transport", () => {
       const r = rig();
       const res = await r.t.send(get("/v1/types", { query: { access_token: token } }));
       assert.equal(res.status, 200);
-      assert.equal((res.json as { items: unknown[] }).items.length, 7);
+      assert.equal((res.json as { items: unknown[] }).items.length, 8);
       assert.equal(typeof res.ms, "number");
       assert.equal(r.inits[0].init.mode, "cors");
       assert.equal(r.inits[0].init.method, "GET");

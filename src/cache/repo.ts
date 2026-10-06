@@ -1,7 +1,7 @@
 import type { KpApi } from "../api/client.ts";
 import type {
   BookmarkFolder, DeviceInfo, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, MediaUnit, Page,
-  Season, SerialWatching, ServerLocation, User,
+  Season, SerialWatching, ServerLocation, Titled, TvChannel, User,
 } from "../api/models.ts";
 import { Priority } from "../api/transport.ts";
 import type { ReqClass } from "../api/transport.ts";
@@ -11,9 +11,10 @@ import { KpError, toKpError } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { Got, Policy, SwrCache } from "./swr.ts";
 
-export type ListSource = { kind: "catalog"; type?: string; sort: string; genre?: string }
+export type ListSource = { kind: "catalog"; type?: string; sort: string; genre?: string; quality?: string }
   | { kind: "shelf"; shelf: "fresh" | "popular" | "hot"; type?: string; genre?: string }
-  | { kind: "folder"; folder: number } | { kind: "similar"; id: number };
+  | { kind: "folder"; folder: number } | { kind: "similar"; id: number }
+  | { kind: "history" } | { kind: "collections"; sort: string } | { kind: "collection"; id: number };
 
 const SEC = 1000;
 const MIN = 60 * SEC;
@@ -47,6 +48,8 @@ const ITEM_FULL = pol(10 * MIN, WEEK, false);
 const ITEM_COMPACT = pol(10 * MIN, WEEK, true);
 const SIMILAR = pol(HOUR, WEEK, false);
 const PERSONAL = pol(MIN, WEEK, true);
+// Каналы эфира: адреса потока могут быть подписаны — только L1 (как ссылки на поток), час без сети — из кэша.
+const TV = pol(2 * MIN, HOUR, false);
 const BOOKMARKS = pol(5 * MIN, WEEK, true);
 // Ссылки на поток подписаны и привязаны к IP ТВ: только L1, 600 с с момента получения, просроченные не отдаются (спец. §8.2).
 const LINKS = pol(600 * SEC, 0, false);
@@ -58,10 +61,13 @@ const opt = (s: string | undefined): string | undefined => (s === "" ? undefined
 /** Канонический JSON источника: фиксированный порядок полей, без пустых. */
 function sourceJson(src: ListSource): string {
   switch (src.kind) {
-    case "catalog": return JSON.stringify({ kind: src.kind, type: opt(src.type), sort: src.sort, genre: opt(src.genre) });
+    case "catalog": return JSON.stringify({ kind: src.kind, type: opt(src.type), sort: src.sort, genre: opt(src.genre), quality: opt(src.quality) });
     case "shelf": return JSON.stringify({ kind: src.kind, shelf: src.shelf, type: opt(src.type), genre: opt(src.genre) });
     case "folder": return JSON.stringify({ kind: src.kind, folder: src.folder });
-    case "similar": return JSON.stringify({ kind: src.kind, id: src.id });
+    case "similar":
+    case "collection": return JSON.stringify({ kind: src.kind, id: src.id });
+    case "history": return JSON.stringify({ kind: src.kind });
+    case "collections": return JSON.stringify({ kind: src.kind, sort: src.sort });
   }
 }
 
@@ -87,9 +93,11 @@ export const cacheKeys = {
   itemCompact: (id: number): string => key("item", id, "l2"),
   similar: (id: number): string => key("similar", id),
   history: (): string => key("history"),
-  serials: (): string => key("serials"),
+  /** Префикс и сериалов «Продолжить», и «Я смотрю» (`subscribed`, ключ `serials:1:`): одна пометка после просмотра. */
+  serials: (subscribed?: boolean): string => (subscribed === true ? key("serials", 1) : key("serials")),
   movies: (): string => key("movies"),
   bookmarks: (): string => key("bm"),
+  tv: (): string => key("tv"),
   links: (mid: number): string => key("links", mid),
 };
 
@@ -179,11 +187,14 @@ export class Repo {
     return this.cache.get(cacheKeys.voiceovers(), REFS, () => this.api.voiceoverTypes());
   }
 
-  /** По 48 на страницу; в L2 — только первая порция раздела. `opts.cls` — класс запроса для лимитера (спец. §8.3). */
-  listPage(src: ListSource, page: number, opts?: { cls?: ReqClass }): Promise<Got<Page<ItemSummary>>> {
+  /**
+   * По 48 на страницу; в L2 — только первая порция раздела. `opts.cls` — класс запроса для лимитера (спец. §8.3).
+   * «История» — персональная, как полки «Продолжить» (1 мин).
+   */
+  listPage(src: ListSource, page: number, opts?: { cls?: ReqClass }): Promise<Got<Page<Titled>>> {
     const cls = opts?.cls;
     if (src.kind === "similar") return this.similarPage(src.id, page, cls);
-    const base = src.kind === "folder" ? FOLDER : LIST;
+    const base = src.kind === "folder" ? FOLDER : src.kind === "history" ? PERSONAL : LIST;
     const k = cacheKeys.list(src, page);
     return this.cache.get(k, page === 1 ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)));
   }
@@ -228,14 +239,18 @@ export class Repo {
     return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.history(1, HISTORY_PER_PAGE, c)));
   }
 
-  serials(opts?: { cls?: ReqClass }): Promise<Got<SerialWatching[]>> {
-    const k = cacheKeys.serials();
-    return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.watchingSerials(c)));
+  serials(opts?: { cls?: ReqClass; subscribed?: boolean }): Promise<Got<SerialWatching[]>> {
+    const k = cacheKeys.serials(opts?.subscribed);
+    return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.watchingSerials(c, opts?.subscribed)));
   }
 
   watchingMovies(opts?: { cls?: ReqClass }): Promise<Got<ItemSummary[]>> {
     const k = cacheKeys.movies();
     return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.watchingMovies(c)));
+  }
+
+  tv(): Promise<Got<TvChannel[]>> {
+    return this.cache.get(cacheKeys.tv(), TV, () => this.api.tv());
   }
 
   bookmarkFolders(opts?: { cls?: ReqClass }): Promise<Got<BookmarkFolder[]>> {
@@ -269,6 +284,7 @@ export class Repo {
     this.cache.markStale(cacheKeys.history());
     this.cache.markStale(cacheKeys.serials());
     this.cache.markStale(cacheKeys.movies());
+    this.cache.markStale(cacheKeys.listSource({ kind: "history" }));
   }
 
   /** Выход из KinoPub: устройство отвязано, следующий вход создаст другое — с другим id и настройками. */
@@ -310,14 +326,20 @@ export class Repo {
     };
   }
 
-  private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number, cls: ReqClass | Priority): Promise<Page<ItemSummary>> {
+  private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number, cls: ReqClass | Priority): Promise<Page<Titled>> {
     switch (src.kind) {
       case "catalog":
-        return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, page, perpage: PER_PAGE }, cls);
+        return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, quality: opt(src.quality), page, perpage: PER_PAGE }, cls);
       case "shelf":
         return this.api.shelf(src.shelf, { type: opt(src.type), genre: opt(src.genre), page, perpage: PER_PAGE }, cls);
       case "folder":
         return this.api.bookmarkFolder(src.folder, page, PER_PAGE, cls);
+      case "history":
+        return this.api.historyPage(page, PER_PAGE, cls);
+      case "collections":
+        return this.api.collections({ sort: src.sort, page, perpage: PER_PAGE }, cls);
+      case "collection":
+        return this.api.collectionItems(src.id, page, PER_PAGE, cls);
     }
   }
 

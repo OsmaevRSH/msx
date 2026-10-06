@@ -34,7 +34,8 @@ function withBadge(t: ContinueTile, fresh: number): ContinueTile {
   return t;
 }
 
-function film(e: HistoryEntry, overlay: OverlayLookup): ContinueTile | undefined {
+/** Фильм из записи истории: прогресс и остаток, позиция ТВ — если новее; досмотренный (90 %) — `undefined`. */
+export function film(e: HistoryEntry, overlay: OverlayLookup): ContinueTile | undefined {
   const { item, media } = e;
   let time = e.time;
   const o = overlay(item.id, media.snumber, media.number);

@@ -1,5 +1,5 @@
 import type { AppContext, ListState } from "../app/context.ts";
-import type { BookmarkFolder, ItemSummary, Page } from "../api/models.ts";
+import type { BookmarkFolder, Page, Titled } from "../api/models.ts";
 import { cacheKeys } from "../cache/repo.ts";
 import type { ListSource } from "../cache/repo.ts";
 import { KpError, toKpError } from "../core/errors.ts";
@@ -7,11 +7,11 @@ import type { KpErrorCode } from "../core/errors.ts";
 import { commitMsg } from "../msx/actions.ts";
 import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
-import { decodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
+import { decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
-import { CARTOONS_GENRE, DEFAULT_SORT, filterOptions, listExtension, listTitle } from "./list-head.ts";
-import { GRID, ROW, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
+import { COLLECTION_SORT, DEFAULT_SORT, filterOptions, listExtension, listTitle, sectionGenre } from "./list-head.ts";
+import { GRID, ROW, collectionTiles, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 export { SORTS, listTitle } from "./list-head.ts";
 
@@ -48,17 +48,20 @@ export const MAX_BYTES = 32 * 1024;
 const T = {
   empty: "Ничего не найдено",
   emptyFolder: "В папке пока пусто. Добавьте фильм кнопкой ☆ на карточке",
+  emptyHistory: "Здесь появятся фильмы и сериалы, которые вы смотрели",
   back: "Назад",
 };
 
 /**
  * Состояние списка в памяти и то, что не входит в общий `ListState`: заголовок, название жанра, всего найдено
  * (`pagination`), пометка офлайна и окно ответа [from, to). `anchor` — край, к которому шёл пользователь, `pivot` —
- * граница последнего сдвига: по одну сторону уже виденные плитки, по другую новые.
+ * граница последнего сдвига: по одну сторону уже виденные плитки, по другую новые. Экран не из списков («Я смотрю»)
+ * кладёт сюда готовые плитки (`tiles`) и свой `dataId` — окно, сдвиг и `extend` у него те же.
  */
-type ListEntry = ListState & {
+export type ListEntry = ListState & {
   headline?: string; genre?: string; total?: number; offline?: KpErrorCode;
   from?: number; to?: number; anchor?: "start" | "end"; pivot?: number;
+  dataId?: string; tiles?: MsxContentItem[];
 };
 
 type Edge = "up" | "down";
@@ -71,7 +74,7 @@ export function listSource(k: ListKey): ListSource {
   const genre = k.genre ? { genre: k.genre } : {};
   switch (k.src) {
     case "catalog":
-      return { kind: "catalog", ...type, sort: k.sort || DEFAULT_SORT, ...genre };
+      return { kind: "catalog", ...type, sort: k.sort || DEFAULT_SORT, ...genre, ...(k.quality ? { quality: k.quality } : {}) };
     case "fresh":
     case "popular":
     case "hot":
@@ -80,8 +83,13 @@ export function listSource(k: ListKey): ListSource {
       if (k.folder === undefined || k.folder <= 0) throw bad();
       return { kind: "folder", folder: k.folder };
     case "similar":
+    case "collection":
       if (k.id === undefined || k.id <= 0) throw bad();
-      return { kind: "similar", id: k.id };
+      return { kind: k.src, id: k.id };
+    case "history":
+      return { kind: "history" };
+    case "collections":
+      return { kind: "collections", sort: k.sort || COLLECTION_SORT };
   }
 }
 
@@ -115,13 +123,13 @@ export async function onExtend(ctx: AppContext, msg: string): Promise<void> {
   if (dir === "up") {
     if (at !== w.from || w.from === 0) return;
     shift(st, "up");
-    redraw(ctx, key);
+    redraw(ctx, st);
     return;
   }
   if (at !== undefined && at !== w.to) return;
   if (w.to < st.items.length) {
     shift(st, "down");
-    redraw(ctx, key);
+    redraw(ctx, st);
     return;
   }
   if (st.done || st.loading !== undefined) return;
@@ -140,7 +148,7 @@ async function extend(ctx: AppContext, key: string, st: ListEntry, w: { from: nu
   const src = listSource(decodeListKey(key));
   const want = st.page + 1;
   const t0 = ctx.clock.perf();
-  let page: Page<ItemSummary>;
+  let page: Page<Titled>;
   try {
     const got = await ctx.repo.listPage(src, want);
     page = got.value;
@@ -156,13 +164,13 @@ async function extend(ctx: AppContext, key: string, st: ListEntry, w: { from: nu
   if (st.from === w.from && st.to === w.to) shift(st, "down");
   ctx.metrics.record("list:extend", ctx.clock.perf() - t0);
   ctx.log.info(TAG, "extend", { flag: listFlag(key), page: want, added, done: st.done });
-  redraw(ctx, key);
+  redraw(ctx, st);
   prefetchNext(ctx, src, st);
 }
 
 /** Спец. §6.3: перерисовать, только если список всё ещё текущий; иначе он отдастся из памяти при возврате. */
-function redraw(ctx: AppContext, key: string): void {
-  if (ctx.current.isCurrent(ids.list(key))) ctx.host.executeAction("reload:content");
+function redraw(ctx: AppContext, st: ListEntry): void {
+  if (ctx.current.isCurrent(st.dataId ?? ids.list(st.key))) ctx.host.executeAction("reload:content");
 }
 
 /** Окно в памяти; у списка, ещё не отданного с окном, — начало списка. */
@@ -197,7 +205,7 @@ function shift(st: ListEntry, dir: Edge): void {
  * Дописать страницу без повторов по id. Конец списка: последняя страница, короткая порция или зажатая
  * страница — KinoPub за концом отдаёт последнюю страницу вместо пустой (Plan B A-13).
  */
-function apply(st: ListState, page: Page<ItemSummary>, want: number): number {
+function apply(st: ListState, page: Page<Titled>, want: number): number {
   const seen = new Set(st.items.map((it) => it.id));
   let added = 0;
   for (const it of page.items) {
@@ -215,7 +223,7 @@ function apply(st: ListState, page: Page<ItemSummary>, want: number): number {
 
 async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSource): Promise<ListEntry> {
   const [got, genre] = await Promise.all([ctx.repo.listPage(src, 1), genreTitle(ctx, k)]);
-  const folder = folderTitle(ctx, k);
+  const folder = folderTitle(ctx, k) ?? got.value.title;
   const raced = recall(ctx, key);
   if (raced !== undefined) return raced;
   const st: ListEntry = { key, items: [], page: 0, totalPages: 0, done: false, headline: folder ?? listTitle(k) };
@@ -229,7 +237,7 @@ async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSour
 
 /** Название жанра для заголовка; справочник обычно уже в кэше (его грузит панель жанров), сбой не мешает списку. */
 async function genreTitle(ctx: AppContext, k: ListKey): Promise<string | undefined> {
-  if (!k.genre || k.genre === CARTOONS_GENRE) return undefined;
+  if (!k.genre || sectionGenre(k.genre) !== undefined) return undefined;
   try {
     const all = (await ctx.repo.genres((k.type ?? "").split(",")[0])).value;
     const titles = k.genre.split(",").map((id) => all.find((g) => String(g.id) === id)?.title);
@@ -253,7 +261,7 @@ function recall(ctx: AppContext, key: string): ListEntry | undefined {
   return st;
 }
 
-function remember(ctx: AppContext, key: string, st: ListEntry): void {
+export function remember(ctx: AppContext, key: string, st: ListEntry): void {
   const lists = ctx.state.lists;
   lists.delete(key);
   lists.set(key, st);
@@ -261,6 +269,18 @@ function remember(ctx: AppContext, key: string, st: ListEntry): void {
     if (lists.size <= MAX_LISTS) break;
     lists.delete(old);
   }
+}
+
+/**
+ * После просмотра: «История» из памяти устарела. Если её открывали, она забывается, а первая порция обновляется фоном —
+ * к следующему открытию она уже свежая (кэш помечен устаревшим `invalidateAfterProgress`).
+ */
+export function forgetHistory(ctx: AppContext): void {
+  const key = encodeListKey({ src: "history" });
+  if (!ctx.state.lists.delete(key)) return;
+  ctx.repo.listPage({ kind: "history" }, 1, { cls: "bg" }).catch((e: unknown) => {
+    ctx.log.debug(TAG, "history_refresh_failed", { err: toKpError(e).code });
+  });
 }
 
 /** Спец. §8.3: отдана порция N — фоном порция N+1; догрузка потом возьмёт её из кэша или присоединится к запросу. */
@@ -281,11 +301,13 @@ function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): Msx
   const options = filterOptions(ctx, key, k, st.genre);
   if (options !== undefined) root.options = options;
   if (st.items.length === 0) {
-    root.pages = [{ items: emptyItems(k) }];
+    root.pages = [{ items: emptyItems(k.src === "folder" ? T.emptyFolder : k.src === "history" ? T.emptyHistory : T.empty) }];
     return root;
   }
-  root.template = gridTemplate(ctx);
-  fill(ctx, root, key, st);
+  // Плитка подборки ведёт в её список, а не на карточку: префетч карточки по фокусу ей не нужен.
+  const coll = k.src === "collections";
+  root.template = gridTemplate(ctx, false, !coll);
+  fill(ctx, root, key, st, coll);
   return root;
 }
 
@@ -294,9 +316,9 @@ function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): Msx
  * странице MSX — сначала дальний от пользователя край, пока у границы сдвига остаётся `KEEP` виденных плиток, затем
  * новые плитки (хотя бы одна остаётся), и в последнюю очередь снова дальний край, пока в окне больше двух страниц.
  */
-function fill(ctx: AppContext, root: MsxContentRoot, key: string, st: ListEntry): void {
+export function fill(ctx: AppContext, root: MsxContentRoot, key: string, st: ListEntry, coll = false): void {
   const w = span(st);
-  const tiles = posterTiles(ctx, st.items.slice(w.from, w.to));
+  const tiles = st.tiles?.slice(w.from, w.to) ?? (coll ? collectionTiles : posterTiles)(ctx, st.items.slice(w.from, w.to));
   const down = st.anchor === "end";
   const pivot = st.pivot ?? w.from;
   let { from, to } = w;
@@ -339,9 +361,9 @@ export function bytes(v: unknown): number {
 }
 
 /** Страница должна содержать фокусируемый элемент (msx-platform §2.4), поэтому кроме текста — «Назад». */
-function emptyItems(k: ListKey): MsxContentItem[] {
+export function emptyItems(text: string): MsxContentItem[] {
   return [
-    { type: "space", layout: `0,0,${GRID.width},2`, text: k.src === "folder" ? T.emptyFolder : T.empty },
+    { type: "space", layout: `0,0,${GRID.width},2`, text },
     { id: "b_back", type: "button", layout: "0,2,3,1", label: T.back, action: "back" },
   ];
 }

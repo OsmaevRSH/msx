@@ -17,7 +17,7 @@ const AVC = 'CODECS="avc1.640028,mp4a.40.2"';
 
 /** Размеры как у боевых постеров (research kinopub-api §6.2); `thumb` — кадр серии 480×270. */
 export const POSTER_SIZES: Record<string, readonly [number, number]> = {
-  small: [165, 250], medium: [250, 375], big: [500, 750], wide: [1280, 720], thumb: [480, 270],
+  small: [165, 250], medium: [250, 375], big: [500, 750], wide: [1280, 720], thumb: [480, 270], logo: [240, 180],
 };
 
 export const issuedNow = (): number => Math.floor(Date.now() / 1000);
@@ -111,6 +111,14 @@ function masterHls2(ctx: HandlerCtx): MockResponse {
   return text(lines.join("\n"), M3U8);
 }
 
+/** Эфир канала (`/v1/tv`): живой плейлист без `#EXT-X-ENDLIST`, окно из 3 сегментов по 6 с идёт по часам. */
+function livePlaylist(ctx: HandlerCtx): MockResponse {
+  const seq = Math.floor(Date.now() / 6000);
+  const lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:6", `#EXT-X-MEDIA-SEQUENCE:${seq}`];
+  for (let i = 0; i < 3; i++) lines.push("#EXTINF:6.000,", `${ctx.params.name}-${seq + i}.ts`);
+  return text([...lines, ""].join("\n"), M3U8);
+}
+
 function srt(ctx: HandlerCtx): MockResponse {
   const mid = tokenMid(ctx.params.token);
   if (mid === undefined) return forbidden();
@@ -178,5 +186,6 @@ export function register(r: Router, s: MockState, base: () => string): void {
   r.add("GET", /^\/cdn\/hls2\/(?<token>[^/]+)\/(?<mid>\d+)\.m3u8$/, masterHls2);
   r.add("GET", /^\/cdn\/sub\/(?<token>[^/]+)(?<file>\/.+\.srt)$/, srt);
   r.add("GET", "/cdn/media/sample.webm", media);
+  r.add("GET", /^\/cdn\/tv\/(?<name>[a-z0-9]+)\/playlist\.m3u8$/, livePlaylist);
   r.add("GET", /^\/poster\/(?<size>[a-z]+)\/(?<id>\d+)\.svg$/, poster);
 }

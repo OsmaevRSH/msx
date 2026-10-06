@@ -21,10 +21,14 @@ export interface FxItem { id: number; type: string; subtype: string; title: stri
   /** Только по id (карточка, сезоны, ссылки): нет в списках, поиске и похожих — каталог и golden-снимки не меняются. */
   unlisted?: boolean }
 
+/**
+ * `/v1/types` как у живого API (research kinopub-api §6.1, отчёт v1.11): `3d` строчными и `4k`. Тайтлы mock — с типом
+ * `3D`, как в документации: фильтр `type` mock сравнивает без учёта регистра.
+ */
 export const TYPES: { id: string; title: string }[] = [
-  { id: "movie", title: "Фильмы" }, { id: "serial", title: "Сериалы" }, { id: "3D", title: "3D" },
-  { id: "concert", title: "Концерты" }, { id: "documovie", title: "Документальные фильмы" },
-  { id: "docuserial", title: "Документальные сериалы" }, { id: "tvshow", title: "ТВ шоу" },
+  { id: "movie", title: "Фильмы" }, { id: "serial", title: "Сериалы" }, { id: "tvshow", title: "ТВ шоу" },
+  { id: "4k", title: "4K" }, { id: "3d", title: "3D" }, { id: "concert", title: "Концерты" },
+  { id: "documovie", title: "Документальные фильмы" }, { id: "docuserial", title: "Документальные сериалы" },
 ];
 
 const refs = (s: string): Ref[] => s.split(",").map((p) => {
@@ -271,3 +275,36 @@ export function findUnit(mid: number): { item: FxItem; unit: FxUnit; season: num
   catalog();
   return byMid?.get(mid);
 }
+
+// --- Подборки и каналы эфира (v1.11, research kinopub-api §6.1, §7.4) ---
+
+export interface FxCollection { id: number; title: string; watchers: number; views: number; created: number; updated: number; items: number[] }
+export interface FxChannel { id: number; title: string; name: string }
+
+const THEMES = ["Семейные", "Про космос", "Детективы", "Комедии", "Исторические", "Про спорт", "Новогодние", "Экранизации",
+  "Про любовь", "Фантастика"];
+
+/** 60 подборок — больше порции 48; у каждой 5–64 видимых тайтла (часть больше порции), состав — арифметика от id. */
+export function buildCollections(): FxCollection[] {
+  const visible = catalog().filter((it) => !it.deleted && !it.unlisted).map((it) => it.id);
+  return Array.from({ length: 60 }, (_, i) => {
+    const id = i + 1;
+    const n = 5 + ((id * 7) % 60);
+    const start = (id * 37) % visible.length;
+    const items = [...new Set(Array.from({ length: n }, (_, k) => visible[(start + k * 3) % visible.length]))];
+    return {
+      id, title: `Тестовая подборка «${THEMES[i % THEMES.length]}» ${Math.floor(i / THEMES.length) + 1}`,
+      watchers: (id * 131) % 1000, views: (id * 7919) % 20_000, created: T0 - id * 86_400, updated: T0 - ((id * 17) % 60) * 3600, items,
+    };
+  });
+}
+
+let collections: FxCollection[] | undefined;
+
+export function allCollections(): FxCollection[] {
+  collections ??= buildCollections();
+  return collections;
+}
+
+/** Каналы `/v1/tv`: синтетические спортивные трансляции. */
+export const CHANNELS: readonly FxChannel[] = [1, 2, 3, 4, 5, 6].map((n) => ({ id: n, title: `Тестовый спорт ${n}`, name: `sport${n}` }));

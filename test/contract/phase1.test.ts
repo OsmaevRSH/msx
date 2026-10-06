@@ -74,7 +74,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     await a.run(until(() => apiCalls(a, "/v1/device/notify").length > 0));
 
     const menu = (await a.request("init")) as MsxMenuRoot;
-    assert.deepEqual(menu.menu.slice(0, 2).map((m) => m.id), ["home", "search"]);
+    assert.deepEqual(menu.menu.slice(0, 4).map((m) => m.id), ["home", "watching", "search", "fresh"]);
     assert.equal(follow(menuItem(menu, "serials").data, ""), ids.list(SERIALS));
   });
 

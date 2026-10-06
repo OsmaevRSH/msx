@@ -1,5 +1,5 @@
 import type { KpApi } from "../api/client.ts";
-import type { ItemSummary } from "../api/models.ts";
+import type { ItemSummary, Titled } from "../api/models.ts";
 import type { FetchLike, Transport } from "../api/transport.ts";
 import type { AuthService } from "../auth/auth-service.ts";
 import type { DeviceFlow } from "../auth/device-flow.ts";
@@ -24,7 +24,7 @@ import type { Overlay } from "../progress/overlay.ts";
 import type { ProgressTracker } from "../progress/tracker.ts";
 
 /** Список в памяти (L1 экрана): догрузка `extend` дописывает сюда, возврат к списку отвечает отсюда без сети. */
-export interface ListState { key: string; items: ItemSummary[]; page: number; totalPages: number; done: boolean; loading?: Promise<void> }
+export interface ListState { key: string; items: Titled[]; page: number; totalPages: number; done: boolean; loading?: Promise<void> }
 
 export interface SearchState {
   query: string; lang: "ru" | "en"; items: ItemSummary[]; page: number; totalPages: number;

@@ -1,7 +1,7 @@
 import type {
-  Audio, BookmarkFolder, DeviceCode, DeviceInfo, DeviceSettings, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, ItemType,
-  MediaLinks, MediaUnit, Page, Pagination, Posters, Season, SerialWatching, ServerLocation, StreamKind, Subtitle, TokenPairRaw,
-  User, WatchingUnit, WatchState,
+  Audio, BookmarkFolder, Collection, DeviceCode, DeviceInfo, DeviceSettings, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary,
+  ItemType, MediaLinks, MediaUnit, Page, Pagination, Posters, Season, SerialWatching, ServerLocation, StreamKind, Subtitle,
+  TokenPairRaw, TvChannel, User, WatchingUnit, WatchState,
 } from "./models.ts";
 
 // Толерантный разбор ответов KinoPub (research kinopub-api §3–§8, Plan B §12.2): числа строкой, `url` и `urls`,
@@ -67,6 +67,8 @@ function watchStatus(x: unknown): -1 | 0 | 1 | undefined {
 
 const ITEM_TYPES: readonly string[] = ["movie", "serial", "3D", "concert", "documovie", "docuserial", "tvshow"];
 const isItemType = (x: unknown): x is ItemType => typeof x === "string" && ITEM_TYPES.includes(x);
+/** Живые ответы пишут `3d` строчными (research kinopub-api §6.1). */
+const itemType = (x: unknown, def: ItemType): ItemType => (x === "3d" ? "3D" : isItemType(x) ? x : def);
 
 function refs(x: unknown): { id: number; title: string }[] {
   return objs(x).map((g) => ({ id: num(g.id), title: str(g.title) })).filter((g) => g.title !== "");
@@ -86,7 +88,7 @@ export function parsePosters(x: unknown): Posters {
 export function parseItemSummary(x: unknown): ItemSummary {
   const o = obj(x);
   const out: ItemSummary = {
-    id: num(o.id), type: isItemType(o.type) ? o.type : "movie", subtype: str(o.subtype), title: str(o.title),
+    id: num(o.id), type: itemType(o.type, "movie"), subtype: str(o.subtype), title: str(o.title),
     genres: refs(o.genres),
     countries: (Array.isArray(o.countries) ? o.countries : []).map((c) => (isObj(c) ? str(c.title) : str(c))).filter((c) => c !== ""),
     quality: num(o.quality), posters: parsePosters(o.posters),
@@ -176,7 +178,7 @@ export function parseItemDetail(x: unknown): ItemDetail {
   const o = isObj(x) && isObj(x.item) ? x.item : obj(x);
   const seasons = objs(o.seasons).map((s, i) => parseSeason(s, i));
   const base = parseItemSummary(o);
-  if (!isItemType(o.type) && seasons.some((s) => s.episodes.length > 0)) base.type = "serial";
+  if (o.type !== "3d" && !isItemType(o.type) && seasons.some((s) => s.episodes.length > 0)) base.type = "serial";
   const bookmarks = (Array.isArray(o.bookmarks) ? o.bookmarks : []).map((b) => num(isObj(b) ? b.id : b)).filter((id) => id > 0);
   const out: ItemDetail = { ...base, videos: objs(o.videos).map((v, i) => parseMediaUnit(v, i, 0)), seasons, bookmarks };
   put(out, "voice", optStr(o.voice));
@@ -234,11 +236,31 @@ export function parseHistory(x: unknown): HistoryEntry[] {
   return out;
 }
 
+/** История страницей (`/v1/history?page=`): тайтлы записей по порядку, повторы убирает список. */
+export function parseHistoryPage(x: unknown): Page<ItemSummary> {
+  const raw = obj(x).history;
+  return { items: parseHistory(x).map((e) => e.item), pagination: parsePagination(obj(x).pagination, Array.isArray(raw) ? raw.length : 0) };
+}
+
+/** Подборка `/v1/collections` (research §6.1): постеры без `wide`, `count` — тайтлов в ней. */
+export function parseCollection(x: unknown): Collection | undefined {
+  const o = obj(x);
+  const c = { id: num(o.id), title: str(o.title), posters: parsePosters(o.posters), count: num(o.count) };
+  return c.id > 0 ? c : undefined;
+}
+
+/** Канал `/v1/tv`: без адреса эфира не нужен; логотип — `m`, иначе `s` или `l` (research §7.4). */
+export function parseTvChannel(x: unknown): TvChannel {
+  const o = obj(x);
+  const l = obj(o.logos);
+  return { id: num(o.id), title: str(o.title) || str(o.name), logo: str(l.m) || str(l.s) || str(l.l), stream: str(o.stream).trim() };
+}
+
 /** Элемент `/v1/watching/serials`: `total` приходит строкой (research §8.1). */
 export function parseSerialWatching(x: unknown): SerialWatching {
   const o = obj(x);
   return {
-    id: num(o.id), type: isItemType(o.type) ? o.type : "serial", title: str(o.title), posters: parsePosters(o.posters),
+    id: num(o.id), type: itemType(o.type, "serial"), title: str(o.title), posters: parsePosters(o.posters),
     total: num(o.total), watched: num(o.watched), new: num(o.new),
   };
 }

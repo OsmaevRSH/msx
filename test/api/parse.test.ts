@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  bool01, num, parseBookmarkFolder, parseDeviceCode, parseDeviceInfo, parseFile, parseHistory, parseItemDetail,
-  parseItemSummary, parseMediaLinks, parseMediaUnit, parsePage, parseSerialWatching, parseSubtitle, parseToggle,
-  parseTokenPair, parseUser, parseWatching, str,
+  bool01, num, parseBookmarkFolder, parseCollection, parseDeviceCode, parseDeviceInfo, parseFile, parseHistory, parseHistoryPage,
+  parseItemDetail, parseItemSummary, parseMediaLinks, parseMediaUnit, parsePage, parseSerialWatching, parseSubtitle, parseToggle,
+  parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
 } from "../../src/api/parse.ts";
 
 // Образцы — из docs/research/kinopub-api.md (§4–§8), ссылки и токены заменены синтетическими.
@@ -385,5 +385,36 @@ describe("garbage never throws", () => {
     assert.equal(d.seasons[0].episodes.length, 1);
     const e = d.seasons[0].episodes[0];
     assert.deepEqual({ id: e.id, number: e.number, audios: e.audios, files: e.files, subtitles: e.subtitles }, { id: 9, number: 1, audios: [], files: [], subtitles: [] });
+  });
+});
+
+describe("v1.11 sections: collections, TV channels, history pages, the 3d type", () => {
+  it("parseCollection: research §6.1 shape; count; no id → skipped", () => {
+    const raw = { id: 7, title: "Семейные", watchers: 19, views: 123, count: 50, created: 1, updated: 2, posters: { small: "s", medium: "m", big: "b" } };
+    assert.deepEqual(parseCollection(raw), { id: 7, title: "Семейные", posters: { small: "s", medium: "m", big: "b" }, count: 50 });
+    assert.equal(parseCollection({ title: "x" }), undefined);
+    assert.deepEqual(parsePage({ items: [raw, null, { id: 0 }], pagination: { total: 1, current: 1, perpage: 25 } }, parseCollection).items.map((c) => c.id), [7]);
+  });
+
+  it("parseTvChannel: title (or name), logo m → s → l, stream trimmed", () => {
+    assert.deepEqual(parseTvChannel({ id: 1, title: "Матч", name: "match", logos: { s: "S", m: "M" }, stream: " https://x/p.m3u8 ", status: null }),
+      { id: 1, title: "Матч", logo: "M", stream: "https://x/p.m3u8" });
+    assert.deepEqual(parseTvChannel({ id: "2", name: "sport", logos: { l: "L" } }), { id: 2, title: "sport", logo: "L", stream: "" });
+    assert.deepEqual(parseTvChannel(null), { id: 0, title: "", logo: "", stream: "" });
+  });
+
+  it("parseHistoryPage: titles of the entries in order and the pagination (list key «history»)", () => {
+    const entry = (id: number) => ({ time: 1, last_seen: 2, item: { ...LIST_ITEM, id }, media: { id: 9, number: 1, snumber: 0 } });
+    const p = parseHistoryPage({ history: [entry(5), entry(6), { item: null }], pagination: { total: 3, current: 1, perpage: 50, total_items: 120 } });
+    assert.deepEqual(p.items.map((i) => i.id), [5, 6]);
+    assert.deepEqual(p.pagination, { total: 3, current: 1, perpage: 50, totalItems: 120 });
+    assert.deepEqual(parseHistoryPage({}).items, []);
+  });
+
+  it("the live API writes 3d in lower case: it is the 3D type", () => {
+    assert.equal(parseItemSummary({ ...LIST_ITEM, type: "3d" }).type, "3D");
+    assert.equal(parseItemSummary({ ...LIST_ITEM, type: "4k" }).type, "movie");
+    assert.equal(parseSerialWatching({ id: 1, type: "3d" }).type, "3D");
+    assert.equal(parseItemDetail({ item: { id: 1, type: "3d", seasons: [{ episodes: [{ id: 9 }] }] } }).type, "3D");
   });
 });

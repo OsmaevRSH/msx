@@ -1,13 +1,13 @@
 import { KP_CLIENT } from "../config/client.ts";
 import { KpError, isKpError } from "../core/errors.ts";
 import type {
-  BookmarkFolder, DeviceCode, DeviceInfo, DeviceSettings, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, Page,
-  SerialWatching, ServerLocation, TokenPairRaw, User, WatchingUnit,
+  BookmarkFolder, Collection, DeviceCode, DeviceInfo, DeviceSettings, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks,
+  Page, SerialWatching, ServerLocation, TokenPairRaw, TvChannel, User, WatchingUnit,
 } from "./models.ts";
 import {
-  errorText, num, obj, parseBookmarkFolder, parseDeviceCode, parseDeviceInfo, parseGenre, parseHistory, parseItemDetail,
-  parseItemList, parseItems, parseListItem, parseMediaLinks, parsePage, parseSerialWatching, parseServerLocation, parseToggle,
-  parseTokenPair, parseUser, parseWatching, str,
+  errorText, num, obj, objs, parseBookmarkFolder, parseCollection, parseDeviceCode, parseDeviceInfo, parseGenre, parseHistory,
+  parseHistoryPage, parseItemDetail, parseItemList, parseItems, parseListItem, parseMediaLinks, parsePage, parseSerialWatching,
+  parseServerLocation, parseToggle, parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
 } from "./parse.ts";
 import type { ApiRequest, ApiResponse, Priority, ReqClass, RetryPolicy, Transport } from "./transport.ts";
 
@@ -145,8 +145,11 @@ export class KpApi {
 
   // --- Каталог (research kinopub-api §6–§7) ---
 
-  async items(q: { type?: string; genre?: string; sort?: string; page: number; perpage: number }, cls?: Cls): Promise<Page<ItemSummary>> {
-    const query = { type: q.type, genre: q.genre, sort: q.sort, page: q.page, perpage: q.perpage };
+  /** `quality` — id качества «не ниже»: `4` — 4K (research kinopub-api §6.1). */
+  async items(
+    q: { type?: string; genre?: string; sort?: string; quality?: string; page: number; perpage: number }, cls?: Cls,
+  ): Promise<Page<ItemSummary>> {
+    const query = { type: q.type, genre: q.genre, sort: q.sort, quality: q.quality, page: q.page, perpage: q.perpage };
     return parsePage(await this.call({ path: "/v1/items", query, cls }), parseListItem);
   }
 
@@ -167,6 +170,24 @@ export class KpApi {
     const d = parseItemDetail(await this.call({ path: `/v1/items/${id}`, query: { nolinks: 1 }, timeoutMs: ITEM_MS, cls }));
     if (d.id <= 0) throw new KpError("KP-BAD", "bad-item");
     return d;
+  }
+
+  /** Подборки (research kinopub-api §6.1): `sort` — `-created`, `-watchers`, `-views`. */
+  async collections(q: { sort: string; page: number; perpage: number }, cls?: Cls): Promise<Page<Collection>> {
+    return parsePage(await this.call({ path: "/v1/collections", query: q, cls }), parseCollection);
+  }
+
+  async collectionItems(id: number, page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {
+    const json = await this.call({ path: "/v1/collections/view", query: { id, page, perpage }, cls });
+    const out = parsePage(json, parseListItem);
+    const title = str(obj(obj(json).collection).title);
+    if (title !== "") out.title = title;
+    return out;
+  }
+
+  /** Каналы прямого эфира — раздел «Спорт» официальных клиентов (`sporttv`); пагинации нет. */
+  async tv(cls?: Cls): Promise<TvChannel[]> {
+    return objs(obj(await this.call({ path: "/v1/tv", cls })).channels).map(parseTvChannel).filter((c) => c.id > 0 && c.stream !== "");
   }
 
   async similar(id: number, cls?: Cls): Promise<ItemSummary[]> {
@@ -198,11 +219,18 @@ export class KpApi {
   }
 
   async history(page: number, perpage: number, cls?: Cls): Promise<HistoryEntry[]> {
-    return parseHistory(await this.call({ path: "/v1/history", query: { page, perpage: Math.min(perpage, HISTORY_MAX_PERPAGE) }, cls }));
+    return parseHistory(await this.historyRaw(page, perpage, cls));
   }
 
-  async watchingSerials(cls?: Cls): Promise<SerialWatching[]> {
-    return parseItems(await this.call({ path: "/v1/watching/serials", cls }), parseSerialWatching);
+  /** «История» списком: тайтлы записей и `pagination`. */
+  async historyPage(page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {
+    return parseHistoryPage(await this.historyRaw(page, perpage, cls));
+  }
+
+  /** `subscribed` — только «Я смотрю» (список «Буду смотреть», как у Kodi и других клиентов). */
+  async watchingSerials(cls?: Cls, subscribed?: boolean): Promise<SerialWatching[]> {
+    const query = subscribed === true ? { subscribed: 1 } : undefined;
+    return parseItems(await this.call({ path: "/v1/watching/serials", query, cls }), parseSerialWatching);
   }
 
   async watchingMovies(cls?: Cls): Promise<ItemSummary[]> {
@@ -241,6 +269,10 @@ export class KpApi {
   }
 
   // --- Внутреннее ---
+
+  private historyRaw(page: number, perpage: number, cls?: Cls): Promise<unknown> {
+    return this.call({ path: "/v1/history", query: { page, perpage: Math.min(perpage, HISTORY_MAX_PERPAGE) }, cls });
+  }
 
   private oauth(path: string, params: Record<string, string>): Promise<ApiResponse> {
     const { grant_type, ...rest } = params;

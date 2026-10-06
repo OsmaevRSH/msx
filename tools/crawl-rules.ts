@@ -180,9 +180,10 @@ export function splitChain(a: string): string[] {
   return inner === "" ? [] : inner.split("|");
 }
 
-/** Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник). */
+/** Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник); `video:<адрес>` — эфир канала «Спорт». */
 const FORMS: readonly RegExp[] = [
   /^back$/, /^home$/, /^cleanup$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/, /^focus:[A-Za-z0-9_]+$/,
+  /^video:https?:\/\/[^\s|[\]]+$/,
   /^interaction:commit:message:[^|]+$/, /^(?:shot:)?interaction:commit:video$/,
   /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+)$/,
 ];

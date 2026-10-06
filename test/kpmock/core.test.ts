@@ -52,13 +52,13 @@ describe("kpmock core server", () => {
     assert.equal(r.headers.get("cache-control"), "private, no-store");
   });
 
-  it("serves 7 types with a token from /__mock/token", async () => {
+  it("serves 8 types as the live API (3d lower-case, 4k) with a token from /__mock/token", async () => {
     const r = await api(`/v1/types?access_token=${await token()}`);
     assert.equal(r.status, 200);
     assert.equal(r.headers.get(ACAO), "*");
     const body = (await r.json()) as { status: number; items: { id: string; title: string }[] };
     assert.equal(body.status, 200);
-    assert.deepEqual(body.items.map((t) => t.id), ["movie", "serial", "3D", "concert", "documovie", "docuserial", "tvshow"]);
+    assert.deepEqual(body.items.map((t) => t.id), ["movie", "serial", "tvshow", "4k", "3d", "concert", "documovie", "docuserial"]);
   });
 
   it("ignores the Authorization header (token only in query)", async () => {

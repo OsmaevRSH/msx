@@ -3,6 +3,7 @@ import { toKpError } from "../core/errors.ts";
 import { fnv1a } from "../core/hash.ts";
 import { replaceContent } from "../msx/actions.ts";
 import { parseDataId } from "../router/ids.ts";
+import { forgetHistory } from "./list.ts";
 
 // Перерисовка персональных данных (спец. §6.3, §8.2; Plan B §7.7): экран, отданный из устаревших данных или оставшийся
 // под плеером, заменяется `replace:content:<flag>`, только если его персональная часть изменилась и он всё ещё текущий.
@@ -92,6 +93,7 @@ function outcome(ctx: AppContext, kind: string, spec: RefreshSpec, data?: Record
  */
 export function refreshAfterPlayback(ctx: AppContext, itemId: number): void {
   ctx.repo.invalidateAfterProgress(itemId);
+  forgetHistory(ctx);
   const cur = ctx.current.get();
   if (cur === undefined || !showsTitle(cur, itemId)) return;
   const spec = stateOf(ctx).shown.get(cur);
@@ -105,7 +107,7 @@ export function refreshAfterPlayback(ctx: AppContext, itemId: number): void {
 
 function showsTitle(dataId: string, itemId: number): boolean {
   const r = parseDataId(dataId);
-  return r.k === "home" || ((r.k === "item" || r.k === "season") && r.id === itemId);
+  return r.k === "home" || r.k === "watching" || ((r.k === "item" || r.k === "season") && r.id === itemId);
 }
 
 /** Хеш персональной части экрана (Plan B §7.7). */

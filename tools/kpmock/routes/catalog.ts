@@ -61,12 +61,20 @@ function csv(q: URLSearchParams, name: string): string[] | undefined {
   return parts.length > 0 ? parts : undefined;
 }
 
-/** Видимые тайтлы (без удалённых и тех, что только по id) с фильтрами `type` и `genre` (через запятую = ИЛИ). */
+/** `quality` — id из `/v1/references/video-quality`, «не ниже» (research kinopub-api §6.1): 4 — 4K. */
+const QUALITY_MIN: Record<string, number> = { 1: 480, 2: 720, 3: 1080, 4: 2160 };
+
+/**
+ * Видимые тайтлы (без удалённых и тех, что только по id) с фильтрами `type` (без учёта регистра: живой API пишет `3d`),
+ * `genre` (через запятую = ИЛИ) и `quality`; неизвестное качество не находит ничего, как `quality=1080` у живого API.
+ */
 function filtered(q: URLSearchParams): FxItem[] {
-  const types = csv(q, "type");
+  const types = csv(q, "type")?.map((t) => t.toLowerCase());
   const genres = csv(q, "genre")?.map(Number);
-  return catalog().filter((it) => !it.deleted && !it.unlisted && (!types || types.includes(it.type)) &&
-    (!genres || it.genres.some((g) => genres.includes(g.id))));
+  const quality = q.get("quality");
+  const min = quality === null || quality === "" ? 0 : QUALITY_MIN[quality] ?? Infinity;
+  return catalog().filter((it) => !it.deleted && !it.unlisted && (!types || types.includes(it.type.toLowerCase())) &&
+    (!genres || it.genres.some((g) => genres.includes(g.id))) && it.quality >= min);
 }
 
 type SortKey = (it: FxItem) => number | string;
