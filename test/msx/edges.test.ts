@@ -96,4 +96,12 @@ describe("gridEdges", () => {
     assert.deepEqual([end?.area, targets(end?.items)], ["0,0,12,5", ["focus:s9"]]);
     assert.equal(out.items.findIndex((i) => i.break !== undefined), 8);
   });
+
+  it("overlay with as many rows as the top insert holds: the last row still gets its own end insert", () => {
+    const g: Grid = { width: 12, height: 6, w: 12, h: 1 };
+    const items: MsxContentItem[] = [{ type: "space" }, ...Array.from({ length: 5 }, (_, i) => ({ id: `s${i}` }))];
+    const out = gridEdges(items, g, { top: "overlay", bottom: true });
+    assert.deepEqual(out.inserts?.map((p) => [p.position, targets(p.items)]), [["page:0", ["focus:s0"]], ["context:end", ["focus:s4"]]]);
+    assert.equal(out.items.findIndex((i) => i.break !== undefined), 5);
+  });
 });

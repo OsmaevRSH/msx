@@ -6,8 +6,9 @@ import type { MsxContentItem, MsxContentPage } from "./types.ts";
 // это выключает, нет: `wrap` касается только входа в меню влево и вправо, а признак цикличности навигации в tvx-app
 // 0.1.167 включён всегда. Поэтому над первым и под последним рядом стоят стражи — невидимые фокусируемые элементы на той
 // же странице. Шаг за край MSX делает на стража (ближайший элемент в этом направлении), а его `selection.action`
-// `focus:<id>` тут же возвращает фокус на плитку. Видимая рамка стража совпадает с плиткой (`offset` не влияет на
-// навигацию, только на вид), страница не прокручивается: для пользователя «вверх» на первом ряду ничего не делает.
+// `focus:<id>` тут же возвращает фокус на плитку. Страж на той же странице, что и ряд, поэтому лента не прокручивается,
+// а `offset` (на навигацию он не влияет, только на вид) кладёт его на плитку: для пользователя «вверх» на первом ряду
+// ничего не делает.
 
 /** Видимый прямоугольник цели стража в единицах сетки страницы (дробные — у плиток `decompress` в сжатом корне). */
 export interface Box { id: string; x: number; y: number; w: number; h: number }
@@ -72,7 +73,7 @@ export function gridEdges(items: MsxContentItem[], g: Grid, edges: Edges): { ite
   const look: GuardLook = g.poster === true ? "band" : "cover";
   const shift = edges.top === "shift" ? 1 : 0;
   const bottom = edges.bottom === true ? 1 : 0;
-  /** Рядов во вставке, у которой страж только с одной стороны (`one`), и с обеих (`both`). */
+  /** Сколько рядов помещается во вставку вместе с `guards` рядами стражей. */
   const fit = (guards: number): number => Math.max(1, Math.floor((g.height - guards) / g.h));
   const box = (i: number, row: number): Box => ({ id: String(items[i]?.id ?? ""), x: (i % cols) * g.w * k, y: row * g.h * k, w: g.w * k, h: g.h * k });
   const rowItems = (r: number): number[] => Array.from({ length: Math.min(cols, n - r * cols) }, (_, c) => r * cols + c);
@@ -104,8 +105,8 @@ export function gridEdges(items: MsxContentItem[], g: Grid, edges: Edges): { ite
     inserts.push(page(lift(p)));
   }
   if (bottom === 0) return { items, inserts };
-  const from = Math.max(topRows, total - fit(1));
-  if (from >= total) return { items, inserts };
+  // Хотя бы последний ряд — в нижней вставке, даже если верхняя вместила бы всё: разрыв закончит верхнюю раньше.
+  const from = Math.max(Math.min(topRows, total - 1), total - fit(1));
   const rows = total - from;
   const out = items.slice();
   out[from * cols] = { ...items[from * cols], break: `context:${END}` };
