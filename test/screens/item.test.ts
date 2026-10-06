@@ -63,14 +63,14 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     assert.equal(s.cache, false);
     const main = el(s, "b_main");
     assert.equal(main.type, "button");
-    assert.equal(main.layout, "3,4,3,1");
+    assert.equal(main.layout, "3,4,5,1", "wide enough for «▶ Продолжить: 1 сезон, 4 серия» (V-18)");
     assert.equal(main.label, "▶ Продолжить: 1 сезон, 4 серия");
     assert.equal(main.focus, true);
     assert.equal(main.action, `video:resolve:request:interaction:play:2001:continue@${P}`);
     assert.equal(main.properties, undefined);
     const second = el(s, "b_second");
     assert.equal(second.label, "Сезоны");
-    assert.equal(second.layout, "6,4,3,1");
+    assert.equal(second.layout, "8,4,2,1");
     assert.equal(second.action, contentAction(P, ids.season(BIG, 1)));
   });
 
@@ -86,17 +86,22 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     assert.match(about?.text ?? "", /^\d{4} · .+{br}КП \d,\d · IMDb \d,\d · \d+ мин{br}{br}Синтетическое описание тайтла 2001/);
 
     assert.equal(el(s, "b_bm").label, "★ В закладках");
-    assert.equal(el(s, "b_bm").layout, "9,4,3,1");
+    assert.equal(el(s, "b_bm").layout, "0,5,3,1");
     assert.equal(el(s, "b_bm").action, panelAction(P, ids.panel("bookmarks", BIG)));
-    assert.equal(el(s, "b_similar").layout, "0,5,3,1");
+    assert.equal(el(s, "b_similar").label, "Похожие");
+    assert.equal(el(s, "b_similar").layout, "10,4,2,1");
     assert.equal(el(s, "b_similar").action, contentAction(P, ids.list(encodeListKey({ src: "similar", id: BIG }))));
 
     const unit = mid(BIG, 4);
-    assert.equal(el(s, "b_audio").label, "Озвучка: Студия Бета");
+    // V-15: без префиксов «Озвучка:», «Качество:», «Субтитры:» — иконки; значение не обрезается.
+    assert.equal(el(s, "b_audio").label, "{ico:record-voice-over} Студия Бета");
+    assert.equal(el(s, "b_audio").layout, "3,5,3,1");
     assert.equal(el(s, "b_audio").action, panelAction(P, ids.panel("audio", BIG, unit, "c")));
-    assert.equal(el(s, "b_quality").label, "Качество: 1080p");
+    assert.equal(el(s, "b_quality").label, "{ico:hd} 1080p");
+    assert.equal(el(s, "b_quality").layout, "6,5,2,1");
     assert.equal(el(s, "b_quality").action, panelAction(P, ids.panel("quality", BIG, unit, "c")));
-    assert.equal(el(s, "b_subs").label, "Субтитры: выкл");
+    assert.equal(el(s, "b_subs").label, "{ico:subtitles} Выключены");
+    assert.equal(el(s, "b_subs").layout, "8,5,4,1");
     assert.equal(el(s, "b_subs").action, panelAction(P, ids.panel("subs", BIG, unit, "c")));
   });
 
@@ -104,23 +109,26 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     const t = await make();
     t.ctx.prefs.update({ subsLang: "rus", audioLang: "eng" });
     const s = await open(t, BIG);
-    assert.equal(el(s, "b_subs").label, "Субтитры: RUS");
-    assert.equal(el(s, "b_audio").label, "Озвучка: Оригинал");
+    assert.equal(el(s, "b_subs").label, "{ico:subtitles} Русские");
+    assert.equal(el(s, "b_audio").label, "{ico:record-voice-over} Оригинал");
   });
 
-  it("a forced track chosen for the title reads like the panel row, not as the stored value", async () => {
+  it("a forced track chosen for the title reads «только надписи», languages in Russian (V-20)", async () => {
     const t = await make();
     t.ctx.prefs.setTitle("subs", BIG, "eng.forced");
-    assert.equal(el(await open(t, BIG), "b_subs").label, "Субтитры: ENG · форсированные");
+    assert.equal(el(await open(t, BIG), "b_subs").label, "{ico:subtitles} Английские · только надписи");
     t.ctx.prefs.setTitle("subs", BIG, "rus");
-    assert.equal(el(await open(t, BIG), "b_subs").label, "Субтитры: RUS");
+    assert.equal(el(await open(t, BIG), "b_subs").label, "{ico:subtitles} Русские");
+    t.ctx.prefs.setTitle("subs", BIG, "fre");
+    assert.equal(el(await open(t, BIG), "b_subs").label, "{ico:subtitles} FRE");
   });
 
-  it("options of a serial: stream mode and refresh, no watched toggle", async () => {
+  it("options of a serial: the title as the headline, playback method and refresh, no watched toggle (V-19)", async () => {
     const t = await make();
     const s = await open(t, BIG);
+    assert.equal(s.options?.headline, "Тестовый сериал «Большой»");
     assert.deepEqual(options(s), [
-      { label: "Режим потока", action: panelAction(P, ids.panel("mode", BIG)) },
+      { label: "Способ воспроизведения", action: panelAction(P, ids.panel("mode", BIG)) },
       { label: "Обновить", action: commitMsg(msgs.act("item", "refresh", BIG)) },
     ]);
   });
@@ -152,6 +160,8 @@ describe("itemScreen: films", () => {
     const s = await open(t, FIX.MOVIE_SIMPLE);
     assert.equal(el(s, "b_main").label, "▶ Продолжить с 19:57");
     assert.equal(el(s, "b_second").label, "С начала");
+    assert.equal(el(s, "b_similar").layout, "10,4,2,1");
+    assert.equal(s.options?.headline, "Тестовый фильм «Простой»");
     assert.equal(el(s, "b_second").action, resolveAction(P, ids.playStart(FIX.MOVIE_SIMPLE)));
     assert.deepEqual(options(s)[0], {
       label: "Отметить просмотренным", action: commitMsg(msgs.act("item", "watched", FIX.MOVIE_SIMPLE, 0, 1, 1)),
@@ -166,6 +176,16 @@ describe("itemScreen: films", () => {
     assert.equal(el(s, "b_second").label, "Части");
     assert.equal(el(s, "b_second").action, contentAction(P, ids.season(FIX.MOVIE_MULTI, 1)));
     assert.equal(el(s, "b_bm").label, "☆ В закладки");
+  });
+
+  it("a film without progress: no «С начала» next to «▶ Смотреть», «Похожие» takes its place (V-17)", async () => {
+    const t = await make();
+    const s = await open(t, FIX.MOVIE_AUDIO12);
+    assert.equal(el(s, "b_main").label, "▶ Смотреть");
+    assert.equal(items(s).find((i) => i.id === "b_second"), undefined);
+    assert.equal(el(s, "b_similar").layout, "8,4,4,1");
+    assert.equal(el(s, "b_similar").action, contentAction(P, ids.list(encodeListKey({ src: "similar", id: FIX.MOVIE_AUDIO12 }))));
+    assert.equal(items(s).filter((i) => i.focus === true).map((i) => i.id).join(), "b_main");
   });
 
   it("MOVIE_DELETED → error screen KP-404", async () => {
@@ -246,6 +266,7 @@ describe("onItemAct", () => {
     assert.equal(options(s)[0]?.label, "Снять отметку");
     assert.equal(options(s)[0]?.action, commitMsg(msgs.act("item", "watched", FIX.MOVIE_SIMPLE, 0, 1, 0)));
     assert.equal(el(s, "b_main").label, "▶ Смотреть снова");
+    assert.equal(items(s).find((i) => i.id === "b_second"), undefined, "«Смотреть снова» already starts from the beginning");
   });
 
   it("watched from the season screen of the same title reloads it; another screen is not touched", async () => {

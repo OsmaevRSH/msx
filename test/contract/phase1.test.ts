@@ -170,9 +170,10 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     assert.equal(mock.state.watching.get(`${SMALL}:1:2`)?.time, 56);
     assert.equal(toggles(a).length, 1, "«просмотрено» once per episode");
 
-    // После `stop` экран под плеером — карточка: она заменяется своим флагом (спец. §6.3).
+    // После `stop` экран под плеером — карточка: фокус на «▶» (V-16), затем замена своим флагом (спец. §6.3).
     const replace = `replace:content:item_${SMALL}:request:interaction:${ids.item(SMALL)}@${TEST_P}`;
     await a.run(until(() => actions(a).includes(replace)));
+    assert.ok(actions(a).indexOf("focus:b_main") >= 0 && actions(a).indexOf("focus:b_main") < actions(a).indexOf(replace));
     const redrawn = (await a.request(ids.item(SMALL))) as MsxContentRoot;
     assert.equal(pick(pageItems(redrawn), (i) => i.id === "b_main", "main button").label, "▶ Смотреть: 1 сезон, 3 серия");
   });
@@ -218,7 +219,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     await a.run(until(() => actions(a).includes("[back|reload:content]")));
 
     const again = (await a.request(ids.item(id))) as MsxContentRoot;
-    assert.equal(pick(pageItems(again), (i) => i.id === "b_audio", "«Озвучка»").label, "Озвучка: Студия Гамма");
+    assert.equal(pick(pageItems(again), (i) => i.id === "b_audio", "«Озвучка»").label, "{ico:record-voice-over} Студия Гамма");
     const res = (await a.request(follow(pick(pageItems(again), (i) => i.id === "b_main", "main").action, "video:resolve"))) as MsxResolveResponse;
     assert.match(res.url ?? "", /master-v1a7\.m3u8/, "track 7 is «Студия Гамма» (AUDIO12 fixture)");
     assert.match(res.properties?.["label:extension"] ?? "", /Студия Гамма/);

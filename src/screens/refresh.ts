@@ -13,7 +13,11 @@ const TAG = "refresh";
 /** Показанные экраны для `refreshAfterPlayback`; текущий — всегда последний показанный, запас — на возврат «Назад». */
 const SHOWN_MAX = 8;
 
-export interface RefreshSpec { dataId: string; flag: string; hash: string; recompute: () => Promise<string> }
+export interface RefreshSpec {
+  dataId: string; flag: string; hash: string; recompute: () => Promise<string>;
+  /** Элемент, который получает фокус после плеера, пока экран текущий (V-16: «▶» карточки, а не «С начала»). */
+  focus?: string;
+}
 
 interface RefreshState {
   /** `dataId`, для которых пересчёт ещё идёт. */
@@ -83,7 +87,8 @@ function outcome(ctx: AppContext, kind: string, spec: RefreshSpec, data?: Record
 
 /**
  * После `stop` (кроме автоперехода, решает трекер): карточка и персональные списки помечаются устаревшими; экран
- * этого тайтла или главная, если он текущий, пересчитывается и при изменении заменяется (Plan B §9.2).
+ * этого тайтла или главная, если он текущий, пересчитывается и при изменении заменяется (Plan B §9.2). Фокус —
+ * сразу, до пересчёта: `replace:content` сохраняет фокус на элементе с тем же `id`.
  */
 export function refreshAfterPlayback(ctx: AppContext, itemId: number): void {
   ctx.repo.invalidateAfterProgress(itemId);
@@ -94,6 +99,7 @@ export function refreshAfterPlayback(ctx: AppContext, itemId: number): void {
     ctx.log.debug(TAG, "not_tracked", { dataId: cur });
     return;
   }
+  if (spec.focus !== undefined) ctx.host.executeAction(`focus:${spec.focus}`);
   scheduleRefresh(ctx, spec);
 }
 
