@@ -1,8 +1,14 @@
 // Сценарии mock (спец. §14.2, Plan B §12.3). Применяются сервером до обработчика:
 // глобальная задержка → первое подходящее правило → rate limit (429).
 
-/** `path` — регулярное выражение по pathname (без query); `times` не задан — без ограничения. */
-export interface Rule { path: string; method?: string; status?: number; times?: number; delayMs?: number; noCors?: boolean; drop?: boolean }
+/**
+ * `path` — регулярное выражение по pathname (без query); `times` не задан — без ограничения. `hang` — держать запрос
+ * без ответа, как висящее TLS-рукопожатие при блокировке по SNI (этап 33b): до отказа клиента, `release()` (дальше —
+ * обычный ответ и остальные поля правила) или `reset()` (соединение обрывается).
+ */
+export interface Rule {
+  path: string; method?: string; status?: number; times?: number; delayMs?: number; noCors?: boolean; drop?: boolean; hang?: boolean;
+}
 
 export interface Scenario {
   delayMs: number; rules: Rule[]; rateLimit?: { max: number; windowMs: number };

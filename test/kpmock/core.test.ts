@@ -1,11 +1,20 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as realSleep } from "node:timers/promises";
 import { startMock } from "../../tools/kpmock/server.ts";
 import type { MockServer } from "../../tools/kpmock/server.ts";
 import { HttpError, Router, requireAuth } from "../../tools/kpmock/router.ts";
 import { DEFAULT_SCENARIO } from "../../tools/kpmock/scenario.ts";
 
 const ACAO = "access-control-allow-origin";
+
+async function until(cond: () => boolean): Promise<void> {
+  for (let i = 0; i < 200; i++) {
+    if (cond()) return;
+    await realSleep(10);
+  }
+  assert.fail("timed out waiting for the mock");
+}
 
 describe("kpmock core server", () => {
   let mock: MockServer;
@@ -85,6 +94,54 @@ describe("kpmock core server", () => {
     mock.setScenario({ rules: [{ path: "^/v1/types", drop: true }] });
     await assert.rejects(api("/v1/types"), TypeError);
     assert.equal(mock.calls()[0].status, 0);
+  });
+
+  it("holds a request for a hang rule without an answer until release()", async () => {
+    mock.setScenario({ rules: [{ path: "^/v1/types", hang: true, times: 1 }] });
+    let answered = false;
+    const held = api("/v1/types").then((r) => {
+      answered = true;
+      return r;
+    });
+    await until(() => mock.stats().held === 1);
+    await realSleep(50);
+    assert.equal(answered, false);
+    assert.equal(mock.calls()[0].status, 0);
+    assert.equal(mock.release(), 1);
+    assert.equal((await held).status, 401, "after release the request is answered as usual");
+    assert.equal(mock.calls()[0].status, 401);
+    assert.equal(mock.stats().held, 0);
+    assert.equal((await api("/v1/types")).status, 401, "times: 1 — the next request is not held");
+  });
+
+  it("a held request ends when the client gives up (abort)", async () => {
+    mock.setScenario({ rules: [{ path: "^/v1/types", hang: true }] });
+    const ac = new AbortController();
+    const p = api("/v1/types", { signal: ac.signal });
+    await until(() => mock.stats().held === 1);
+    ac.abort();
+    await assert.rejects(p, { name: "AbortError" });
+    await until(() => mock.stats().held === 0);
+    assert.equal(mock.calls()[0].status, 0);
+    assert.equal(mock.release(), 0);
+  });
+
+  it("reset() drops held requests; POST /__mock/release answers them over HTTP", async () => {
+    mock.setScenario({ rules: [{ path: "^/v1/types", hang: true }] });
+    const dropped = api("/v1/types");
+    await until(() => mock.stats().held === 1);
+    mock.reset();
+    await assert.rejects(dropped, TypeError);
+    assert.equal(mock.stats().held, 0);
+
+    mock.setScenario({ rules: [{ path: "^/v1/types", hang: true }] });
+    const held = [api("/v1/types"), api("/v1/types")];
+    await until(() => mock.stats().held === 2);
+    const r = await api("/__mock/release", { method: "POST" });
+    assert.deepEqual(await r.json(), { released: 2 });
+    assert.deepEqual((await Promise.all(held)).map((x) => x.status), [401, 401]);
+    const stats = (await (await api("/__mock/stats")).json()) as { held: number };
+    assert.equal(stats.held, 0);
   });
 
   it("applies a rule only to the matching method", async () => {
