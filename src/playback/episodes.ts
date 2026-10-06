@@ -96,11 +96,12 @@ export function continueTarget(item: ItemDetail, overlay?: OverlayLookup, cardFe
 }
 
 /**
- * Номер серии по-русски (V-18): длинная форма — «1 сезон, 4 серия» (карточка, метка плеера, серии), короткая —
- * «1 сез. 4 сер.» для тегов плиток.
+ * Номер серии по-русски (V-18): длинная форма — «1 сезон, 4 серия» (карточка, метка плеера, серии), короткая — «1×4»
+ * для тега плитки «Продолжить»: MSX рисует тег диагональной лентой в углу постера, и в неё входит ~7 знаков
+ * («1 сез. 4 сер.» обрезалась, визуальная проверка в web MSX 0.1.167).
  */
 export function episodeName(r: { season: number; video: number }, form: "long" | "short" = "long"): string {
-  return form === "long" ? `${r.season} сезон, ${r.video} серия` : `${r.season} сез. ${r.video} сер.`;
+  return form === "long" ? `${r.season} сезон, ${r.video} серия` : `${r.season}×${r.video}`;
 }
 
 /**

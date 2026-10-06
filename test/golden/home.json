@@ -23,7 +23,7 @@
           "titleFooter": "{col:msx-white}сериал «Большой»",
           "image": "http://kpmock.invalid/poster/medium/2001.svg",
           "action": "content:request:interaction:item:2001@https://example.github.io/msx/app/index.html",
-          "tag": "1 сез. 4 сер.",
+          "tag": "1×4",
           "badge": "+2",
           "progress": 0.02,
           "progressColor": "msx-blue",
@@ -60,7 +60,7 @@
           "titleFooter": "{col:msx-white}сериал «Короткий»",
           "image": "http://kpmock.invalid/poster/medium/2002.svg",
           "action": "content:request:interaction:item:2002@https://example.github.io/msx/app/index.html",
-          "tag": "1 сез. 1 сер.",
+          "tag": "1×1",
           "progress": 0.17,
           "progressColor": "msx-blue",
           "selection": {

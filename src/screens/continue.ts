@@ -46,7 +46,7 @@ function serial(e: HistoryEntry, w: SerialWatching | undefined, episodes: Episod
   const last = tv.at(-1);
   const t = head(e.item.id, e.item.type, e.item.title, e.item.posters);
   t.progress = w.total > 0 ? watched / w.total : 0;
-  // V-18: тег — «1 сез. 4 сер.», как номер серии на карточке и в плеере, только короче.
+  // V-18: тег — «1×4» вместо латинского «S1E4» (`episodeName`, короткая форма: лента тега узкая).
   t.tag = episodeName(last ?? { season: e.media.snumber, video: e.media.number }, "short");
   return withBadge(t, w.new);
 }

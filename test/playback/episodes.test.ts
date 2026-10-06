@@ -233,8 +233,8 @@ describe("episodeName (V-18)", () => {
     assert.equal(episodeName(ref(12, 104), "long"), "12 сезон, 104 серия");
   });
 
-  it("short form for tags: «1 сез. 4 сер.»", () => {
-    assert.equal(episodeName(ref(1, 4), "short"), "1 сез. 4 сер.");
+  it("short form for tags: «1×4»", () => {
+    assert.equal(episodeName(ref(1, 4), "short"), "1×4");
   });
 });
 
