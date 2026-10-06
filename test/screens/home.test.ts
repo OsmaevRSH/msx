@@ -89,6 +89,16 @@ function driveToAction(t: TestApp, graceMs = 2000): Promise<void> {
   }));
 }
 
+/**
+ * V-07: «Загружаю главную…» — сам фокусируемый элемент без действия (`[]`); «Обновить» — только после срока ответа,
+ * когда пришла ошибка или пустая главная.
+ */
+function assertLoading(s: MsxContentRoot): void {
+  const all = items(s);
+  assert.deepEqual(all.map((i) => [i.type ?? "default", i.headline, i.action]), [["default", "{ico:hourglass-empty} Загружаю главную…", "[]"]]);
+  assert.ok(all.every((i) => i.action !== RETRY_CONTENT));
+}
+
 /** Персональные записи кэша обновлены по сети после `advance` (а не отданы из кэша). */
 const refreshed = (t: TestApp, key: string): boolean => {
   const got = t.ctx.cache.peek(key);
@@ -117,6 +127,7 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     assert.equal(s.cache, false);
     assert.equal(s.reuse, false);
     assert.equal(s.headline, "Главная");
+    assert.equal(s.extension, undefined, "«нет связи» only when KinoPub did not answer");
     assert.deepEqual(headers(s), ALL);
     assert.equal(s.pages?.length, 4);
     for (const p of s.pages ?? []) {
@@ -224,7 +235,7 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
 });
 
 describe("homeScreen: empty and failing shelves", () => {
-  it("all shelves empty → text and «Повторить», still flag home", async () => {
+  it("all shelves empty → text and «Обновить», still flag home (V-07)", async () => {
     const t = await make();
     const empty = { ttlMs: 3_600_000, staleMaxMs: 0, persist: false };
     const keys = [cacheKeys.history(), cacheKeys.serials(), cacheKeys.movies(), cacheKeys.bookmarks()];
@@ -234,7 +245,7 @@ describe("homeScreen: empty and failing shelves", () => {
     assert.equal(s.flag, "home");
     assert.deepEqual(headers(s), []);
     const retry = items(s).find((i) => i.type === "button");
-    assert.equal(retry?.label, "Повторить");
+    assert.equal(retry?.label, "Обновить");
     assert.equal(retry?.action, RETRY_CONTENT);
     assert.equal(t.mock.calls().filter((c) => c.path !== "/v1/user").length, 0);
   });
@@ -246,7 +257,7 @@ describe("homeScreen: empty and failing shelves", () => {
     const first = await open(t);
     assert.ok(t.clock.perf() - p0 <= DEADLINE_MS);
     assert.deepEqual(headers(first), []);
-    assert.equal(items(first).find((i) => i.type === "button")?.action, RETRY_CONTENT);
+    assertLoading(first);
     await driveToAction(t);
     assert.deepEqual(actions(t), [REPLACE]);
     const second = await open(t);
@@ -449,7 +460,7 @@ describe("homeScreen: KinoPub hangs (stage 33b)", () => {
     const p0 = t.clock.perf();
     const first = await open(t);
     assert.equal(t.clock.perf() - p0, DEADLINE_MS);
-    assert.match(JSON.stringify(first), /Загружаю полки KinoPub/);
+    assertLoading(first);
     await driveToAction(t, 20);
     assert.deepEqual(actions(t), [REPLACE]);
     assert.equal(t.clock.perf() - p0, NO_ANSWER_MS);
@@ -475,6 +486,55 @@ describe("homeScreen: KinoPub hangs (stage 33b)", () => {
     await realSleep(20);
     assert.deepEqual(actions(t), [], "nothing to redraw: the shelves from L2 stay");
   });
+
+  /**
+   * MSX на `replace:content:home` снова запрашивает главную. Поддельное время идёт шагами по 250 мс, между ними —
+   * реальная пауза: сбои соединения (`drop`) приходят по реальному вводу-выводу.
+   */
+  async function msxFor(t: TestApp, ms: number): Promise<MsxContentRoot[]> {
+    const shown: MsxContentRoot[] = [];
+    const exec = t.host.executeAction.bind(t.host);
+    t.host.executeAction = (action: string, data?: unknown): void => {
+      exec(action, data);
+      if (action === REPLACE) void t.app.handleRequest(HOME, {}).then((s) => shown.push(s as MsxContentRoot));
+    };
+    const p0 = t.clock.perf();
+    while (t.clock.perf() - p0 < ms) {
+      await t.clock.advance(250);
+      await realSleep(3);
+    }
+    return shown;
+  }
+
+  for (const [name, rules] of [["hangs", HANG.rules], ["drops the connection", [{ path: "^/v1/", drop: true }]]] as const) {
+    it(`X-1: L2 older than a week, KinoPub ${name} → all shelves at once with «нет связи», ≤ 1 replace in 60 s`, async () => {
+      const first = await make();
+      await open(first);
+      await persisted(first);
+      first.mock.setScenario({ rules: [...rules] });
+      const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false, clock: new FakeClock(FAKE_EPOCH + 8 * 24 * 60 * MIN) });
+      t.clock.ioGraceMs = 20;
+      const fake0 = t.clock.perf();
+      const s = (await t.run(t.app.handleRequest(HOME, {}))) as MsxContentRoot;
+      assert.ok(t.clock.perf() - fake0 <= DEADLINE_MS, "answered by the deadline");
+      assert.deepEqual(headers(s), ALL, "what L2 has is shown by the deadline, not «loading»");
+      const shown = [s, ...(await msxFor(t, 60_000))];
+      assert.ok(actions(t).filter((a) => a === REPLACE).length <= 1, actions(t).join("\n"));
+      const last = shown.at(-1);
+      assert.ok(last !== undefined);
+      assert.deepEqual(headers(last), ALL);
+      assert.match(last.extension ?? "", /нет связи/);
+      // KinoPub ожил: следующая сверка заменяет главную свежими полками без пометки.
+      first.mock.setScenario({ rules: [] });
+      first.mock.release();
+      t.host.clearActions();
+      await t.run(t.app.handleRequest(HOME, {}));
+      await driveToAction(t);
+      assert.deepEqual(actions(t), [REPLACE]);
+      const back = (await t.run(t.app.handleRequest(HOME, {}))) as MsxContentRoot;
+      assert.deepEqual([headers(back), back.extension], [ALL, undefined]);
+    });
+  }
 });
 
 describe("homeScreen: cold start (CNFR-05, спец. §8.4 п. 2)", () => {

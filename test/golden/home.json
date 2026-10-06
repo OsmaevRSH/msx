@@ -5,12 +5,6 @@
   "cache": false,
   "reuse": false,
   "headline": "Главная",
-  "template": {
-    "type": "default",
-    "color": "msx-glass",
-    "imageFiller": "cover",
-    "round": true
-  },
   "pages": [
     {
       "items": [
