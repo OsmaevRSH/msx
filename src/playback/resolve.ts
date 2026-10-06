@@ -185,8 +185,11 @@ function resolved(
   return out;
 }
 
-/** Сериал — «<название> · 1 сезон, 4 серия»; фильм из частей — «<название> · Часть 2»; фильм — название (спец. §9.2). */
-function playLabel(item: ItemDetail, ref: EpRef): string {
+/**
+ * Сериал — «<название> · 1 сезон, 4 серия»; фильм из частей — «<название> · Часть 2»; фильм — название (спец. §9.2).
+ * Та же метка у перезапуска из панели плеера (`panels.ts`).
+ */
+export function playLabel(item: ItemDetail, ref: EpRef): string {
   const title = ruTitle(item.title);
   if (ref.season > 0) return `${title} · ${episodeName(ref)}`;
   return item.videos.length > 1 ? `${title} · Часть ${ref.video}` : title;

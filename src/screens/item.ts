@@ -9,7 +9,7 @@ import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
 import type { ContinueTarget, EpRef } from "../playback/episodes.ts";
 import { parseSubsValue, pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
-import type { SelectPrefs, SubsChoice } from "../playback/select.ts";
+import type { SelectPrefs } from "../playback/select.ts";
 import { qualityLabel } from "../playback/url.ts";
 import { encodeListKey, ids, msgs, parseDataId } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
@@ -27,7 +27,6 @@ const T = {
   inBookmarks: "★ В закладках",
   toBookmarks: "☆ В закладки",
   similar: "Похожие",
-  forced: "форсированные",
   auto: "Авто",
   markFilm: "Отметить просмотренным",
   markEpisode: "Отметить просмотренной",
@@ -259,9 +258,6 @@ function rating(name: string, v: number | undefined): string | undefined {
 }
 
 const clip = (s: string, max: number): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
-
-/** «ENG», «ENG · форсированные» — строки панели субтитров (S10); карточка пишет язык по-русски (`subsTitle`, V-20). */
-export const subsLabel = (c: SubsChoice): string => (c.forced ? `${c.lang.toUpperCase()} · ${T.forced}` : c.lang.toUpperCase());
 
 /**
  * Субтитры карточки `nolinks=1` — неполный список (полный приходит с `media-links`), поэтому без совпадения

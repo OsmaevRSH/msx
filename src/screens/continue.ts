@@ -1,5 +1,6 @@
 import type { HistoryEntry, ItemSummary, ItemType, Posters, SerialWatching } from "../api/models.ts";
 import { fmtRemaining } from "../core/format.ts";
+import { episodeName } from "../playback/episodes.ts";
 import type { OverlayEntry, OverlayLookup } from "../progress/overlay.ts";
 
 // «Продолжить просмотр» (Plan B §8.3.1, Р-21): история по порядку, первая запись тайтла; позиция из оверлея ТВ
@@ -45,7 +46,8 @@ function serial(e: HistoryEntry, w: SerialWatching | undefined, episodes: Episod
   const last = tv.at(-1);
   const t = head(e.item.id, e.item.type, e.item.title, e.item.posters);
   t.progress = w.total > 0 ? watched / w.total : 0;
-  t.tag = last === undefined ? `S${e.media.snumber}E${e.media.number}` : `S${last.season}E${last.video}`;
+  // V-18: тег — «1 сез. 4 сер.», как номер серии на карточке и в плеере, только короче.
+  t.tag = episodeName(last ?? { season: e.media.snumber, video: e.media.number }, "short");
   return withBadge(t, w.new);
 }
 

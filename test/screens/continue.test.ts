@@ -98,18 +98,18 @@ describe("buildContinue: TV overlay (спец. §10.2, Р-21)", () => {
 });
 
 describe("buildContinue: serials (Plan B §8.3.1 п. 3)", () => {
-  it("tag S<season>E<episode> of the history entry, progress watched / total, badge +new", () => {
+  it("tag «<season> сез. <episode> сер.» of the history entry (V-18), progress watched / total, badge +new", () => {
     const h = [entry(5, { type: "serial", s: 2, e: 5, time: 300 })];
     const [tile] = buildContinue(h, [serial(5, { total: 10, watched: 4, fresh: 3 })], [], none);
     assert.deepEqual(tile, {
-      id: 5, type: "serial", title: "Тайтл 5 / Title 5", posters: POSTERS, progress: 0.4, tag: "S2E5", badge: "+3",
+      id: 5, type: "serial", title: "Тайтл 5 / Title 5", posters: POSTERS, progress: 0.4, tag: "2 сез. 5 сер.", badge: "+3",
     });
   });
 
   it("docuserial and tvshow are serials; no badge without new episodes", () => {
     const h = [entry(5, { type: "docuserial", s: 1, e: 2 }), entry(6, { type: "tvshow", s: 1, e: 1 })];
     const out = buildContinue(h, [serial(5), serial(6)], [], none);
-    assert.deepEqual(out.map((t) => [t.id, t.tag, t.badge]), [[5, "S1E2", undefined], [6, "S1E1", undefined]]);
+    assert.deepEqual(out.map((t) => [t.id, t.tag, t.badge]), [[5, "1 сез. 2 сер.", undefined], [6, "1 сез. 1 сер.", undefined]]);
   });
 
   it("fully watched without new episodes is skipped; fully watched with new ones stays", () => {
@@ -136,20 +136,20 @@ describe("buildContinue: TV overlay on serials (спец. §10.2, Р-21)", () =>
   it("episodes marked on the TV after the history entry: tag of the furthest one, watched ones add to the progress", () => {
     const ov = tv((SEEN + 60) * 1000, [[5, 2, 1, 0], [5, 1, 6, 1], [5, 1, 7, 1], [6, 1, 9, 1]]);
     const [tile] = buildContinue(h, [serial(5, { total: 10, watched: 4 })], [], none, ov);
-    assert.deepEqual([tile?.tag, tile?.progress], ["S2E1", 0.6]);
+    assert.deepEqual([tile?.tag, tile?.progress], ["2 сез. 1 сер.", 0.6]);
   });
 
   it("an overlay older than the history entry is ignored", () => {
     const ov = tv((SEEN - 60) * 1000, [[5, 1, 6, 1]]);
     const [tile] = buildContinue(h, [serial(5, { total: 10, watched: 4 })], [], none, ov);
-    assert.deepEqual([tile?.tag, tile?.progress], ["S1E5", 0.4]);
+    assert.deepEqual([tile?.tag, tile?.progress], ["1 сез. 5 сер.", 0.4]);
   });
 
   it("the last episode watched on the TV skips a serial without new episodes; with new ones it stays", () => {
     const ov = tv((SEEN + 60) * 1000, [[5, 1, 10, 1], [6, 1, 10, 1]]);
     const hh = [entry(5, { type: "serial", s: 1, e: 9 }), entry(6, { type: "serial", s: 1, e: 9 })];
     const s = [serial(5, { total: 10, watched: 9 }), serial(6, { total: 10, watched: 9, fresh: 1 })];
-    assert.deepEqual(buildContinue(hh, s, [], none, ov).map((t) => [t.id, t.tag, t.progress, t.badge]), [[6, "S1E10", 1, "+1"]]);
+    assert.deepEqual(buildContinue(hh, s, [], none, ov).map((t) => [t.id, t.tag, t.progress, t.badge]), [[6, "1 сез. 10 сер.", 1, "+1"]]);
   });
 });
 
@@ -176,7 +176,7 @@ describe("buildContinue: kpmock fixtures", () => {
     await t?.close();
   });
 
-  it("SERIAL_BIG: S1E4 from history, +2 new, 3 of its episodes watched; MOVIE_SIMPLE at 1200 of 5400 s, then SERIAL_SMALL", async () => {
+  it("SERIAL_BIG: 1 сез. 4 сер. from history, +2 new, 3 of its episodes watched; MOVIE_SIMPLE at 1200 of 5400 s, then SERIAL_SMALL", async () => {
     t = await createTestApp({ loggedIn: true });
     const { ctx } = t;
     const [h, s] = await t.run(Promise.all([ctx.repo.history(), ctx.repo.serials()]));
@@ -184,7 +184,7 @@ describe("buildContinue: kpmock fixtures", () => {
     const big = out.find((x) => x.id === FIX.SERIAL_BIG);
     const w = s.value.find((x) => x.id === FIX.SERIAL_BIG);
     assert.ok(big && w);
-    assert.equal(big.tag, "S1E4");
+    assert.equal(big.tag, "1 сез. 4 сер.");
     assert.equal(big.badge, "+2");
     assert.equal(w.watched, 3);
     assert.equal(big.progress, 3 / w.total);

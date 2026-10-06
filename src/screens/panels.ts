@@ -3,10 +3,10 @@ import type { FileInfo, ItemDetail, MediaUnit, Subtitle } from "../api/models.ts
 import { cacheKeys } from "../cache/repo.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
-import { ruTitle } from "../core/format.ts";
 import { chain, commitMsg, playerMsg, replaceContent, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { type EpRef, findUnit } from "../playback/episodes.ts";
+import { playLabel } from "../playback/resolve.ts";
 import { type SubsChoice, parseSubsValue, subsValue } from "../playback/prefs.ts";
 import { pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
 import { qualityOf, withLoc } from "../playback/url.ts";
@@ -28,7 +28,7 @@ const T = {
   sort: "Сортировка", genre: "Жанр", allGenres: "Все жанры", audio: "Озвучка", quality: "Качество", auto: "Авто",
   upTo: "до", subs: "Субтитры", subsOff: "Выключены", bookmarks: "Закладки", createFolder: "Создать папку „MSX“ и добавить",
   seasons: "Сезоны", mode: "Способ воспроизведения",
-  modeTv: "Как в настройках", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов", part: "Часть",
+  modeTv: "Как в настройках", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов",
   noPos: "Не удалось узнать позицию — выбор сработает при следующем запуске",
 };
 
@@ -333,13 +333,6 @@ async function playerPosition(ctx: AppContext, id: number, ref: EpRef): Promise<
   const o = ctx.overlay.get(id, ref.season, ref.video);
   const known = s?.mid === ref.mid ? s.lastPos || s.peak : o?.status === 0 ? o.time : undefined;
   return known || pos;
-}
-
-/** Как метка ответа resolve: «<название> · S1E5», «<название> · Часть 2» или название. */
-function playLabel(item: ItemDetail, ref: EpRef): string {
-  const title = ruTitle(item.title);
-  if (ref.season > 0) return `${title} · S${ref.season}E${ref.video}`;
-  return item.videos.length > 1 ? `${title} · ${T.part} ${ref.video}` : title;
 }
 
 /** `subs:<id>:<mid>:<lang|lang.forced|off>:<c|p>`; в плеере — динамические свойства AVPlay (Plan B §5.10). */

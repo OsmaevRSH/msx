@@ -200,6 +200,16 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.match(actions(t)[0], /play:2004:2004001:0:1:at321@/);
   });
 
+  it("a serial episode restarts with the label of resolve: «<title> · 1 сезон, 5 серия» (V-18)", async () => {
+    const t = await make();
+    t.host.responses.set("video", { video: { data: { position: 100 } } });
+    await act(t, "quality", 2001, 2001005, 720, "p");
+    assert.deepEqual(t.host.actions, [{
+      action: chain(["cleanup", "player:eject", resolveAction(P, ids.playEp(2001, 2001005, 1, 5, { at: 100 }))]),
+      data: { playerLabel: "Тестовый сериал «Большой» · 1 сезон, 5 серия" },
+    }]);
+  });
+
   it("in the player without video data — the last checked position of the tracker session", async () => {
     const t = await make();
     t.ctx.tracker.session = () => ({ mid: M12, lastPos: 77.9, peak: 90 }) as PlaybackSession;

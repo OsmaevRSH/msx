@@ -173,7 +173,7 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     const [big, movie] = tiles;
     assert.equal(big?.action, contentAction(P, ids.item(FIX.SERIAL_BIG)));
     assert.deepEqual(big?.selection, { action: commitMsg(msgs.pf(FIX.SERIAL_BIG)) });
-    assert.equal(big?.tag, "S1E4");
+    assert.equal(big?.tag, "1 сез. 4 сер.");
     assert.equal(big?.badge, "+2");
     assert.equal(big?.progressColor, "msx-blue");
     assert.deepEqual([big?.type, big?.title, big?.titleFooter], ["separate", "Тестовый", "{col:msx-white}сериал «Большой»"]);
@@ -187,11 +187,11 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     const t = await make({ clock: new FakeClock(Date.now()) });
     const big = (s: MsxContentRoot): MsxContentItem | undefined => shelf(s, "Продолжить просмотр").find((i) => i.id === `c${FIX.SERIAL_BIG}`);
     const before = big(await open(t));
-    assert.equal(before?.tag, "S1E4");
+    assert.equal(before?.tag, "1 сез. 4 сер.");
     t.ctx.overlay.set(FIX.SERIAL_BIG, 1, 5, { time: 0, status: 1 });
     // Прогресс — 4 из 200 серий вместо 3: после округления до сотых те же 0,02, его проверяет continue.test.ts.
     const after = big(await open(t));
-    assert.deepEqual([after?.tag, after?.badge], ["S1E5", "+2"]);
+    assert.deepEqual([after?.tag, after?.badge], ["1 сез. 5 сер.", "+2"]);
   });
 
   it("«Продолжить» holds up to 8 titles, x = 0…14", async () => {
@@ -308,7 +308,7 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
     assert.ok(t.clock.perf() - fake0 <= 50);
     assert.ok(realMs <= 50, `home from L2 took ${realMs.toFixed(1)} ms`);
     assert.deepEqual(headers(s), ALL);
-    assert.equal(shelf(s, "Продолжить просмотр")[0]?.tag, "S1E4");
+    assert.equal(shelf(s, "Продолжить просмотр")[0]?.tag, "1 сез. 4 сер.");
     await realSleep(20);
     assert.equal(t.mock.calls().length, n);
     console.log(`# home from L2: ${realMs.toFixed(1)} ms, ${bytes(s)} bytes`);
