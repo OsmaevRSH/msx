@@ -1,8 +1,8 @@
 import type { AppContext } from "../app/context.ts";
 import type { MediaUnit } from "../api/models.ts";
 import { KpError, toKpError } from "../core/errors.ts";
-import { chain, commitMsg, contentAction, resolveAction } from "../msx/actions.ts";
-import type { MsxContentItem, MsxContentRoot, MsxResolveResponse } from "../msx/types.ts";
+import { chain, commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
+import type { MsxContentItem, MsxContentPage, MsxContentRoot, MsxResolveResponse } from "../msx/types.ts";
 import { findUnit, neighbours } from "../playback/episodes.ts";
 import { resolveUnit } from "../playback/resolve.ts";
 import type { ResolveOverrides } from "../playback/resolve.ts";
@@ -12,14 +12,15 @@ import { playerProps } from "../screens/player.ts";
 import type { PlayerPropsInput } from "../screens/player.ts";
 import { pickTestTitle } from "./checks-api.ts";
 import { flagPanel, onFlagAct } from "./devflags.ts";
-import { buildReport, checkLine, msxText, printReport, reportScreen } from "./report.ts";
+import { buildReport, checkMark, msxText, printReport, reportScreen } from "./report.ts";
 import { API_CHECKS, CHECK_IDS } from "./runner.ts";
 import type { CheckId, CheckResult } from "./runner.ts";
 import type { TestTitle, UnitRef } from "./store.ts";
 import { gridBegin, gridCheck } from "./tv-checks.ts";
 
-// «Диагностика» (спец. §13, §16.2; решение Р-11): пробник Phase 0 одним экраном — строка на каждую CDG, кнопки
-// проверок, плитки воспроизведения тестового тайтла, «Отчёт», «Отчёт в консоль», «Для разработчика», «Выйти».
+// «Диагностика» (спец. §13, §16.2; решение Р-11): пробник Phase 0 одним экраном — наверху «Запустить проверки API»,
+// «Отчёт», «Отчёт в консоль», под ними строка на каждую CDG, плитки воспроизведения тестового тайтла, «Для
+// разработчика», «Выйти» (V-37).
 
 export { devScreen } from "./devflags.ts";
 
@@ -46,14 +47,14 @@ const T = {
   console: "Отчёт в консоль",
   consoleDone: "Отчёт выведен в консоль браузера",
   dev: "Для разработчика",
-  logout: "Выйти из KinoPub (освободить слот)",
-  a1: "a1",
-  a2: "a2",
-  hls2: "HLS2",
-  props: "Свойства из resolve",
-  ticks: "События и тики",
-  autonext: "Автопереход",
-  grid: "Сетка 150",
+  logout: "Выйти из KinoPub",
+  a1: "Видео: озвучка 1",
+  a2: "Видео: озвучка 2",
+  hls2: "Видео: HLS2",
+  props: "Кнопки плеера",
+  ticks: "События плеера",
+  autonext: "Автопереход серии",
+  grid: "Прокрутка 150 плиток",
   title: (t: TestTitle): string =>
     `Тестовый тайтл: «${t.title}» S${t.s1e1.s}E${t.s1e1.e}; автопереход S${t.s1Last.s}E${t.s1Last.e} → S${t.s2e1.s}E${t.s2e1.e}`,
   noTitle: "Тестового тайтла нет: среди 10 свежих сериалов нет сериала с 2 сезонами и 2 озвучками",
@@ -61,8 +62,27 @@ const T = {
   noSecondAudio: "У серии одна озвучка: плитке a2 нужна вторая",
 };
 
-/** Без `template` MSX не показывает `items` корня («Содержимое недоступно»); у элементов свои тип и раскладка. */
-const ROW_TEMPLATE: MsxContentItem = { type: "control", layout: "0,0,12,1" };
+/** Что проверяет CDG — подпись строки вместо голого номера (V-37; спец. §16.2). */
+const NAMES: Readonly<Record<CheckId, string>> = {
+  "CDG-01": "Доступ к API (CORS)",
+  "CDG-02": "Запрос кода входа",
+  "CDG-03": "Отправка данных (POST)",
+  "CDG-04": "Вход и каталог",
+  "CDG-05": "Видео и озвучки",
+  "CDG-06": "Кнопки плеера",
+  "CDG-07": "События плеера",
+  "CDG-08": "Прогресс просмотра",
+  "CDG-09": "Хранилище",
+  "CDG-10": "Холодный старт",
+  "CDG-11": "Автопереход серии",
+  "CDG-12": "Прокрутка и догрузка",
+};
+
+const GRID_W = 12;
+const GRID_H = 6;
+/** Перенос на следующую строку сетки. */
+const BREAK = null;
+type Cell = MsxContentItem | typeof BREAK;
 
 const row = (text: string): MsxContentItem => ({ type: "space", layout: "0,0,12,1", text: msxText(text) });
 
@@ -70,15 +90,42 @@ function button(id: string, label: string, action: string, w = 4): MsxContentIte
   return { id, type: "button", layout: `0,0,${w},1`, label, action };
 }
 
+/**
+ * Страницы 12×6 из элементов высотой 1 (их ширина — в `layout`): слева направо, не влезло — на следующую строку,
+ * строки кончились — на следующую страницу. `type: "list"` раскладку элементов игнорирует (V-37).
+ */
+function grid(cells: Cell[]): MsxContentPage[] {
+  let page: MsxContentPage = { items: [] };
+  const pages = [page];
+  let x = 0;
+  let y = 0;
+  for (const c of cells) {
+    const w = c === BREAK ? GRID_W : Number(String(c.layout).split(",")[2]);
+    if (x > 0 && x + w > GRID_W) {
+      x = 0;
+      y += 1;
+    }
+    if (c === BREAK) continue;
+    if (y >= GRID_H) {
+      page = { items: [] };
+      pages.push(page);
+      y = 0;
+    }
+    page.items.push({ ...c, layout: `${x},${y},${w},1` });
+    x += w;
+  }
+  return pages;
+}
+
 /** Строка CDG; у проверок уровня API — запуск по нажатию. */
 function checkRow(id: CheckId, r: CheckResult | undefined): MsxContentItem {
-  const item: MsxContentItem = { id: `c_${id}`, type: "control", layout: "0,0,12,1", label: msxText(checkLine(id, r)) };
+  const item: MsxContentItem = { id: `c_${id}`, type: "control", layout: "0,0,6,1", label: msxText(`${id} · ${NAMES[id]} ${checkMark(r)}`) };
   if (API_CHECKS.includes(id)) item.action = chain([`info:${T.checkStarted(id)}`, commitMsg(msgs.act("probe", "run", id))]);
   return item;
 }
 
 async function playTiles(ctx: AppContext): Promise<MsxContentItem[]> {
-  const grid = button("p_grid", T.grid, chain([commitMsg(msgs.act("probe", "grid")), contentAction(ctx.P, ids.list(gridKey()))]), 3);
+  const grid = button("p_grid", T.grid, chain([commitMsg(msgs.act("probe", "grid")), contentAction(ctx.P, ids.list(gridKey()))]));
   let title: TestTitle | undefined;
   try {
     title = await pickTestTitle(ctx);
@@ -97,8 +144,8 @@ async function playTiles(ctx: AppContext): Promise<MsxContentItem[]> {
     button("p_a2", T.a2, play("a2", s1e1), 3),
     button("p_hls2", T.hls2, play("hls2", s1e1), 3),
     button("p_props", T.props, play("props", s1e1), 3),
-    button("p_ticks", T.ticks, play("ticks", s1e1), 3),
-    button("p_autonext", T.autonext, play("autonext", s1Last), 3),
+    button("p_ticks", T.ticks, play("ticks", s1e1)),
+    button("p_autonext", T.autonext, play("autonext", s1Last)),
     grid,
   ];
 }
@@ -112,20 +159,19 @@ export async function probeScreen(ctx: AppContext, page?: string): Promise<MsxCo
 
   const logged = ctx.auth.isLoggedIn();
   const byId = new Map(ctx.probe!.results().map((r) => [r.id, r]));
-  const items: MsxContentItem[] = (logged ? CHECK_IDS : PUBLIC_CHECKS).map((id) => checkRow(id, byId.get(id)));
-  items.push(
-    button("b_runApi", T.runApi, chain([`info:${T.apiStarted}`, commitMsg(msgs.act("probe", "runApi"))]), 6),
-    button("b_persist", T.persist, commitMsg(msgs.act("probe", "persistWrite")), 6),
-  );
-  if (logged) items.push(...(await playTiles(ctx)));
-  else items.push(button("b_login", T.login, contentAction(ctx.P, ids.login())));
-  items.push(
+  const cells: Cell[] = [
+    { ...button("b_runApi", T.runApi, chain([`info:${T.apiStarted}`, commitMsg(msgs.act("probe", "runApi"))]), 6), focus: true },
     button("b_report", T.report, contentAction(ctx.P, ids.probe("report:1")), 3),
     button("b_console", T.console, commitMsg(msgs.act("probe", "console")), 3),
-    button("b_dev", T.dev, contentAction(ctx.P, ids.dev()), 3),
-  );
-  if (logged) items.push(button("b_logout", T.logout, commitMsg(msgs.act("probe", "logout")), 6));
-  return { type: "list", flag: FLAG, cache: false, reuse: false, headline: T.headline, extension: ctx.build.version, template: ROW_TEMPLATE, items };
+    ...(logged ? CHECK_IDS : PUBLIC_CHECKS).map((id) => checkRow(id, byId.get(id))),
+    ...(logged ? await playTiles(ctx) : []),
+    BREAK,
+    button("b_persist", T.persist, commitMsg(msgs.act("probe", "persistWrite"))),
+    button("b_dev", T.dev, contentAction(ctx.P, ids.dev())),
+    // V-34: выход подтверждается в панели «Аккаунт» настроек.
+    logged ? button("b_logout", T.logout, panelAction(ctx.P, ids.panel("setting", "account"))) : button("b_login", T.login, contentAction(ctx.P, ids.login())),
+  ];
+  return { type: "pages", flag: FLAG, cache: false, reuse: false, headline: T.headline, extension: ctx.build.version, pages: grid(cells) };
 }
 
 /** Перерисовать «Диагностику», только если она всё ещё текущий экран (спец. §6.3, CD-16). */
@@ -166,7 +212,7 @@ export async function onProbeAct(ctx: AppContext, name: string, args: string[]):
       onFlagAct(ctx, name, args);
       return;
     case "logout":
-      // `device/unlink` и удаление токенов; меню перерисовывает обработчик выхода (`replace:menu`).
+      // Кнопка «Выйти» теперь открывает панель «Аккаунт» (V-34); сообщение — для экранов, открытых до обновления.
       await ctx.auth.logout();
       return;
   }

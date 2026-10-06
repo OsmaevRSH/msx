@@ -27,11 +27,15 @@ async function make(o: TestAppOptions = {}): Promise<TestApp> {
 const P = TEST_P;
 const GRID = ids.list(encodeListKey({ src: "catalog", type: "movie", sort: "-updated" }));
 const act = (name: string, ...args: (string | number)[]): string => commitMsg(msgs.act("probe", name, ...args));
-const labels = (root: MsxContentRoot): string[] => (root.items ?? []).flatMap((i) => (i.label === undefined ? [] : [i.label]));
-const byLabel = (root: MsxContentRoot, label: string): MsxContentItem | undefined => root.items?.find((i) => i.label === label);
-const actions = (root: MsxContentRoot): string[] => (root.items ?? []).flatMap((i) => (i.action === undefined ? [] : [i.action]));
+/** Элементы всех страниц «Диагностики» по порядку. */
+const all = (root: MsxContentRoot): MsxContentItem[] => (root.pages ?? []).flatMap((p) => p.items);
+const labels = (root: MsxContentRoot): string[] => all(root).flatMap((i) => (i.label === undefined ? [] : [i.label]));
+const byLabel = (root: MsxContentRoot, label: string): MsxContentItem | undefined => all(root).find((i) => i.label === label);
+const byId = (root: MsxContentRoot, id: string): MsxContentItem | undefined => all(root).find((i) => i.id === id);
+const actions = (root: MsxContentRoot): string[] => all(root).flatMap((i) => (i.action === undefined ? [] : [i.action]));
 const checkRows = (root: MsxContentRoot): string[] =>
-  (root.items ?? []).flatMap((i) => /^c_CDG-\d\d$/.test(i.id ?? "") ? [(i.id ?? "").slice(2)] : []);
+  all(root).flatMap((i) => /^c_CDG-\d\d$/.test(i.id ?? "") ? [(i.id ?? "").slice(2)] : []);
+const ACCOUNT = panelAction(P, ids.panel("setting", "account"));
 
 async function probe(t: TestApp): Promise<MsxContentRoot> {
   return (await t.request(ids.probe())) as MsxContentRoot;
@@ -54,14 +58,14 @@ describe("probeScreen (spec §16.2, decision R-11)", () => {
   it("without login: rows of CDG-01, 02, 09, 10, «Вход», no play tiles and no logout; no network", async () => {
     const t = await make();
     const root = await probe(t);
-    assert.equal(root.type, "list");
+    assert.equal(root.type, "pages");
     assert.equal(root.flag, "probe");
     assert.equal(root.cache, false);
-    assert.ok(root.template !== undefined, "MSX не показывает items корня без template (smoke-e2e этапа 27)");
+    assert.equal(root.pages?.length, 1);
     assert.deepEqual(checkRows(root), ["CDG-01", "CDG-02", "CDG-09", "CDG-10"]);
     assert.equal(byLabel(root, "Вход")?.action, contentAction(P, ids.login()));
     assert.ok(!actions(root).some((a) => a.startsWith("video:resolve:")));
-    assert.equal(byLabel(root, "Выйти из KinoPub (освободить слот)"), undefined);
+    assert.equal(byLabel(root, "Выйти из KinoPub"), undefined);
     for (const l of ["Запустить проверки API", "Записать маркер хранилища", "Отчёт", "Отчёт в консоль", "Для разработчика"]) {
       assert.ok(labels(root).includes(l), l);
     }
@@ -74,33 +78,60 @@ describe("probeScreen (spec §16.2, decision R-11)", () => {
     assert.deepEqual(checkRows(root), [...CHECK_IDS]);
     const tt = await t.run(pickTestTitle(t.ctx)) as TestTitle;
     const play = (v: string, u = tt.s1e1): string => resolveAction(P, ids.probePlay(v, tt.id, u.mid, u.s, u.e));
-    assert.match(byLabel(root, "a1")?.action ?? "", new RegExp(`^video:resolve:request:interaction:play:probe:a1:${tt.id}:\\d+:1:1@`));
-    assert.ok((byLabel(root, "a1")?.action ?? "").endsWith(`@${P}`));
-    assert.equal(byLabel(root, "a2")?.action, play("a2"));
-    assert.equal(byLabel(root, "HLS2")?.action, play("hls2"));
-    assert.equal(byLabel(root, "Свойства из resolve")?.action, play("props"));
-    assert.equal(byLabel(root, "События и тики")?.action, play("ticks"));
-    assert.equal(byLabel(root, "Автопереход")?.action, play("autonext", tt.s1Last));
-    assert.equal(byLabel(root, "Сетка 150")?.action, chain([act("grid"), contentAction(P, GRID)]));
+    assert.match(byLabel(root, "Видео: озвучка 1")?.action ?? "", new RegExp(`^video:resolve:request:interaction:play:probe:a1:${tt.id}:\\d+:1:1@`));
+    assert.ok((byLabel(root, "Видео: озвучка 1")?.action ?? "").endsWith(`@${P}`));
+    assert.equal(byLabel(root, "Видео: озвучка 2")?.action, play("a2"));
+    assert.equal(byLabel(root, "Видео: HLS2")?.action, play("hls2"));
+    assert.equal(byLabel(root, "Кнопки плеера")?.action, play("props"));
+    assert.equal(byLabel(root, "События плеера")?.action, play("ticks"));
+    assert.equal(byLabel(root, "Автопереход серии")?.action, play("autonext", tt.s1Last));
+    assert.equal(byLabel(root, "Прокрутка 150 плиток")?.action, chain([act("grid"), contentAction(P, GRID)]));
     assert.equal(byLabel(root, "Отчёт")?.action, contentAction(P, ids.probe("report:1")));
     assert.equal(byLabel(root, "Отчёт в консоль")?.action, act("console"));
     assert.equal(byLabel(root, "Для разработчика")?.action, contentAction(P, ids.dev()));
-    assert.equal(byLabel(root, "Выйти из KinoPub (освободить слот)")?.action, act("logout"));
+    // V-34: выход — через панель «Аккаунт» с подтверждением, а не сразу.
+    assert.equal(byLabel(root, "Выйти из KinoPub")?.action, ACCOUNT);
     assert.equal(byLabel(root, "Вход"), undefined);
     for (const id of API_CHECKS) {
-      assert.equal(root.items?.find((i) => i.id === `c_${id}`)?.action, chain([`info:Проверка ${id} запущена`, act("run", id)]), id);
+      assert.equal(byId(root, `c_${id}`)?.action, chain([`info:Проверка ${id} запущена`, act("run", id)]), id);
     }
   });
 
-  it("rows show ✓/✗/— as MSX icons and the summary", async () => {
+  // V-37: главная кнопка наверху и в фокусе, результаты проверок API — сразу под ней, строки CDG по две в ряд.
+  it("actions on top with the focus on «Запустить проверки API»; CDG rows two per row right below; a 12×6 grid", async () => {
+    for (const loggedIn of [false, true]) {
+      const t = await make({ loggedIn });
+      const root = await probe(t);
+      const first = root.pages?.[0]?.items ?? [];
+      assert.deepEqual(first.slice(0, 3).map((i) => [i.id, i.layout]), [["b_runApi", "0,0,6,1"], ["b_report", "6,0,3,1"], ["b_console", "9,0,3,1"]]);
+      assert.deepEqual(all(root).filter((i) => i.focus === true).map((i) => i.id), ["b_runApi"]);
+      assert.deepEqual([byId(root, "c_CDG-01")?.layout, byId(root, "c_CDG-02")?.layout], ["0,1,6,1", "6,1,6,1"]);
+      // «Прокрутка 150 плиток» не влезает в 3 колонки: второй ряд плиток — по 4.
+      if (loggedIn) assert.deepEqual(["p_props", "p_grid"].map((id) => byId(root, id)?.layout), ["9,2,3,1", "8,3,4,1"]);
+      for (const [n, page] of (root.pages ?? []).entries()) {
+        const taken = new Set<string>();
+        for (const i of page.items) {
+          const [x, y, w, h] = String(i.layout).split(",").map(Number) as [number, number, number, number];
+          assert.ok(x >= 0 && y >= 0 && x + w <= 12 && y + h <= 6, `page ${n}: ${i.id ?? i.label} at ${i.layout}`);
+          for (let c = x; c < x + w; c++) {
+            assert.ok(!taken.has(`${c},${y}`), `page ${n}: ${i.id ?? i.label} overlaps at ${c},${y}`);
+            taken.add(`${c},${y}`);
+          }
+        }
+        assert.ok(page.items.some((i) => i.type !== "space"), `page ${n} has a focusable item`);
+      }
+    }
+  });
+
+  it("rows: «CDG-01 · <what is checked> ✓/✗/—» with MSX icons", async () => {
     const t = await make();
     t.ctx.probe!.record({ id: "CDG-01", ok: true, summary: "ответ 401 прочитан", values: {}, at: 1 });
     t.ctx.probe!.record({ id: "CDG-09", ok: false, summary: "квота {мала}", values: {}, at: 1 });
     const root = await probe(t);
-    const row = (id: string): string => String(root.items?.find((i) => i.id === `c_${id}`)?.label);
-    assert.equal(row("CDG-01"), "CDG-01 {ico:msx-green:check} ответ 401 прочитан");
-    assert.equal(row("CDG-09"), "CDG-09 {ico:msx-red:close} квота (мала)");
-    assert.equal(row("CDG-02"), "CDG-02 — не запускалась");
+    const row = (id: string): string => String(byId(root, `c_${id}`)?.label);
+    assert.equal(row("CDG-01"), "CDG-01 · Доступ к API (CORS) {ico:msx-green:check}");
+    assert.equal(row("CDG-09"), "CDG-09 · Хранилище {ico:msx-red:close}");
+    assert.equal(row("CDG-02"), "CDG-02 · Запрос кода входа —");
   });
 });
 
@@ -134,7 +165,7 @@ describe("onProbeAct", () => {
     assert.match(t.host.actions.at(-1)?.action ?? "", /^\[info:Маркер записан.*\|reload:content\]$/);
   });
 
-  it("act:probe:logout → device/unlink in the mock journal, tokens removed, replace:menu", async () => {
+  it("act:probe:logout (screens opened before V-34) → device/unlink in the mock journal, tokens removed, replace:menu", async () => {
     const t = await make({ loggedIn: true });
     t.app.handleData({ message: msgs.act("probe", "logout") });
     await until(t, () => !t.ctx.auth.isLoggedIn(), "logout");

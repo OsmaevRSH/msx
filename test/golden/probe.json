@@ -1,189 +1,194 @@
 {
-  "type": "list",
+  "type": "pages",
   "flag": "probe",
   "cache": false,
   "reuse": false,
   "headline": "Диагностика",
   "extension": "0.0.0-dev",
-  "template": {
-    "type": "control",
-    "layout": "0,0,12,1"
-  },
-  "items": [
+  "pages": [
     {
-      "id": "c_CDG-01",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-01 — не запускалась",
-      "action": "[info:Проверка CDG-01 запущена|interaction:commit:message:act:probe:run:CDG-01]"
+      "items": [
+        {
+          "id": "b_runApi",
+          "type": "button",
+          "layout": "0,0,6,1",
+          "label": "Запустить проверки API",
+          "action": "[info:Проверки API запущены|interaction:commit:message:act:probe:runApi]",
+          "focus": true
+        },
+        {
+          "id": "b_report",
+          "type": "button",
+          "layout": "6,0,3,1",
+          "label": "Отчёт",
+          "action": "content:request:interaction:probe:report:1@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_console",
+          "type": "button",
+          "layout": "9,0,3,1",
+          "label": "Отчёт в консоль",
+          "action": "interaction:commit:message:act:probe:console"
+        },
+        {
+          "id": "c_CDG-01",
+          "type": "control",
+          "layout": "0,1,6,1",
+          "label": "CDG-01 · Доступ к API (CORS) —",
+          "action": "[info:Проверка CDG-01 запущена|interaction:commit:message:act:probe:run:CDG-01]"
+        },
+        {
+          "id": "c_CDG-02",
+          "type": "control",
+          "layout": "6,1,6,1",
+          "label": "CDG-02 · Запрос кода входа —",
+          "action": "[info:Проверка CDG-02 запущена|interaction:commit:message:act:probe:run:CDG-02]"
+        },
+        {
+          "id": "c_CDG-03",
+          "type": "control",
+          "layout": "0,2,6,1",
+          "label": "CDG-03 · Отправка данных (POST) —",
+          "action": "[info:Проверка CDG-03 запущена|interaction:commit:message:act:probe:run:CDG-03]"
+        },
+        {
+          "id": "c_CDG-04",
+          "type": "control",
+          "layout": "6,2,6,1",
+          "label": "CDG-04 · Вход и каталог —",
+          "action": "[info:Проверка CDG-04 запущена|interaction:commit:message:act:probe:run:CDG-04]"
+        },
+        {
+          "id": "c_CDG-05",
+          "type": "control",
+          "layout": "0,3,6,1",
+          "label": "CDG-05 · Видео и озвучки —"
+        },
+        {
+          "id": "c_CDG-06",
+          "type": "control",
+          "layout": "6,3,6,1",
+          "label": "CDG-06 · Кнопки плеера —"
+        },
+        {
+          "id": "c_CDG-07",
+          "type": "control",
+          "layout": "0,4,6,1",
+          "label": "CDG-07 · События плеера —"
+        },
+        {
+          "id": "c_CDG-08",
+          "type": "control",
+          "layout": "6,4,6,1",
+          "label": "CDG-08 · Прогресс просмотра —",
+          "action": "[info:Проверка CDG-08 запущена|interaction:commit:message:act:probe:run:CDG-08]"
+        },
+        {
+          "id": "c_CDG-09",
+          "type": "control",
+          "layout": "0,5,6,1",
+          "label": "CDG-09 · Хранилище —",
+          "action": "[info:Проверка CDG-09 запущена|interaction:commit:message:act:probe:run:CDG-09]"
+        },
+        {
+          "id": "c_CDG-10",
+          "type": "control",
+          "layout": "6,5,6,1",
+          "label": "CDG-10 · Холодный старт —",
+          "action": "[info:Проверка CDG-10 запущена|interaction:commit:message:act:probe:run:CDG-10]"
+        }
+      ]
     },
     {
-      "id": "c_CDG-02",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-02 — не запускалась",
-      "action": "[info:Проверка CDG-02 запущена|interaction:commit:message:act:probe:run:CDG-02]"
-    },
-    {
-      "id": "c_CDG-03",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-03 — не запускалась",
-      "action": "[info:Проверка CDG-03 запущена|interaction:commit:message:act:probe:run:CDG-03]"
-    },
-    {
-      "id": "c_CDG-04",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-04 — не запускалась",
-      "action": "[info:Проверка CDG-04 запущена|interaction:commit:message:act:probe:run:CDG-04]"
-    },
-    {
-      "id": "c_CDG-05",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-05 — не запускалась"
-    },
-    {
-      "id": "c_CDG-06",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-06 — не запускалась"
-    },
-    {
-      "id": "c_CDG-07",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-07 — не запускалась"
-    },
-    {
-      "id": "c_CDG-08",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-08 — не запускалась",
-      "action": "[info:Проверка CDG-08 запущена|interaction:commit:message:act:probe:run:CDG-08]"
-    },
-    {
-      "id": "c_CDG-09",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-09 — не запускалась",
-      "action": "[info:Проверка CDG-09 запущена|interaction:commit:message:act:probe:run:CDG-09]"
-    },
-    {
-      "id": "c_CDG-10",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-10 — не запускалась",
-      "action": "[info:Проверка CDG-10 запущена|interaction:commit:message:act:probe:run:CDG-10]"
-    },
-    {
-      "id": "c_CDG-11",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-11 — не запускалась"
-    },
-    {
-      "id": "c_CDG-12",
-      "type": "control",
-      "layout": "0,0,12,1",
-      "label": "CDG-12 — не запускалась"
-    },
-    {
-      "id": "b_runApi",
-      "type": "button",
-      "layout": "0,0,6,1",
-      "label": "Запустить проверки API",
-      "action": "[info:Проверки API запущены|interaction:commit:message:act:probe:runApi]"
-    },
-    {
-      "id": "b_persist",
-      "type": "button",
-      "layout": "0,0,6,1",
-      "label": "Записать маркер хранилища",
-      "action": "interaction:commit:message:act:probe:persistWrite"
-    },
-    {
-      "type": "space",
-      "layout": "0,0,12,1",
-      "text": "Тестовый тайтл: «Тестовый сериал 1004» S1E1; автопереход S1E10 → S2E1"
-    },
-    {
-      "id": "p_a1",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "a1",
-      "action": "video:resolve:request:interaction:play:probe:a1:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "p_a2",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "a2",
-      "action": "video:resolve:request:interaction:play:probe:a2:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "p_hls2",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "HLS2",
-      "action": "video:resolve:request:interaction:play:probe:hls2:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "p_props",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "Свойства из resolve",
-      "action": "video:resolve:request:interaction:play:probe:props:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "p_ticks",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "События и тики",
-      "action": "video:resolve:request:interaction:play:probe:ticks:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "p_autonext",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "Автопереход",
-      "action": "video:resolve:request:interaction:play:probe:autonext:1004:1004010:1:10@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "p_grid",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "Сетка 150",
-      "action": "[interaction:commit:message:act:probe:grid|content:request:interaction:list:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html]"
-    },
-    {
-      "id": "b_report",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "Отчёт",
-      "action": "content:request:interaction:probe:report:1@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "b_console",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "Отчёт в консоль",
-      "action": "interaction:commit:message:act:probe:console"
-    },
-    {
-      "id": "b_dev",
-      "type": "button",
-      "layout": "0,0,3,1",
-      "label": "Для разработчика",
-      "action": "content:request:interaction:dev@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "b_logout",
-      "type": "button",
-      "layout": "0,0,6,1",
-      "label": "Выйти из KinoPub (освободить слот)",
-      "action": "interaction:commit:message:act:probe:logout"
+      "items": [
+        {
+          "id": "c_CDG-11",
+          "type": "control",
+          "layout": "0,0,6,1",
+          "label": "CDG-11 · Автопереход серии —"
+        },
+        {
+          "id": "c_CDG-12",
+          "type": "control",
+          "layout": "6,0,6,1",
+          "label": "CDG-12 · Прокрутка и догрузка —"
+        },
+        {
+          "type": "space",
+          "layout": "0,1,12,1",
+          "text": "Тестовый тайтл: «Тестовый сериал 1004» S1E1; автопереход S1E10 → S2E1"
+        },
+        {
+          "id": "p_a1",
+          "type": "button",
+          "layout": "0,2,3,1",
+          "label": "Видео: озвучка 1",
+          "action": "video:resolve:request:interaction:play:probe:a1:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "p_a2",
+          "type": "button",
+          "layout": "3,2,3,1",
+          "label": "Видео: озвучка 2",
+          "action": "video:resolve:request:interaction:play:probe:a2:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "p_hls2",
+          "type": "button",
+          "layout": "6,2,3,1",
+          "label": "Видео: HLS2",
+          "action": "video:resolve:request:interaction:play:probe:hls2:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "p_props",
+          "type": "button",
+          "layout": "9,2,3,1",
+          "label": "Кнопки плеера",
+          "action": "video:resolve:request:interaction:play:probe:props:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "p_ticks",
+          "type": "button",
+          "layout": "0,3,4,1",
+          "label": "События плеера",
+          "action": "video:resolve:request:interaction:play:probe:ticks:1004:1004001:1:1@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "p_autonext",
+          "type": "button",
+          "layout": "4,3,4,1",
+          "label": "Автопереход серии",
+          "action": "video:resolve:request:interaction:play:probe:autonext:1004:1004010:1:10@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "p_grid",
+          "type": "button",
+          "layout": "8,3,4,1",
+          "label": "Прокрутка 150 плиток",
+          "action": "[interaction:commit:message:act:probe:grid|content:request:interaction:list:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html]"
+        },
+        {
+          "id": "b_persist",
+          "type": "button",
+          "layout": "0,4,4,1",
+          "label": "Записать маркер хранилища",
+          "action": "interaction:commit:message:act:probe:persistWrite"
+        },
+        {
+          "id": "b_dev",
+          "type": "button",
+          "layout": "4,4,4,1",
+          "label": "Для разработчика",
+          "action": "content:request:interaction:dev@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_logout",
+          "type": "button",
+          "layout": "8,4,4,1",
+          "label": "Выйти из KinoPub",
+          "action": "panel:request:interaction:panel:setting:account@https://example.github.io/msx/app/index.html"
+        }
+      ]
     }
   ]
 }

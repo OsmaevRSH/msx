@@ -142,24 +142,33 @@ describe("probe:report:<n> screen", () => {
   const items = (root: MsxContentRoot): MsxContentItem[] => root.pages?.[0]?.items ?? [];
   const button = (root: MsxContentRoot, label: string): MsxContentItem | undefined => items(root).find((i) => i.label === label);
 
-  it("large text with {br}; «Назад»/«Дальше» replace the page in place; the last page has no «Дальше»", async () => {
+  // V-38: белый крупный текст (headline, а не серый text) и кнопки с номером страницы — «Назад» читался двояко.
+  it("large white text with {br}; «‹ Стр. n» / «Стр. n ›» replace the page in place; «Закрыть» on the first and last page", async () => {
     const t = await make();
     t.ctx.log.error("test", "boom");
     const n = reportPages(buildReport(t.ctx)).length;
+    assert.ok(n >= 3, String(n));
+    const page = (k: number): string => replaceContent(REPORT_FLAG, TEST_P, ids.probe(`report:${k}`));
+    const buttons = (root: MsxContentRoot): [string | undefined, string | undefined, boolean | undefined][] =>
+      items(root).filter((i) => i.type === "button").map((i) => [i.label, i.action, i.focus]);
     const first = (await t.request(ids.probe("report:1"))) as MsxContentRoot;
     assert.equal(first.type, "pages");
     assert.equal(first.flag, REPORT_FLAG);
     assert.equal(first.cache, false);
     const text = items(first)[0];
     assert.equal(text?.type, "space");
-    assert.match(String(text?.text), /\{br\}/);
-    assert.match(String(text?.text), /CDG-01/);
-    assert.equal(button(first, "Назад")?.action, "back");
-    assert.equal(button(first, "Дальше")?.action, replaceContent(REPORT_FLAG, TEST_P, ids.probe("report:2")));
+    assert.equal(text?.text, undefined);
+    assert.match(String(text?.headline), /\{br\}/);
+    assert.match(String(text?.headline), /CDG-01/);
+    assert.deepEqual(buttons(first), [["Закрыть", "back", undefined], ["Стр. 2 ›", page(2), true]]);
+
+    const second = (await t.request(ids.probe("report:2"))) as MsxContentRoot;
+    assert.deepEqual(buttons(second), [["‹ Стр. 1", page(1), undefined], ["Стр. 3 ›", page(3), true]]);
 
     const last = (await t.request(ids.probe(`report:${n}`))) as MsxContentRoot;
-    assert.equal(button(last, "Дальше"), undefined);
-    assert.equal(button(last, "Назад")?.action, replaceContent(REPORT_FLAG, TEST_P, ids.probe(`report:${n - 1}`)));
+    assert.deepEqual(buttons(last), [[`‹ Стр. ${n - 1}`, page(n - 1), undefined], ["Закрыть", "back", true]]);
+    // Замена страницы возвращает фокус по id: правая кнопка — всегда r_next, иначе OK на последней странице листал бы назад.
+    assert.deepEqual([second, last].map((r) => items(r).find((i) => i.focus === true)?.id), ["r_next", "r_next"]);
     assert.match(String(last.headline), new RegExp(`${n} из ${n}`));
 
     const beyond = (await t.request(ids.probe("report:99"))) as MsxContentRoot;
