@@ -171,7 +171,7 @@ describe("onProbeAct", () => {
     await until(t, () => !t.ctx.auth.isLoggedIn(), "logout");
     assert.equal(t.mock.calls().filter((c) => c.method === "POST" && c.path === "/v1/device/unlink").length, 1);
     assert.equal(t.storage.getItem("kp.auth.pair"), null);
-    assert.ok(t.host.actions.some((a) => a.action === `replace:menu:menu:request:interaction:init@${TEST_P}`));
+    assert.ok(t.host.actions.some((a) => a.action.includes(`replace:menu:menu:request:interaction:init@${TEST_P}`)));
   });
 
   it("console → one console.log line «KPREPORT {…}» and a toast", async (tc) => {

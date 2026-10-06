@@ -19,22 +19,24 @@ async function make(): Promise<TestApp> {
 }
 
 const REFRESH_MENU = `replace:menu:menu:request:interaction:init@${TEST_P}`;
+/** X-3: `replace:menu` MSX выполняет только на корневом экране — сначала `home`, замена меню — после анимации. */
+const TO_MENU = (toast: string): string => `[home|lazy:${REFRESH_MENU}|info:${toast}]`;
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 
 describe("auth.onLoggedOut (createApp)", () => {
-  it("logout → the guest menu and «Вы вышли из KinoPub»", async () => {
+  it("logout → home, the guest menu and «Вы вышли из KinoPub»", async () => {
     const t = await make();
     await t.run(t.ctx.auth.logout());
     assert.equal(t.ctx.auth.isLoggedIn(), false);
-    assert.deepEqual(actions(t), [REFRESH_MENU, "info:Вы вышли из KinoPub"]);
+    assert.deepEqual(actions(t), [TO_MENU("Вы вышли из KinoPub")]);
   });
 
-  it("a rejected refresh → the guest menu and the KP-AUTH reason", async () => {
+  it("a rejected refresh → home, the guest menu and the KP-AUTH reason", async () => {
     const t = await make();
     t.mock.setScenario({ refreshInvalid: true });
     await t.run(t.ctx.auth.refresh(1).catch(() => undefined));
     assert.equal(t.ctx.auth.isLoggedIn(), false);
-    assert.deepEqual(actions(t), [REFRESH_MENU, "info:Сессия KinoPub завершена, войдите снова"]);
+    assert.deepEqual(actions(t), [TO_MENU("Сессия KinoPub завершена, войдите снова")]);
   });
 
   it("a login code in progress is dropped: the next login screen starts a new one", async () => {

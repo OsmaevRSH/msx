@@ -1,7 +1,7 @@
 import type { AppContext } from "../app/context.ts";
 import type { LogoutReason } from "../auth/auth-service.ts";
 import { KpError } from "../core/errors.ts";
-import { replaceMenu, req } from "../msx/actions.ts";
+import { chain, replaceMenu, req } from "../msx/actions.ts";
 import type { MsxMenuItem, MsxMenuRoot } from "../msx/types.ts";
 import { encodeListKey, ids } from "../router/ids.ts";
 import { errorText } from "./error.ts";
@@ -46,12 +46,17 @@ export function refreshMenu(P: string): string {
 }
 
 /**
- * Выход и потеря сессии (V-39): гостевое меню и причина уведомлением; отказ refresh — текстом `KP-AUTH`. Меню MSX
- * перерисует, только если открыт корневой экран: на вложенном `replace:menu` не выполняется (X-3).
+ * Меню после входа и выхода с любого экрана (X-3). `replace:menu` MSX выполняет только на корневом экране, поэтому
+ * сначала `home` (закрыть вложенные экраны, панель, плеер), а замену — после анимации: без `lazy:` MSX с анимациями её
+ * пропускает. Проверено в web MSX 0.1.167: корень, два вложенных экрана, панель, плеер; с анимациями и без.
  */
-export function loggedOutActions(P: string, reason: LogoutReason): string[] {
-  const why = reason === "logout" ? T.bye : errorText(new KpError("KP-AUTH", reason)).text;
-  return [refreshMenu(P), `info:${why}`];
+export function toMenu(P: string, toast: string): string {
+  return chain(["home", `lazy:${refreshMenu(P)}`, `info:${toast}`]);
+}
+
+/** Выход и потеря сессии (V-39): гостевое меню и причина уведомлением; отказ refresh — текстом `KP-AUTH`. */
+export function loggedOutAction(P: string, reason: LogoutReason): string {
+  return toMenu(P, reason === "logout" ? T.bye : errorText(new KpError("KP-AUTH", reason)).text);
 }
 
 export function buildMenu(ctx: AppContext): MsxMenuRoot {

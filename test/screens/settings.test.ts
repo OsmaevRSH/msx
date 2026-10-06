@@ -333,7 +333,7 @@ describe("onSettingsAct", () => {
     assert.deepEqual(keys().filter((k) => k?.startsWith("kp.auth.")), []);
     assert.deepEqual(kept.filter((k) => !keys().includes(k)), [], "logout removes only kp.auth.* (спец. §7.3)");
     assert.equal(t.ctx.auth.isLoggedIn(), false);
-    assert.ok(actions(t).includes(`replace:menu:menu:request:interaction:init@${TEST_P}`), JSON.stringify(actions(t)));
+    assert.ok(actions(t).some((a) => a.includes(`replace:menu:menu:request:interaction:init@${TEST_P}`)), JSON.stringify(actions(t)));
     assert.ok(t.mock.state.tokens.has(other.access), "another TV's token survived");
   });
 
