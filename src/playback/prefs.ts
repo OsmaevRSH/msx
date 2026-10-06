@@ -23,6 +23,8 @@ export interface Prefs {
   bufferResume: 4 | 6 | 8 | 10;
   posterSize: "small" | "medium";
   cardBackgrounds: boolean;
+  /** Шаг ◀◀/▶▶ плеера, с (спец. §9.4). */
+  seekStep: 5 | 10 | 15 | 30;
 }
 
 function deepFreeze<T>(v: T): T {
@@ -49,6 +51,7 @@ export const DEFAULT_PREFS: Prefs = deepFreeze({
   bufferResume: 6,
   posterSize: "medium",
   cardBackgrounds: false,
+  seekStep: 10,
 });
 
 const KEY = "prefs";
@@ -103,6 +106,7 @@ const NORM: { [K in keyof Prefs]-?: Norm } = {
   bufferResume: oneOf([4, 6, 8, 10]),
   posterSize: oneOf(["small", "medium"]),
   cardBackgrounds: bool,
+  seekStep: oneOf([5, 10, 15, 30]),
 };
 const PREF_KEYS = Object.keys(NORM) as (keyof Prefs)[];
 

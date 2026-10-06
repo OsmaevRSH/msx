@@ -47,6 +47,12 @@
       "action": "panel:request:interaction:panel:setting:subs@https://example.github.io/msx/app/index.html"
     },
     {
+      "id": "s_seek",
+      "label": "Шаг перемотки",
+      "extensionLabel": "10 с",
+      "action": "panel:request:interaction:panel:setting:seek@https://example.github.io/msx/app/index.html"
+    },
+    {
       "type": "space",
       "layout": "0,0,12,1",
       "offset": "0,0.5,0,-0.5",

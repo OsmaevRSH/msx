@@ -72,11 +72,12 @@ const DEFS: Record<string, Def> = {
   bufferResume: { label: "Буфер продолжения", field: "bufferResume", opts: nums([4, 6, 8, 10], SEC) },
   posterSize: { label: "Размер постеров", field: "posterSize", opts: [opt("small", "Маленькие"), opt("medium", "Средние")] },
   cardBackgrounds: { label: "Фоны карточек", field: "cardBackgrounds", opts: [opt(true, "Вкл"), opt(false, "Выкл")] },
+  seek: { label: "Шаг перемотки", field: "seekStep", opts: nums([5, 10, 15, 30], SEC) },
 };
 
 /** V-33: способ воспроизведения, CDN, AC3 и HEVC — технические, они в «Для опытных». */
 const GROUPS: [string, ...string[]][] = [
-  [T.play, "quality", "audioLang", "audioType", "authors", "subs"],
+  [T.play, "quality", "audioLang", "audioType", "authors", "subs", "seek"],
   [T.device, "uhd", "device"],
   [T.account, "account", "logout"],
   ["Меню", "menu"],
