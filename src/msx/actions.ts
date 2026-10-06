@@ -20,6 +20,10 @@ export function replaceContent(flag: string, P: string, dataId: string): string 
   return `replace:content:${flag}:${req(P, dataId)}`;
 }
 
+export function replacePanel(flag: string, P: string, dataId: string): string {
+  return `replace:panel:${flag}:${req(P, dataId)}`;
+}
+
 /** Меню из start parameter MSX перезагружает только так: `reload:menu` для него ничего не делает (KB actions-reference). */
 export function replaceMenu(flag: string, P: string, dataId: string): string {
   return `replace:menu:${flag}:${req(P, dataId)}`;

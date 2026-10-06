@@ -2,7 +2,7 @@ import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setTimeout as realSleep } from "node:timers/promises";
 import type { PlaybackSession } from "../../src/progress/session.ts";
-import { chain, commitMsg, replaceContent, resolveAction } from "../../src/msx/actions.ts";
+import { chain, commitMsg, replaceContent, replacePanel, resolveAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { DEFAULT_PREFS } from "../../src/playback/prefs.ts";
 import { withLoc } from "../../src/playback/url.ts";
@@ -12,6 +12,7 @@ import { choicePanel, onPanelAct } from "../../src/screens/panels.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
+import { waitFor } from "../progress/progress-rig.ts";
 
 const P = TEST_P;
 const A12 = FIX.MOVIE_AUDIO12;
@@ -143,9 +144,13 @@ describe("panelScreen: sort and genre (S6)", () => {
     assert.equal(row(s, "Все жанры").action, switchList({ src: "hot", type: "serial" }, from));
   });
 
-  it("genre when /v1/genres is down: the built-in movie list", async () => {
+  it("genre when /v1/genres is down: the built-in movie list replaces the error panel", async () => {
     const t = await make();
     t.mock.setScenario({ rules: [{ path: "^/v1/genres$", drop: true }] });
+    // Повторы `TypeError` кончаются через 9 с, а ошибка в панели — через 6 с (V-40); встроенный список приходит заменой.
+    assertPanelError(await panel(t, "genre", encodeListKey(MOVIES)), "KP-NET");
+    await waitFor(t, () => actions(t).length > 0, "the late replace");
+    assert.deepEqual(actions(t), [replacePanel("late_1", P, ids.panel("genre", encodeListKey(MOVIES)))]);
     const s = await panel(t, "genre", encodeListKey(MOVIES));
     assert.equal(rows(s).length, 31);
     assert.equal(row(s, "Мультфильм").action, switchList({ ...MOVIES, genre: "23" }, MOVIES));

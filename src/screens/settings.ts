@@ -3,6 +3,7 @@ import type { DeviceInfo, DeviceSettings } from "../api/models.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { fmtDate } from "../core/format.ts";
+import { langName } from "../core/lang.ts";
 import { chain, commitMsg, contentAction, panelAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import type { Prefs } from "../playback/prefs.ts";
@@ -36,6 +37,7 @@ interface Def { label: string; field?: keyof Prefs; dev?: keyof DeviceSettings; 
 const opt = (v: Val, label: string): Opt => ({ v, label });
 const ON_OFF = [opt(1, "Вкл"), opt(0, "Выкл")];
 const nums = (vs: number[], unit: string): Opt[] => vs.map((v) => opt(v, `${v}${unit}`));
+const langs = (codes: string[], kind: 0 | 1): Opt[] => codes.map((c) => opt(c, langName(c, kind)));
 /** «Авто», «Любой», «По умолчанию» — снятое поле `prefs`; в сообщении — `auto`. */
 const enc = (v: Val): string => (v === undefined ? "auto" : String(v));
 
@@ -50,13 +52,13 @@ const DEFS: Record<string, Def> = {
     label: "CDN-сервер", field: "loc",
     opts: refs("По умолчанию", async (ctx) => (await ctx.repo.serverLocations()).value.map((l) => opt(l.location, countryName(l.location, l.name)))),
   },
-  audioLang: { label: "Язык озвучки", field: "audioLang", opts: [opt("rus", "Русский"), opt("ukr", "Украинский"), opt("eng", "Английский")] },
+  audioLang: { label: "Язык озвучки", field: "audioLang", opts: langs(["rus", "ukr", "eng"], 0) },
   audioType: {
     label: "Тип озвучки", field: "audioType",
     opts: refs("Любой", async (ctx) => (await ctx.repo.voiceoverTypes()).value.map((x) => opt(x.id, x.title))),
   },
   ac3: { label: "Разрешить AC3", field: "allowAc3", opts: [opt(true, "Да"), opt(false, "Нет")] },
-  subs: { label: "Субтитры по умолчанию", field: "subsLang", opts: [opt("off", "Выключены"), opt("rus", "Русские"), opt("eng", "Английские")] },
+  subs: { label: "Субтитры по умолчанию", field: "subsLang", opts: [opt("off", "Выключены"), ...langs(["rus", "eng"], 1)] },
   hevc: { label: "HEVC", dev: "supportHevc", opts: ON_OFF },
   uhd: { label: "4K", dev: "support4k", opts: ON_OFF },
   bufferInit: { label: "Буфер старта", field: "bufferInit", opts: nums([2, 4, 6, 8], SEC) },

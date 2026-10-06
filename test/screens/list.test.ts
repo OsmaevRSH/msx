@@ -7,14 +7,16 @@ import { KpError } from "../../src/core/errors.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { decodeListKey, encodeListKey, ids, listFlag } from "../../src/router/ids.ts";
 import type { ListKey } from "../../src/router/ids.ts";
-import { errorScreen } from "../../src/screens/error.ts";
+import { errorScreen, slowScreen } from "../../src/screens/error.ts";
 import { MAX_LISTS, SORTS, listScreen, listSource, listTitle, onExtend } from "../../src/screens/list.ts";
-import { chain, panelAction } from "../../src/msx/actions.ts";
+import { chain, panelAction, replaceContent } from "../../src/msx/actions.ts";
+import { sleep } from "../../src/core/clock.ts";
 import { gridTemplate, posterTiles } from "../../src/screens/tiles.ts";
 import { catalog } from "../../tools/kpmock/fixtures.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
+import { waitFor } from "../progress/progress-rig.ts";
 
 let apps: TestApp[] = [];
 
@@ -108,25 +110,34 @@ describe("listScreen (S5, CC-05)", () => {
     assert.equal(state(t, MOVIES).items.length, 96);
   });
 
-  it("first page fails (network down) → error screen KP-NET with retry", async () => {
+  // Повторы `TypeError` (§5.3) кончаются через 9 с; экран ошибки с «Повторить» — через 6 с (V-40, спец. §12).
+  it("first page fails (network down) → error screen KP-NET with retry after 6 s; the late failure changes nothing", async () => {
     const t = await make();
     t.mock.setScenario({ rules: [{ path: ".*", drop: true }] });
     const s = await t.request(ids.list(MOVIES));
-    assert.deepEqual(s, errorScreen(t.ctx, new KpError("KP-NET", "network"), ids.list(MOVIES)));
+    assert.deepEqual(s, slowScreen(t.ctx, ids.list(MOVIES), "late_1"));
+    await t.run(sleep(t.clock, 10_000));
+    assert.deepEqual(t.host.actions, []);
     assert.ok(t.ctx.state.lists.get(MOVIES) === undefined);
   });
 
-  it("first page fails but L2 has it → the list with «нет связи»", async () => {
+  it("first page fails but L2 has it → the list with «нет связи» replaces the error screen", async () => {
     const a = await make();
     await a.request(ids.list(MOVIES));
     a.ctx.l2.flush();
     // Через неделю запись L2 старше stale-max: SWR идёт в сеть, а при сбое отдаёт её с пометкой offline.
     const b = await make({ mock: a.mock, storage: a.storage, clock: new FakeClock(FAKE_EPOCH + 8 * DAY) });
     b.mock.setScenario({ rules: [{ path: ".*", drop: true }] });
+    // Сеть отказывает через 9 с повторов: до того — экран ошибки (V-40), потом его заменяет список из L2.
+    assert.equal((await b.request(ids.list(MOVIES))).flag, "late_1");
+    await waitFor(b, () => b.host.actions.length > 0, "the late replace");
+    assert.deepEqual(b.host.actions, [{ action: replaceContent("late_1", TEST_P, ids.list(MOVIES)) }]);
+    const calls = b.mock.calls().length;
     const s = await b.request(ids.list(MOVIES));
     assert.equal(items(s).length, 48);
     assert.equal(s.extension, "{ico:msx-red:stop} Обновлённые · 203 фильма  {ico:msx-yellow:history} нет связи");
     assert.deepEqual(items(s).at(-1)?.live, live(MOVIES, "down", 48));
+    assert.equal(b.mock.calls().length, calls, "the replace gets the late list without a new request");
   });
 
   it("an empty list: «Ничего не найдено» and a focusable «Назад», no live", async () => {
