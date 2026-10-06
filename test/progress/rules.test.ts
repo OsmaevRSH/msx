@@ -24,6 +24,7 @@ function session(over: Partial<PlaybackSession> = {}): PlaybackSession {
     hasNext: true,
     loadedAt: 0,
     started: true,
+    from: 0,
     peak: 0,
     watchedDone: false,
     ended: false,

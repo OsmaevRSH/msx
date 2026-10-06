@@ -22,6 +22,8 @@ export interface PlaybackSession {
   run?: string;
   loadedAt: number;
   started: boolean;
+  /** Стартовая позиция запуска (`resume:position` или 0): старт — позиция, ушедшая от неё (фикс 35a). */
+  from: number;
   /** Последняя позиция, которой можно верить (`judgePosition`). */
   lastPos?: number;
   /** Максимум проверенной позиции за сессию; при «Продолжить» — с `resume:position` (этап 33c). */
@@ -58,6 +60,7 @@ export function sessionFromProps(props: Record<string, unknown> | undefined, now
   if (itemId === undefined || mid === undefined || video === undefined || season === undefined) return undefined;
   const duration = numberFrom(props[KP_PROPS.duration]);
   const resume = numberFrom(props[RESUME_PROP]);
+  const from = resume !== undefined && resume > 0 ? resume : 0;
   const s: PlaybackSession = {
     itemId,
     mid,
@@ -67,7 +70,8 @@ export function sessionFromProps(props: Record<string, unknown> | undefined, now
     hasNext: flagFrom(props[KP_PROPS.hasNext]),
     loadedAt: now,
     started: false,
-    peak: resume !== undefined && resume > 0 ? resume : 0,
+    from,
+    peak: from,
     watchedDone: false,
     ended: false,
   };

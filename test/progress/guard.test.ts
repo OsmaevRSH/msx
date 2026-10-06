@@ -260,7 +260,7 @@ describe("marktime of one episode goes one request at a time", () => {
 });
 
 // Фикс 34b: запуск — это ответ resolve с nonce `kp:r`. Перезапуск того же `mid` из панели озвучки или качества
-// (`[cleanup|player:eject|video:resolve…:at<pos>]`) — новый nonce: его снимки слушаются сразу, а снимки закрытого
+// (`[cleanup|video:resolve…:at<pos>]`, фикс 35a; с `restart: eject` — через `player:eject`) — новый nonce: его снимки слушаются сразу, а снимки закрытого
 // запуска не слушаются никогда. Найдено e2e E-09: 90 % и конец серии в первые 10 с после перезапуска терялись.
 describe("launch nonce kp:r (fix 34b): a session is its resolve, not a 10 s window", () => {
   const R1 = kpProps(EP, { "kp:r": "r1" });
@@ -275,7 +275,7 @@ describe("launch nonce kp:r (fix 34b): a session is its resolve, not a 10 s wind
     player(t, "play", { state: 1, position: 0, duration: EP.duration });
     snapshot(t, 300, R1);
     await waitFor(t, () => times(t).includes(300), "marktime 300");
-    // `player:eject` из цепочки панели закрывает плеер, `video:resolve…:at300` запускает ту же серию заново.
+    // `restart: eject`: `player:eject` из цепочки панели закрывает плеер, `video:resolve…:at300` запускает серию заново.
     player(t, "stop", { position: 300, duration: EP.duration });
     load(t, R2);
     player(t, "play", { state: 1, position: 300, duration: EP.duration });

@@ -22,7 +22,7 @@ import { settingPanel } from "./settings.ts";
 
 // Панели S6 и S10 (спец. §3.4, §9.1, §11; Plan B S6, S10, §5.10): сетка 8×6, строка-кнопка на вариант.
 // Выбор приходит сообщением `act:panel:…`; до старта (`c`) — сохранить и перерисовать карточку, в плеере (`p`) —
-// озвучка и качество перезапуском того же `mid` с текущей позиции, субтитры — без перезапуска.
+// озвучка и качество перезапуском того же `mid` с текущей позиции в открытом плеере, субтитры — без перезапуска.
 
 const T = {
   sort: "Сортировка", genre: "Жанр", allGenres: "Все жанры", audio: "Озвучка", quality: "Качество", auto: "Авто",
@@ -308,6 +308,8 @@ async function chooseQuality(ctx: AppContext, args: string[]): Promise<void> {
 /**
  * До старта — перерисовать карточку; в плеере — перезапуск с позиции, если меняется то, что играет (спец. §9.1).
  * Позиция неизвестна — без перезапуска: с 0 он потерял бы просмотренное (X-2), выбор сработает при следующем запуске.
+ * Фикс 35a: `video:resolve` в открытом плеере (как кнопки соседних серий), без `player:eject`; `:at<сек>` говорит
+ * цепочке fallback, что это не повтор после сбоя. Переключатель `restart: eject` — прежний путь через закрытие плеера.
  */
 async function applied(ctx: AppContext, w: Where, tu: TitleUnit, changed: boolean): Promise<void> {
   if (w === "c" || !changed) return ctx.host.executeAction(w === "c" ? BACK_RELOAD : "back");
@@ -318,16 +320,21 @@ async function applied(ctx: AppContext, w: Where, tu: TitleUnit, changed: boolea
     return ctx.host.executeAction(chain(["back", `info:${T.noPos}`]));
   }
   const resolve = resolveAction(ctx.P, ids.playEp(item.id, ref.mid, ref.season, ref.video, { at: Math.floor(pos) }));
+  const steps = ctx.flags.get().restart === "eject" ? ["cleanup", "player:eject", resolve] : ["cleanup", resolve];
   // `video:` из цепочки берёт метку плеера только из `data` (msx-platform §3.2).
-  ctx.host.executeAction(chain(["cleanup", "player:eject", resolve]), { playerLabel: playLabel(item, ref) });
+  ctx.host.executeAction(chain(steps), { playerLabel: playLabel(item, ref) });
 }
 
 /**
  * Позиция плеера (Plan B §5.10). Нет её или 0 (плеер ещё грузит «Продолжить») — проверенная позиция или максимум
  * сессии этого `mid` (при «Продолжить» он засеян `resume:position`); сессии нет — недосмотренная позиция оверлея.
+ * Ответ плеера — ещё и снимок для трекера: без `player:eject` нет `video:stop` с позицией смены (фикс 35a).
  */
 async function playerPosition(ctx: AppContext, id: number, ref: EpRef): Promise<number | undefined> {
-  const pos = await ctx.host.requestData("video").then((d) => positionFrom(d).position, () => undefined);
+  const pos = await ctx.host.requestData("video").then((d) => {
+    ctx.tracker.onSnapshot(d);
+    return positionFrom(d).position;
+  }, () => undefined);
   if (pos !== undefined && pos > 0) return pos;
   const s = ctx.tracker.session();
   const o = ctx.overlay.get(id, ref.season, ref.video);

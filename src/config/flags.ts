@@ -8,6 +8,8 @@ export interface Flags {
   heartbeat: "ticks" | "timer" | "percent";
   events: "handleEvent" | "triggers";
   autonext: "button" | "resolve";
+  /** Смена озвучки и качества в плеере (фикс 35a): новый поток в открытом плеере или через закрытие плеера. */
+  restart: "inplace" | "eject";
   focusPrefetch: "on" | "off";
   postBody: "form" | "query";
   apiBase: string;
@@ -20,6 +22,7 @@ export const DEFAULT_FLAGS: Flags = Object.freeze({
   heartbeat: "ticks",
   events: "handleEvent",
   autonext: "button",
+  restart: "inplace",
   focusPrefetch: "on",
   postBody: "form",
   apiBase: BUILD.apiBase,
@@ -34,6 +37,7 @@ export const FLAG_CHOICES: { [K in keyof Flags]?: readonly Flags[K][] } = Object
   heartbeat: choices("ticks", "timer", "percent"),
   events: choices("handleEvent", "triggers"),
   autonext: choices("button", "resolve"),
+  restart: choices("inplace", "eject"),
   focusPrefetch: choices("on", "off"),
   postBody: choices("form", "query"),
 });

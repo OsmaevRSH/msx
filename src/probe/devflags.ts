@@ -28,6 +28,7 @@ const ROWS: readonly { key: keyof Flags; label: string }[] = [
   { key: "heartbeat", label: "Снимки позиции (CDG-07)" },
   { key: "events", label: "Источник событий (CDG-07)" },
   { key: "autonext", label: "Автопереход (CDG-11)" },
+  { key: "restart", label: "Смена озвучки в плеере" },
   { key: "focusPrefetch", label: "Префетч по фокусу (CDG-12)" },
   { key: "postBody", label: "POST-тела (CDG-03)" },
   { key: "apiBase", label: "Хост API" },
