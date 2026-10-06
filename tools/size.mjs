@@ -3,9 +3,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-/** @type {Record<string, import("./size.d.mts").SizeLimit>} */
+/**
+ * CNFR-15, v1.10: визуальное качество (крупные плитки, стражи краёв) важнее нескольких КБ — на ТВ разница в загрузке
+ * незаметна, а при обычной работе `app.js?v=<hash>` берётся из HTTP-кэша.
+ * @type {Record<string, import("./size.d.mts").SizeLimit>}
+ */
 export const LIMITS = {
-  "app/app.js": { bytes: 256_000, gzip: 81_920 },
+  "app/app.js": { bytes: 288_000, gzip: 92_160 },
   "app/index.html": { bytes: 1023 },
   // Пробник грузится только при открытии «Диагностики». ~1,2× его размера на этапе 23b (34 КБ, 13,5 КБ gzip):
   // запас на правки по итогам Phase 0, а модули app.js, скопированные в probe.js по ошибке сборки, сразу видны.
