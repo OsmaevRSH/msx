@@ -174,9 +174,11 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     const r = flowRig(env);
     assert.deepEqual(await r.run(r.flow.start()), { phase: "error", code: "KP-NET" });
     env.mock().release();
-    const late = await r.next("code");
+    // Поздний ответ ждём, не двигая поддельное время: иначе под нагрузкой часы дойдут до таймаута OAuth раньше ответа.
+    for (let i = 0; i < 1000 && r.flow.state().phase !== "code"; i++) await realSleep(10);
+    const late = r.flow.state();
     assert.ok(late.phase === "code" && late.userCode !== "");
-    assert.deepEqual(r.flow.state(), late);
+    assert.deepEqual(r.states, [late], "the late code is announced through onChange");
     await r.next("done");
     assert.ok(r.auth.isLoggedIn());
     assert.equal(grants(env, "device_code"), 1);

@@ -1,5 +1,6 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as realSleep } from "node:timers/promises";
 import { Breaker } from "../../src/api/breaker.ts";
 import { Limiter } from "../../src/api/limiter.ts";
 import { Priority, Transport } from "../../src/api/transport.ts";
@@ -310,10 +311,6 @@ describe("Transport", () => {
     const hung = (init: RequestInit): Promise<Response> => new Promise((_resolve, reject) => {
       init.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")));
     });
-    /** Ждать (поддельное время идёт), пока условие не выполнится. */
-    const until = async (cond: () => boolean): Promise<void> => {
-      while (!cond()) await new Promise<void>((resolve) => setImmediate(resolve));
-    };
     const logged = (r: Rig, re: RegExp): boolean => r.log.entries().some((e) => e.tag === "api" && re.test(e.msg));
 
     it("nothing has ever answered: KP-NET no-answer after 6 s without retries; the fetch itself runs on to its own timeout", async () => {
@@ -352,7 +349,9 @@ describe("Transport", () => {
       const r = rig();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(authed("/v1/items"))), kp("KP-NET", "no-answer"));
       assert.equal(mock.release(), 1);
-      await r.clock.runUntilSettled(until(() => logged(r, /^GET \/v1\/items 200 /)));
+      // Поздний ответ ждём, не двигая поддельное время: под нагрузкой часы дошли бы до таймаута 8 с раньше ответа.
+      for (let i = 0; i < 1000 && !logged(r, /^GET \/v1\/items 200 /); i++) await realSleep(10);
+      assert.ok(logged(r, /^GET \/v1\/items 200 /), "the late answer arrived");
       hang("^/v1/items$");
       const t0 = r.clock.perf();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(authed("/v1/items"))), kp("KP-NET", "timeout"));

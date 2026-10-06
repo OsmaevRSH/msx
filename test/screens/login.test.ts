@@ -186,9 +186,9 @@ describe("loginScreen (S2)", () => {
     assert.equal(codeOf(await t.request("login")), undefined);
     t.mock.release();
     const reloaded = (): boolean => actions(t).includes("reload:content");
-    await t.run((async () => {
-      for (let i = 0; i < 300 && !reloaded(); i++) await realSleep(10);
-    })());
+    // Поддельное время стоит, пока поздний ответ идёт по сети. `t.run` перевёл бы часы к таймауту OAuth (15 с), как
+    // только ответ задержался бы дольше `ioGraceMs` реального времени (под нагрузкой), и код терялся бы не по вине плагина.
+    for (let i = 0; i < 1000 && !reloaded(); i++) await realSleep(10);
     assert.ok(reloaded(), "the late code redraws the current login screen");
     assert.equal(codeOf(await t.request("login")), mockCodes(t)[0]);
     assert.equal(codeGrants(t), 1, "the late code is shown, not a new one");
