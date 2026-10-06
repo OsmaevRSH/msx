@@ -64,7 +64,7 @@ describe("buildMenu (S3)", () => {
       { icon: "music-note", label: "Концерты", data: list(catalog("concert")) },
       { type: "separator" },
       { icon: "bookmark", label: "Закладки", data: req("bookmarks") },
-      { icon: "tune", label: "Настройки KinoPub", data: req("settings") },
+      { icon: "tune", label: "Просмотр и аккаунт", data: req("settings") },
       { icon: "build", label: "Диагностика", data: req("probe") },
       { type: "settings", label: "Настройки MSX" },
     ]);

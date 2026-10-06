@@ -71,7 +71,7 @@
     {
       "id": "settings",
       "icon": "tune",
-      "label": "Настройки KinoPub",
+      "label": "Просмотр и аккаунт",
       "data": "request:interaction:settings@https://example.github.io/msx/app/index.html"
     },
     {
