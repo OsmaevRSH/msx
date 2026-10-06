@@ -1,6 +1,7 @@
 import type { AppContext } from "../app/context.ts";
-import type { ItemSummary } from "../api/models.ts";
+import type { HistoryEntry, ItemSummary } from "../api/models.ts";
 import type { ReqClass } from "../api/transport.ts";
+import { cacheKeys } from "../cache/repo.ts";
 import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
@@ -16,8 +17,8 @@ import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import { posterTiles } from "./tiles.ts";
 
 // Главная S4 (спец. §8.4, §11; Plan B S4, D-34, D-40). Всё, что есть в кэше, отдаётся сразу, персональное — с оверлеем
-// прогресса ТВ; KinoPub ждём только при пустом кэше и не дольше 1,5 с (CNFR-05). Не успевшие полки и устаревшие
-// персональные данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его
+// прогресса ТВ; KinoPub ждём, только если из кэша показать нечего, и не дольше 1,5 с (CNFR-05). Недостающие полки и
+// устаревшие персональные данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его
 // персональная часть или набор полок (спец. §6.3). Показ, которого ждёт пользователь, — передний план; прогрев, фоновые
 // сверки и обновление подборок из кэша — `bg`, чтобы не отнимать слоты у действий пользователя (спец. §8.3–8.5).
 
@@ -133,6 +134,18 @@ async function loadShelf(ctx: AppContext, d: Def, o: ReqOpts): Promise<Shelf> {
   return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES)), more), stale: false };
 }
 
+/**
+ * Данные полки уже в L1/L2: её загрузка ответит без сети. Запись старше stale-max всё же пойдёт в сеть — такую держит
+ * срок ответа.
+ */
+function cached(ctx: AppContext, d: Def): boolean {
+  const has = (key: string): boolean => ctx.cache.peek(key) !== undefined;
+  if (d.kind === "bookmarks") return has(cacheKeys.bookmarks());
+  if (d.kind !== "continue") return ctx.repo.peekShelf(d.kind, d.type ?? "") !== undefined;
+  const h = ctx.cache.peek<HistoryEntry[]>(cacheKeys.history());
+  return h !== undefined && has(cacheKeys.serials()) && (h.value.length > 0 || has(cacheKeys.movies()));
+}
+
 /** Загрузки всех полок по порядку; `user` — последним, для строки о подписке (только из кэша). */
 function start(ctx: AppContext, o: ReqOpts): Promise<Shelf>[] {
   const loads = DEFS.map((d) => loadShelf(ctx, d, o));
@@ -246,9 +259,13 @@ async function recompute(ctx: AppContext): Promise<string> {
 }
 
 export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
+  const hits = DEFS.map((d) => cached(ctx, d));
+  const t0 = ctx.clock.perf();
   const loads = start(ctx, FG);
   const snap = watch(loads);
-  await within(ctx.clock, loads, DEADLINE_MS);
+  // Полки из кэша — сразу, недостающие придут заменой; сеть ждём, только если из кэша показать нечего.
+  await within(ctx.clock, loads.filter((_, i) => hits[i]), DEADLINE_MS);
+  if (snap().shelves.length === 0) await within(ctx.clock, loads, Math.max(0, DEADLINE_MS - (ctx.clock.perf() - t0)));
   const s = snap();
   const late = s.pending;
   remember(ctx, s);

@@ -280,6 +280,31 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
     console.log(`# home from L2: ${realMs.toFixed(1)} ms, ${bytes(s)} bytes`);
   });
 
+  it("L2 has 3 of 8 shelves, KinoPub 600 ms late: those 3 at once, the rest by a single replace (спец. §8.4 п. 1)", async () => {
+    const first = await make();
+    await open(first);
+    await persisted(first);
+    // В L2 остаются «Продолжить просмотр» (история, сериалы), «Новые фильмы» и «Новые сериалы».
+    const gone = [cacheKeys.bookmarks(), ...["popular", "hot"].flatMap((kind) => ["movie", "serial"].map((type) => cacheKeys.shelf(kind, type)))];
+    for (const k of gone) first.ctx.l2.remove(k);
+    first.mock.setScenario({ delayMs: 600 });
+    const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false });
+    const real0 = performance.now();
+    const fake0 = t.clock.perf();
+    const s = (await t.app.handleRequest(HOME, {})) as MsxContentRoot;
+    const realMs = performance.now() - real0;
+    assert.equal(t.clock.perf(), fake0, "answered without waiting for KinoPub");
+    assert.ok(realMs <= 50, `partial home from L2 took ${realMs.toFixed(1)} ms`);
+    assert.deepEqual(headers(s), ALL.slice(0, 3));
+    await driveToAction(t);
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.deepEqual(headers(await open(t)), ALL);
+    await t.clock.advance(RECHECK_MS);
+    await realSleep(50);
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.equal(counter(t, "refresh:replaced"), 1);
+  });
+
   it("stale L2 two hours later: still at once, refresh in the background", async () => {
     const first = await make();
     await open(first);
