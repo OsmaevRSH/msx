@@ -95,29 +95,31 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     assert.equal(logged(t, "api_no_cors"), 1);
     assert.deepEqual(probes(t), [PROBE]);
 
-    // Код второго экрана подряд — см. todo-тест BUG-29-1 ниже; здесь только «не KP-CORS».
+    // Код второго экрана подряд проверяет тест BUG-29-1 ниже; здесь только «не KP-CORS».
     const card = (await t.request(ids.item(FIX.SERIAL_SMALL))) as MsxContentRoot;
     assert.notEqual(errorCode(card), undefined);
     assertNoCorsVerdict([list, card]);
+    const before = probes(t).length;
 
     const cdg01 = await t.run(t.ctx.probe.run("CDG-01"));
     assert.equal(cdg01.ok, false);
     assert.equal(cdg01.values.code, "KP-CORS");
     assert.match(cdg01.summary, /^KP-CORS/);
     assert.equal(cdg01.values.noCorsOk, 3);
-    assert.ok(probes(t).length === 4 && probes(t).every((p) => p === PROBE), "CDG-01 probes the same fixed URL");
+    assert.equal(probes(t).length, before + 3);
+    assert.ok(probes(t).every((p) => p === PROBE), "CDG-01 probes the same fixed URL");
   });
 
-  // BUG-29-1 (src/api/transport.ts, этап 11): TypeError, который проба признала «ответом без CORS», обрабатывается
-  // «как 429» для повторов и лимитера, но всё равно считается сбоем circuit breaker (настоящий 429 зовёт
-  // `breaker.success()`). Три попытки первого экрана и две второго открывают breaker, третья попытка второго экрана —
-  // `KP-NET breaker-open`: пользователь видит «Нет связи … Проверьте VPN» вместо KP-429 (спец. §5.3 п. 2, §12, стр. 1).
+  // BUG-29-1 (src/api/transport.ts, исправлен при интеграции W10a): TypeError, который проба признала «ответом без
+  // CORS», считался сбоем circuit breaker, хотя настоящий 429 зовёт `breaker.success()`. Три попытки первого экрана и
+  // две второго открывали breaker, третья попытка второго экрана давала `KP-NET breaker-open` — «Нет связи … Проверьте
+  // VPN» вместо KP-429 (спец. §5.3 п. 2, §12).
   const bug1: [string, Partial<Scenario>][] = [
     ["cors_off", { corsOff: true }],
     ["no_cors_errors + 429 everywhere", { noCorsErrors: true, rules: [{ path: "^/v1/(?!types)", status: 429 }] }],
   ];
   for (const [name, scenario] of bug1) {
-    it(`${name}: the second screen in a row is still KP-429, not KP-NET from an open breaker`, { todo: "BUG-29-1: CORS-less errors open the circuit breaker" }, async () => {
+    it(`${name}: the second screen in a row is still KP-429, not KP-NET from an open breaker`, async () => {
       const t = await make();
       t.mock.setScenario(scenario);
       const list = (await t.request(ids.list(SERIALS))) as MsxContentRoot;

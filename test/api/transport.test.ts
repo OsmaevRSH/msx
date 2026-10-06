@@ -231,6 +231,18 @@ describe("Transport", () => {
       assert.equal(r.limiter.fgLimit(), 1);
     });
 
+    it("a probe verdict «no CORS» counts for the breaker as a reply, like a real 429 (BUG-29-1)", async () => {
+      mock.setScenario({ noCorsErrors: true, rules: [{ path: "^/v1/items", status: 429 }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-429"));
+      assert.equal(r.breaker.state(), "closed");
+      // Ещё два TypeError и проба: без сброса это были бы 4-й и 5-й сбои подряд — breaker открылся бы.
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items/1"))), kp("KP-429"));
+      assert.equal(r.breaker.state(), "closed");
+      assert.equal(calls().filter((c) => c === PROBE).length, 2);
+      assert.equal(calls().filter((c) => c === "GET /v1/items/1").length, 3);
+    });
+
     it("the TypeError counter spans requests; a probe verdict pauses 6 s before the retry", async () => {
       mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true, times: 3 }] });
       const r = rig();
@@ -273,7 +285,8 @@ describe("Transport", () => {
     });
 
     it("5 network failures open the breaker", async () => {
-      mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true }] });
+      // Обрыв и у пробы: если `/v1/types` доступен, проба признаёт «ответ без CORS», а это для breaker не сбой.
+      mock.setScenario({ rules: [{ path: ".*", drop: true }] });
       const r = rig();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), KpError);
       await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { retry: "none" }))), KpError);

@@ -186,20 +186,22 @@ export class Transport {
       this.logCall("warn", req, "error", ms);
       return { ok: false, err: toKpError(e), retry: false };
     }
-    this.breaker.failure();
     this.metrics.inc("api:net");
     this.logCall("warn", req, "net", ms);
     this.typeErrors += 1;
     if (this.typeErrors >= TYPE_ERRORS_BEFORE_PROBE) {
       this.typeErrors = 0;
       if (await this.probeNoCors()) {
-        // Сервер доступен, но ответ без CORS (типично 429/5xx от nginx): обрабатываем как 429 (спец. §12).
+        // Сервер доступен, но ответ без CORS (типично 429/5xx от nginx): обрабатываем как 429 (спец. §12) — и для
+        // circuit breaker тоже: сервер ответил, это не сетевой сбой, иначе следующий экран получил бы `KP-NET`.
+        this.breaker.success();
         this.limiter.on429();
         this.metrics.inc("api:429");
         this.log.warn("api", "api_no_cors", { path: pathOnly(req.path) });
         return { ok: false, err: new KpError("KP-429", "no-cors", undefined, "api_no_cors"), retry: true, pauseMs: NO_CORS_PAUSE_MS };
       }
     }
+    this.breaker.failure();
     return { ok: false, err: new KpError("KP-NET", "network", undefined, e.message), retry: true };
   }
 
