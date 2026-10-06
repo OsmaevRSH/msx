@@ -184,6 +184,7 @@ describe("«Для разработчика» (spec §16.6)", () => {
   it("the variants panel: each value commits act:probe:flag and closes the panel; the current one is checked", async () => {
     const t = await make();
     const panel = (await t.request(ids.probe("flag:streamMode"))) as MsxContentRoot;
+    assert.ok(panel.template !== undefined, "MSX не показывает items корня панели без template");
     assert.deepEqual(panel.items?.map((i) => [i.label, i.action, i.extensionIcon]), [
       ["hls1", chain([act("flag", "streamMode", "hls1"), "back"]), "check"],
       ["hls2", chain([act("flag", "streamMode", "hls2"), "back"]), undefined],

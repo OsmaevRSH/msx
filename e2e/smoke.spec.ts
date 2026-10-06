@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { contentAction } from "../src/msx/actions.ts";
+import { contentAction, panelAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids } from "../src/router/ids.ts";
 import { FIX } from "../tools/kpmock/fixtures.ts";
 import { P, consoleTail, content, diag, exec, expectContent, kp, login, menuItem, mock, newMsxPage, openMsx, press, stats, waitFor } from "./fixtures.ts";
 import type { MockCall } from "./fixtures.ts";
 
 // Smoke Phase 0 в настоящей web-версии MSX (этап 27, решение Р-27): одна сессия MSX на весь файл, как у пользователя —
-// меню без входа, вход по коду, главная и список, карточка, видео, «Диагностика»; в конце — тот же iframe (CE-05).
+// меню без входа, вход по коду, главная и список, карточка, видео, «Диагностика» и «Для разработчика»; в конце — тот же iframe (CE-05).
 
 test.describe.configure({ mode: "serial" });
 
@@ -131,6 +131,17 @@ test("«Диагностика» лениво грузит probe.js, прове�
     await expect(row.locator("i.tvx-icon-close"), `${id} без крестика`).toHaveCount(0);
   }
   expect(diag(page).probeRequests, "probe.js загружен один раз").toHaveLength(1);
+});
+
+test("«Для разработчика» и панель переключателя: MSX рисует items корня (у корня есть template)", async () => {
+  await exec(page, contentAction(P, ids.dev()));
+  await expectContent(page, "Режим потока");
+  await exec(page, panelAction(P, ids.probe("flag:streamMode")));
+  const panel = page.locator("#appPanelContent");
+  await expect(panel).toContainText("hls2");
+  await expect(panel).not.toContainText(/Content Not Available|Содержимое недоступно/i);
+  await exec(page, "back");
+  await expect(panel).toBeHidden();
 });
 
 test("CE-05: за всю сессию iframe плагина не перезагружался", async () => {

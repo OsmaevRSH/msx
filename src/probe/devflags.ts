@@ -70,8 +70,9 @@ export async function devScreen(ctx: AppContext): Promise<MsxContentRoot> {
 /** Панель `probe:flag:<имя>`: выбор значения шлёт `act:probe:flag:<имя>:<значение>` и закрывает панель. */
 export function flagPanel(ctx: AppContext, name: string): MsxContentRoot {
   const row = rowOf(name);
+  // Панель — тоже корень: без `template` MSX не показывает её `items` («Содержимое недоступно»).
   const panel = (headline: string, items: MsxContentItem[]): MsxContentRoot =>
-    ({ type: "list", cache: false, reuse: false, headline, items });
+    ({ type: "list", cache: false, reuse: false, headline, template: { type: "control", layout: "0,0,8,1" }, items });
   if (row === undefined) {
     return panel(T.unknown, [{ id: "v_close", type: "button", layout: "0,0,8,1", label: T.close, action: "back" }]);
   }
