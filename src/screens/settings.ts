@@ -5,6 +5,7 @@ import { KpError, toKpError } from "../core/errors.ts";
 import { fmtDate } from "../core/format.ts";
 import { langName } from "../core/lang.ts";
 import { chain, commitMsg, contentAction, panelAction } from "../msx/actions.ts";
+import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import type { Prefs } from "../playback/prefs.ts";
 import { ids, msgs } from "../router/ids.ts";
@@ -29,6 +30,11 @@ const T = {
 };
 /** V-33: заголовок группы — в нижней половине своей строки, вплотную к её пунктам (проверено в web MSX). */
 const GROUP_OFFSET = "0,0.5,0,-0.5";
+/**
+ * Строки 12×1 в сетке 12×6. Над первой строкой и под последней — стражи (`msx/edges.ts`): «вверх» и «вниз» на краю
+ * списка не переносят фокус по кругу. Первая строка — заголовок группы, страж встаёт в его ячейку (`overlay`).
+ */
+const GRID = { width: 12, height: 6, w: 12, h: 1 };
 
 type Val = string | number | boolean | undefined;
 interface Opt { v: Val; label: string }
@@ -123,7 +129,15 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
       }
     }
   }
-  return { type: "list", flag: "settings", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items };
+  // Фокус при открытии — на первой настройке, а не на страже над ней.
+  const first = items.findIndex((i) => i.type !== "space");
+  if (first >= 0) items[first] = { ...items[first], focus: true };
+  const framed = gridEdges(items, GRID, { top: "overlay", bottom: true });
+  const root: MsxContentRoot = {
+    type: "list", flag: "settings", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items: framed.items,
+  };
+  if (framed.inserts !== undefined) root.inserts = framed.inserts;
+  return root;
 }
 
 /**

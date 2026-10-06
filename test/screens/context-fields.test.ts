@@ -43,18 +43,18 @@ function assertStringFields(root: MsxContentRoot, expected: string[]): void {
 }
 
 describe("{context:…} fields are strings (msx-platform §2.1, Р-36)", () => {
-  it("list grid: kid, title and ktail of every tile are strings for selection pf:{context:kid} and the headline", async () => {
+  it("list grid: kid and kt of every tile are strings for selection pf:{context:kid} and the headline", async () => {
     const t = await make();
     const root: MsxContentRoot = await t.request(ids.list(encodeListKey({ src: "catalog", type: "movie" })));
-    assertStringFields(root, ["kid", "title", "ktail"]);
+    assertStringFields(root, ["kid", "kt"]);
     assert.equal(root.items?.[0]?.kid, root.items?.[0]?.id?.slice(1));
   });
 
-  it("search results: kid, title and ktail of every tile are strings", async () => {
+  it("search results: kid and kt of every tile are strings", async () => {
     const t = await make();
     const s = t.ctx.state.search;
     Object.assign(s, { query: "фи", status: "ready", done: false, items: (await t.run(t.ctx.repo.search("фи", 1))).value.items });
-    assertStringFields(await searchScreen(t.ctx), ["kid", "title", "ktail"]);
+    assertStringFields(await searchScreen(t.ctx), ["kid", "kt"]);
   });
 
   it("season with playerPropsIn: item — every field of template.properties is a string", async () => {

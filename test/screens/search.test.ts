@@ -72,7 +72,7 @@ describe("searchScreen (S7, CC-06)", () => {
     const t = await make();
     const s: MsxContentRoot = await t.request(ids.search());
     assert.deepEqual(s, {
-      type: "list", compress: true, flag: "search", cache: false, reuse: false, headline: "Поиск",
+      type: "list", compress: true, flag: "search", cache: false, reuse: false, preload: "next", headline: "Поиск",
       pages: [keyboardPage(t.ctx, st(t))],
     });
     assert.equal(line(s), "{ico:search} _ | Наберите название");
@@ -173,15 +173,22 @@ describe("searchScreen (S7, CC-06)", () => {
     const ms = performance.now() - t0;
     assert.equal(t.mock.calls().length, before);
     assert.ok(ms <= 50, `${ms.toFixed(1)} ms`);
-    const { header, template, items: tiles, ...root } = s;
+    const { header, template, items: tiles, inserts, ...root } = s;
     assert.deepEqual(root, {
-      type: "list", compress: true, flag: "search", cache: false, reuse: false, headline: "Поиск",
+      type: "list", compress: true, flag: "search", cache: false, reuse: false, preload: "next", headline: "Поиск",
       extension: `{ico:search} «фи» · ${fmtCount(matches("фи"), ["результат", "результата", "результатов"])}`,
     });
     assert.deepEqual(header, keyboardPage(t.ctx, st(t)));
-    assert.deepEqual(template, gridTemplate(t.ctx, "0,0,2,4"));
+    // Корень сжат ради клавиатуры 16×8, плитки — те же, что в каталоге (12×6, `decompress`).
+    assert.deepEqual(template, gridTemplate(t.ctx, true));
     assert.equal(tiles?.length, 48);
-    assert.deepEqual(tiles?.map(({ live: _l, ...tile }) => tile), posterTiles(t.ctx, st(t).items));
+    const expected = posterTiles(t.ctx, st(t).items);
+    expected[42] = { ...expected[42], break: "context:end" };
+    assert.deepEqual(tiles?.map(({ live: _l, ...tile }) => tile), expected);
+    // Под последним рядом — стражи в сетке корня 16×8 (над первым — клавиатура): «вниз» на краю не уводит наверх.
+    assert.deepEqual(inserts?.map((p) => [p.position, p.decompress, p.items.map((g) => g.layout)]), [
+      ["context:end", true, ["0,5,3,1", "3,5,3,1", "5,5,3,1", "8,5,3,1", "11,5,3,1", "13,5,3,1"]],
+    ]);
     assert.deepEqual(tiles?.at(-1)?.live, EXTEND_LIVE);
     assert.equal(line(s), `{ico:search} фи_ | Найдено: ${matches("фи")}`);
     assert.equal(t.ctx.current.get(), "search");
@@ -230,8 +237,8 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.equal(new Set(st(t).items.map((i) => i.id)).size, 96);
     assert.deepEqual(searches(t).map((q) => q.get("page")), ["1", "2"]);
     const s: MsxContentRoot = await t.request(ids.search());
-    // Клавиатура и 96 плиток с полным названием для шапки (V-10) больше 32 КБ: последнюю страницу MSX отрезает предохранитель.
-    assert.equal(items(s).length, 80);
+    // Клавиатура и 96 плиток с полным названием для шапки (V-10) больше 32 КБ: последние ряды отрезает предохранитель.
+    assert.equal(items(s).length, 72);
     assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
   });
 
@@ -252,7 +259,7 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.equal(searches(t).filter((q) => q.get("page") === "3").length, 0);
   });
 
-  it("96 results with long titles fit 32 KB: the tail is cut by MSX pages of 16 and the hint tells how many", async () => {
+  it("96 results with long titles fit 32 KB: the tail is cut by rows of 6 and the hint tells how many", async () => {
     const t = await opened();
     type(t, "фи");
     await settle(t);
@@ -263,7 +270,7 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     const s: MsxContentRoot = await t.request(ids.search());
     const n = items(s).length;
     assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
-    assert.ok(n < 96 && n >= 16 && n % 16 === 0, `${n} tiles`);
+    assert.ok(n < 96 && n >= 6 && n % 6 === 0, `${n} tiles`);
     assert.equal(line(s), `{ico:search} фи_ | Найдено: 500, показаны первые ${n} — уточните запрос`);
   });
 

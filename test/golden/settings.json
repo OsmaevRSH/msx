@@ -19,7 +19,8 @@
       "id": "s_quality",
       "label": "Максимальное качество",
       "extensionLabel": "1080p",
-      "action": "panel:request:interaction:panel:setting:quality@https://example.github.io/msx/app/index.html"
+      "action": "panel:request:interaction:panel:setting:quality@https://example.github.io/msx/app/index.html",
+      "focus": true
     },
     {
       "id": "s_audioLang",
@@ -121,7 +122,8 @@
       "id": "s_bufferResume",
       "label": "Буфер продолжения",
       "extensionLabel": "6 с",
-      "action": "panel:request:interaction:panel:setting:bufferResume@https://example.github.io/msx/app/index.html"
+      "action": "panel:request:interaction:panel:setting:bufferResume@https://example.github.io/msx/app/index.html",
+      "break": "context:end"
     },
     {
       "id": "s_posterSize",
@@ -146,6 +148,37 @@
       "label": "Проверки и журнал",
       "extensionLabel": "",
       "action": "content:request:interaction:probe@https://example.github.io/msx/app/index.html"
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,0,12,6",
+      "items": [
+        {
+          "layout": "0,0,12,1",
+          "offset": "0,1,0,0",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:s_quality"
+          }
+        }
+      ]
+    },
+    {
+      "position": "context:end",
+      "area": "0,0,12,5",
+      "offset": "0,0,0,-1",
+      "items": [
+        {
+          "layout": "0,5,12,1",
+          "offset": "0,-1,0,0",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:s_probe"
+          }
+        }
+      ]
     }
   ]
 }

@@ -49,7 +49,7 @@ const TYPE_TITLES: Readonly<Record<string, string>> = {
 
 type Shelf = "fresh" | "popular" | "hot";
 const SHELF_TITLES: Readonly<Record<Shelf, string>> = { fresh: "Новинки", popular: "Популярное", hot: "Горячее" };
-/** Полки главной (V-08): список «Ещё →» называется так же, как полка. */
+/** Полки главной (V-08): список «Показать все» называется так же, как полка. */
 const SHELF_NAMES: Readonly<Record<Shelf, Readonly<Record<string, string>>>> = {
   fresh: { movie: "Новые фильмы", serial: "Новые сериалы" },
   popular: { movie: "Популярные фильмы", serial: "Популярные сериалы" },
@@ -71,7 +71,7 @@ const section = (k: ListKey): string =>
 
 const sortOf = (k: ListKey): { id: string; title: string } | undefined => SORTS.find((s) => s.id === (k.sort || DEFAULT_SORT));
 
-/** Полка главной и её список «Ещё →»: «Новые фильмы», «Горячее: сериалы»; другие типы — «Новинки · Концерты». */
+/** Полка главной и её список «Показать все»: «Новые фильмы», «Горячее: сериалы»; другие типы — «Новинки · Концерты». */
 export function shelfTitle(src: Shelf, type?: string): string {
   return SHELF_NAMES[src][type ?? ""] ?? `${SHELF_TITLES[src]} · ${section({ src, type })}`;
 }

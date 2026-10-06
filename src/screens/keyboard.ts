@@ -1,6 +1,7 @@
 import type { AppContext, SearchState } from "../app/context.ts";
 import { KpError } from "../core/errors.ts";
 import { commitMsg } from "../msx/actions.ts";
+import { guard } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentPage } from "../msx/types.ts";
 import { msgs } from "../router/ids.ts";
 import type { SearchControl } from "../router/ids.ts";
@@ -10,6 +11,8 @@ import { errorText } from "./error.ts";
 // Страница-заголовок перерисовывается на каждое нажатие (`reload:content`), поэтому в ней только кнопки
 // без лишних полей. Порядок букв — алфавит (решение Р-13): RU 3 ряда по 11, EN 9/9/8; сетка 16×8 (`compress`).
 // Над буквами — поле запроса (`space` с цветом: MSX рисует фон, фокус не заходит) и подсказка справа (V-28).
+// Над верхним рядом клавиш и под нижним (если результатов нет) — стражи `msx/edges.ts`: «вверх» и «вниз» на краю
+// клавиатуры не переносят фокус по кругу.
 
 export const LAYOUTS = { ru: "абвгдеёжзийклмнопрстуфхцчшщъыьэюя", en: "abcdefghijklmnopqrstuvwxyz" } as const;
 export const DIGITS = "1234567890";
@@ -55,8 +58,18 @@ const CONTROLS: { c: SearchControl; label: (s: SearchView) => string; key?: stri
   { c: "lang", label: (s) => `${T.lang}${s.lang.toUpperCase()}` },
 ];
 
-function key(ch: string, x: number, y: number): MsxContentItem {
-  return { type: "button", layout: `${x},${y},1,1`, label: ch, action: commitMsg(msgs.searchInput(ch)) };
+/** Клавиша; у крайних рядов — `id` по месту (`k<x>_<y>`): на неё возвращает страж, при смене раскладки место то же. */
+function key(ch: string, x: number, y: number, edge = false): MsxContentItem {
+  const it: MsxContentItem = { type: "button", layout: `${x},${y},1,1`, label: ch, action: commitMsg(msgs.searchInput(ch)) };
+  return edge ? { id: `k${x}_${y}`, ...it } : it;
+}
+
+/** Стражи над клавишами `row` (ряд выше) или под ними (ряд ниже). */
+function guards(items: MsxContentItem[], row: number, dir: -1 | 1): MsxContentItem[] {
+  return items.filter((i) => i.id !== undefined && Number((i.layout ?? "").split(",")[1]) === row).map((i) => {
+    const [x = 0, y = 0, w = 1, h = 1] = (i.layout ?? "").split(",").map(Number);
+    return guard({ id: i.id as string, x, y, w, h }, row + dir, "line");
+  });
 }
 
 function hint(s: SearchView): string {
@@ -89,8 +102,8 @@ export function keyboardPage(ctx: AppContext, s: SearchView): MsxContentPage {
     { type: "space", layout: "11,0,5,1", alignment: "right", text: hint(s) },
   ];
   const row = ROW[s.lang];
-  [...LAYOUTS[s.lang]].forEach((ch, n) => items.push(key(ch, n % row, FIRST_LETTER_ROW + Math.floor(n / row))));
-  [...DIGITS].forEach((d, x) => items.push({ ...key(d, x, DIGIT_ROW), key: d }));
+  [...LAYOUTS[s.lang]].forEach((ch, n) => items.push(key(ch, n % row, FIRST_LETTER_ROW + Math.floor(n / row), n < row)));
+  [...DIGITS].forEach((d, x) => items.push({ ...key(d, x, DIGIT_ROW, true), key: d }));
   CONTROLS.forEach(({ c, label, key: k }, n) => {
     const it: MsxContentItem = {
       id: `k_${c}`, type: "button", layout: `${CONTROL_X},${FIRST_LETTER_ROW + n},${CONTROL_W},1`, label: label(s),
@@ -99,6 +112,11 @@ export function keyboardPage(ctx: AppContext, s: SearchView): MsxContentPage {
     if (k !== undefined) it.key = k;
     items.push(it);
   });
+  // Стражи — после клавиш: номера клавиш (по ним MSX держит фокус после перерисовки) не зависят от стражей, фокус при
+  // открытии — на первой букве, а в ячейке 0,0 MSX регистрирует последний элемент (поле запроса не фокусируется).
+  items.push(...guards(items, FIRST_LETTER_ROW, -1));
+  // С результатами «вниз» с нижнего ряда ведёт к ним.
   if (s.items.length > 0) items.push({ type: "space", layout: "0,7,16,1", text: T.below });
+  else items.push(...guards(items, DIGIT_ROW, 1));
   return { items };
 }

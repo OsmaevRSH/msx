@@ -6,17 +6,18 @@ import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
 import { KpError } from "../core/errors.ts";
-import { fmtDate, ruTitle } from "../core/format.ts";
-import { chain, commitMsg, contentAction } from "../msx/actions.ts";
+import { fmtDate } from "../core/format.ts";
+import { chain, contentAction } from "../msx/actions.ts";
+import { guard } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentPage, MsxContentRoot } from "../msx/types.ts";
 import { NO_SUBSCRIPTION_TEXT } from "../playback/resolve.ts";
-import { encodeListKey, ids, msgs } from "../router/ids.ts";
+import { encodeListKey, ids } from "../router/ids.ts";
 import { buildContinue } from "./continue.ts";
 import { RETRY_CONTENT, errorItems } from "./error.ts";
 import { MAX_BYTES, bytes } from "./list.ts";
 import { shelfTitle } from "./list-head.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
-import { posterTiles, titleLines } from "./tiles.ts";
+import { GRID, ROW, gridPreload, iconTile, shelfTile } from "./tiles.ts";
 
 // Главная S4 (спец. §8.4, §11; Plan B S4, D-34, D-40). Всё, что есть в кэше, отдаётся сразу, персональное — с оверлеем
 // прогресса ТВ; KinoPub ждём, только если из кэша показать нечего, и не дольше 1,5 с (CNFR-05). Запись старше stale-max
@@ -29,15 +30,19 @@ const FLAG = "home";
 const DEADLINE_MS = 1500;
 /** D-40: устаревшие персональные данные обновляются фоном, экран сверяется через 3 с. */
 const RECHECK_MS = 3000;
-const TILES = 7;
-/** Р-22: у «Продолжить» нет «Ещё» — до 8 плиток. */
-const CONTINUE_TILES = 8;
-const WIDTH = 16;
-/** V-04: подпись под постером, как в каталоге (`gridTemplate`); шаблон корня к элементам `pages` MSX не применяет. */
-const TILE: MsxContentItem = { type: "separate", color: "msx-glass", imageFiller: "cover", round: true };
+/** Плиток полки: ряд сетки; у подборок и закладок последняя — «Показать все», если не всё поместилось. */
+const TILES = ROW;
+/** Р-22: у «Продолжить» нет «Показать все» — ряд целиком. */
+const CONTINUE_TILES = ROW;
+const WIDTH = GRID.width;
+/**
+ * Полка — страница ленты: заголовок `0,0,12,1` и ряд плиток `x,1,2,4`, сдвинутые на полряда вверх: заголовок ближе
+ * к постерам, страница ниже на полряда (`offset` страницы). На экране — полка и верх следующей.
+ */
+const LIFT = 0.5;
 const T = {
   title: "Главная",
-  more: "Ещё →",
+  more: "Показать все",
   pcs: "шт.",
   refresh: "Обновить",
   loading: "{ico:hourglass-empty} Загружаю главную…",
@@ -54,7 +59,7 @@ interface Def { id: string; title: string; kind: Kind; type?: string }
 
 /**
  * Plan B S4: порядок — и на экране, и в очереди запросов холодной сборки (спец. §8.4 п. 2). Названия подборок — общие
- * с их списками «Ещё →» (V-08).
+ * с их списками «Показать все» (V-08).
  */
 const DEFS: readonly Def[] = [
   { id: "c", title: "Продолжить просмотр", kind: "continue" },
@@ -120,20 +125,14 @@ const failures = new WeakMap<AppContext, unknown>();
 const noop = (): void => undefined;
 const pct = (p: number): number => Math.round(p * 100) / 100;
 
-/** Префетч карточки по фокусу (спец. §8.3): в `pages` нет `{context:…}`, поэтому id — явно в каждой плитке. */
-function focus(ctx: AppContext, t: MsxContentItem, id: number): MsxContentItem {
-  if (ctx.flags.get().focusPrefetch === "on") t.selection = { action: commitMsg(msgs.pf(id)) };
-  return t;
-}
-
+/** Последняя плитка полки — «Показать все» с названием полки: полный список (V-08). */
 const withMore = (ctx: AppContext, d: Def, tiles: MsxContentItem[], dataId: string): MsxContentItem[] =>
-  tiles.length === 0 ? [] : [...tiles, { id: `${d.id}_more`, title: T.more, action: contentAction(ctx.P, dataId) }];
+  tiles.length === 0 ? [] : [...tiles, { ...iconTile("arrow-forward", T.more, d.title, contentAction(ctx.P, dataId)), id: `${d.id}_more` }];
 
+/** Плитки тайтлов полки: тот же вид и тот же адрес постера, что в каталоге (`shelfTile`, `posterUrl`). */
 function titles(ctx: AppContext, d: Def, items: ItemSummary[]): MsxContentItem[] {
-  return posterTiles(ctx, items).map(({ kid: _kid, ktail: _ktail, ...t }, i) => {
-    const id = items[i]?.id ?? 0;
-    return focus(ctx, { ...TILE, ...t, id: `${d.id}${id}` }, id);
-  });
+  const size = ctx.prefs.get().posterSize;
+  return items.map((it) => ({ ...shelfTile(ctx, it, size), id: `${d.id}${it.id}` }));
 }
 
 const ok = <V>(r: PromiseSettledResult<Got<V>>): Got<V> | undefined => (r.status === "fulfilled" ? r.value : undefined);
@@ -148,12 +147,9 @@ async function continueShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> 
     .slice(0, CONTINUE_TILES);
   const size = ctx.prefs.get().posterSize;
   const tiles = items.map((c) => {
-    const t: MsxContentItem = {
-      ...TILE, id: `${d.id}${c.id}`, ...titleLines(ruTitle(c.title)), image: c.posters[size] || c.posters.medium,
-      action: contentAction(ctx.P, ids.item(c.id)), tag: c.tag, badge: c.badge, stamp: c.stamp,
-    };
+    const t: MsxContentItem = { ...shelfTile(ctx, c, size), id: `${d.id}${c.id}`, tag: c.tag, badge: c.badge, stamp: c.stamp };
     if (c.progress !== undefined) Object.assign(t, { progress: pct(c.progress), progressColor: "msx-blue" });
-    return focus(ctx, t, c.id);
+    return t;
   });
   const gots = [ok(h), ok(s), m];
   return {
@@ -168,14 +164,14 @@ async function loadShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> {
   if (d.kind === "continue") return continueShelf(ctx, d, src);
   if (d.kind === "bookmarks") {
     const g = await src.folders();
-    const folders = g.value.slice(0, TILES);
-    // V-30: у `separate` без картинки значок — в поле картинки, над названием, а не поверх него.
-    const tiles = folders.map((f): MsxContentItem => ({
-      ...TILE, id: `${d.id}${f.id}`, icon: "bookmark", ...titleLines(f.title), stamp: `${f.count} ${T.pcs}`,
-      action: contentAction(ctx.P, ids.list(encodeListKey({ src: "folder", folder: f.id }))),
-    }));
-    // V-06: «Ещё» — только если папки не поместились; его появление тоже меняет экран.
+    // V-06: «Показать все» — только если папки не поместились; его появление тоже меняет экран.
     const more = g.value.length > TILES;
+    const folders = g.value.slice(0, more ? TILES - 1 : TILES);
+    // V-30: значок закладки — на месте постера, над названием, а не поверх него.
+    const tiles = folders.map((f): MsxContentItem => ({
+      ...iconTile("bookmark", f.title, `${f.count} ${T.pcs}`, contentAction(ctx.P, ids.list(encodeListKey({ src: "folder", folder: f.id })))),
+      id: `${d.id}${f.id}`,
+    }));
     return {
       def: d, tiles: more ? withMore(ctx, d, tiles, ids.bookmarks()) : tiles,
       personal: [folders.map((f) => [f.id, f.count, f.title]), more], stale: g.stale, offline: g.offline !== undefined,
@@ -183,7 +179,7 @@ async function loadShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> {
   }
   const g = await src.shelf(d.kind, d.type ?? "");
   const more = ids.list(encodeListKey({ src: d.kind, type: d.type }));
-  return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES)), more), stale: false, offline: g.offline !== undefined };
+  return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES - 1)), more), stale: false, offline: g.offline !== undefined };
 }
 
 /**
@@ -274,25 +270,36 @@ function headline(ctx: AppContext): string {
   return `${T.warning} ${NO_SUBSCRIPTION_TEXT}${s.endTime > 0 ? ` (до ${fmtDate(s.endTime)})` : ""}`;
 }
 
-/** Без `template`: шаблон корня MSX к элементам `pages` не применяет, поэтому вид плиток — в каждой плитке. */
-function rootOf(head: string, pages: MsxContentPage[], offline = false): MsxContentRoot {
-  const root: MsxContentRoot = { type: "list", compress: true, flag: FLAG, cache: false, reuse: false, headline: head, pages };
+/**
+ * Сетка 12×6 без `compress` — крупные плитки (спец. §11 S4). Без `template`: шаблон корня MSX к элементам `pages` не
+ * применяет, поэтому вид плиток — в каждой плитке.
+ */
+function rootOf(ctx: AppContext, head: string, pages: MsxContentPage[], offline = false): MsxContentRoot {
+  const root: MsxContentRoot = { type: "list", flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: head, pages };
   if (offline) root.extension = T.offline;
   return root;
 }
 
-/** Две полки на страницу: заголовок `0,y,16,1`, плитки `x,y+1,2,3` (Plan B S4). */
+/**
+ * Полка на страницу: заголовок и ряд плиток (Plan B S4). Над рядом первой полки и под рядом последней — стражи
+ * (`msx/edges.ts`): «вверх» на первой полке и «вниз» на последней не переносят фокус по кругу.
+ */
 function pagesOf(shelves: Shelf[]): MsxContentPage[] {
-  const pages: MsxContentPage[] = [];
-  shelves.forEach((s, i) => {
-    const y = (i % 2) * 4;
-    if (y === 0) pages.push({ items: [] });
-    pages[pages.length - 1]?.items.push(
-      { type: "space", layout: `0,${y},${WIDTH},1`, headline: s.def.title },
-      ...s.tiles.map((t, k) => ({ ...t, layout: `${2 * k},${y + 1},2,3` })),
-    );
+  const tileY = 1;
+  return shelves.map((s, i): MsxContentPage => {
+    const tiles = s.tiles.map((t, k) => ({ ...t, layout: `${GRID.w * k},${tileY},${GRID.w},${GRID.h}`, offset: `0,-${LIFT},0,0` }));
+    const box = (k: number) => ({ id: String(tiles[k]?.id ?? ""), x: GRID.w * k, y: tileY - LIFT, w: GRID.w, h: GRID.h });
+    const items: MsxContentItem[] = [{ type: "space", layout: `0,0,${WIDTH},1`, offset: `0,0,0,-${LIFT}`, headline: s.def.title }, ...tiles];
+    let rows = LIFT;
+    // Стражи — последними: в ячейке 0,0 MSX регистрирует последний элемент (заголовок не фокусируется), а первая
+    // плитка остаётся первым фокусируемым элементом — на ней фокус при входе из меню.
+    if (i === 0) items.push(...tiles.map((_, k) => guard(box(k), 0)));
+    if (i === shelves.length - 1) {
+      items.push(...tiles.map((_, k) => guard(box(k), tileY + GRID.h)));
+      rows += 1;
+    }
+    return { offset: `0,0,0,-${rows}`, items };
   });
-  return pages;
 }
 
 /**
@@ -303,7 +310,7 @@ function message(state: "loading" | "empty"): MsxContentItem[] {
   if (state === "loading") return [{ type: "default", layout: `0,0,${WIDTH},2`, color: "msx-glass", headline: T.loading, action: chain([]) }];
   return [
     { type: "space", layout: `0,0,${WIDTH},4`, text: T.empty },
-    { type: "button", layout: "0,5,8,1", label: T.refresh, action: RETRY_CONTENT },
+    { type: "button", layout: `0,5,${WIDTH / 2},1`, label: T.refresh, action: RETRY_CONTENT },
   ];
 }
 
@@ -317,12 +324,12 @@ function render(ctx: AppContext, s: Snap): { root: MsxContentRoot; hash: string 
   if (shelves.length === 0) {
     const state = s.pending ? "loading" : s.err !== undefined ? "error" : "empty";
     const items = state === "error" ? errorItems(ctx, s.err, { retry: RETRY_CONTENT, offerLogin: true, width: WIDTH }) : message(state);
-    return { root: rootOf(head, [{ items }]), hash: personalHash([head, state]) };
+    return { root: rootOf(ctx, head, [{ items }]), hash: personalHash([head, state]) };
   }
-  let root = rootOf(head, pagesOf(shelves), s.offline);
+  let root = rootOf(ctx, head, pagesOf(shelves), s.offline);
   while (shelves.length > 1 && bytes(root) > MAX_BYTES) {
     shelves = shelves.slice(0, -1);
-    root = rootOf(head, pagesOf(shelves), s.offline);
+    root = rootOf(ctx, head, pagesOf(shelves), s.offline);
   }
   return { root, hash: personalHash([head, shelves.map((x) => [x.def.id, x.personal]), s.offline]) };
 }

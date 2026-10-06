@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { MsxContentItem, MsxContentRoot, MsxMenuRoot, MsxResolveResponse } from "../../src/msx/types.ts";
 import type { TrackerEvent } from "../../src/progress/tracker.ts";
 import { encodeListKey, ids } from "../../src/router/ids.ts";
+import { ROW } from "../../src/screens/tiles.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { startMock } from "../../tools/kpmock/server.ts";
 import type { MockServer } from "../../tools/kpmock/server.ts";
@@ -110,7 +111,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
       const size = list.items?.length ?? 0;
       assert.ok(size <= WINDOW, `window of ${size} tiles`);
       assert.ok(bytes(list) <= 32 * 1024, `list response of ${bytes(list)} bytes`);
-      assert.equal(w.from % 16, 0, "the window starts at a MSX page");
+      assert.equal(w.from % ROW, 0, "the window starts at a row of tiles (a MSX page)");
       assert.ok((w.to ?? w.from + size) - (prev.to ?? 0) <= STEP, "the window moves by ≤ 48");
       assert.ok(list.items?.some((i) => String(i.kid) === prev.last), "the focused edge tile stays in the window");
     }

@@ -4,6 +4,8 @@ import type { Got } from "../cache/swr.ts";
 import { KpError } from "../core/errors.ts";
 import { fmtMinutes, ruTitle } from "../core/format.ts";
 import { panelAction, replaceContent, resolveAction } from "../msx/actions.ts";
+import { gridEdges, guard } from "../msx/edges.ts";
+import type { Grid } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { continueTarget, episodeName, findUnit, mergedState, orderedUnits } from "../playback/episodes.ts";
 import type { EpRef } from "../playback/episodes.ts";
@@ -40,6 +42,11 @@ const TEMPLATE: MsxContentItem = {
 };
 /** Плиток в ряду сетки серий: часть длинного сезона — целые ряды. */
 const ROW = 4;
+/**
+ * Сетка серий для стражей (`msx/edges.ts`): «вверх» и «вниз» на краю сезона не переносят фокус по кругу. Над первым
+ * рядом страж — в шапке над вкладками сезонов, а без вкладок (фильм из частей) — над плитками.
+ */
+const GRID: Grid = { width: 16, height: 8, w: 4, h: 4 };
 
 export const seasonFlag = (id: number, n: number): string => `ep_${id}_${n}`;
 
@@ -152,7 +159,7 @@ export async function seasonScreen(ctx: AppContext, id: number, n: number, from?
     headline: `${title} · ${m.serial ? `${T.season} ${n}${many ? ` ${T.of} ${m.seasons.length}` : ""}` : T.parts}`,
     template, items: m.episodes.map((e) => episodeItem(ctx, item, m, e, withProps, seasonsRow)),
   };
-  if (m.serial) root.header = { items: tabItems(ctx, id, n, m) };
+  if (m.serial) root.header = tabItems(ctx, id, n, m);
   if (many) {
     root.extension = SEASONS_HINT;
     root.options = optionsRoot(seasonsRow, title);
@@ -181,6 +188,14 @@ function fitParts(
   ctx: AppContext, root: MsxContentRoot, id: number, n: number, m: SeasonModel, from: number | undefined, blank: Record<string, string>,
 ): void {
   const all = root.items ?? [];
+  // Стражи краёв — вместе с сериями: их байты тоже входят в предел.
+  const frame = (items: MsxContentItem[]): void => {
+    const framed = gridEdges(items, GRID, { top: m.serial ? undefined : "shift", bottom: true });
+    root.items = framed.items;
+    if (framed.inserts === undefined) delete root.inserts;
+    else root.inserts = framed.inserts;
+  };
+  frame(all);
   if (bytes(root) <= MAX_BYTES) return;
   const hint = root.extension;
   const at = Math.max(0, m.episodes.findIndex((e) => e.ref.mid === m.focus));
@@ -189,29 +204,32 @@ function fitParts(
     ...blank, id: next ? "e_next" : "e_prev", icon: next ? "navigate-next" : "navigate-before",
     title: next ? `${range(m, a, b)} ›` : `‹ ${range(m, a, b)}`, action: replaceContent(seasonFlag(id, n), ctx.P, ids.season(id, n, a)),
   });
-  for (let size = Math.max(ROW, Math.floor((MAX_BYTES - bytes({ ...root, items: [] })) / per / ROW) * ROW); ; size -= ROW) {
+  for (let size = Math.max(ROW, Math.floor((MAX_BYTES - bytes({ ...root, items: [], inserts: [] })) / per / ROW) * ROW); ; size -= ROW) {
     const start = Math.min(from ?? Math.floor(at / size) * size, all.length - 1);
     const end = Math.min(all.length, start + size);
     const items = all.slice(start, end);
     if (!items.some((i) => i.focus === true)) items[0] = { ...items[0], focus: true };
     if (start > 0) items.unshift(nav(Math.max(0, start - size), start, false));
     if (end < all.length) items.push(nav(end, Math.min(all.length, end + size), true));
-    root.items = items;
+    frame(items);
     // Номера части — в `extension`: заголовок с названием сериала и сезоном и так длинный.
     root.extension = hint === undefined ? range(m, start, end) : `${range(m, start, end)} · ${hint}`;
     if (size <= ROW || bytes(root) <= MAX_BYTES) return;
   }
 }
 
-/** Вкладка ведёт `replace:content` с флагом текущего сезона: новый экран придёт со своим флагом (M-01). */
-function tabItems(ctx: AppContext, id: number, n: number, m: SeasonModel): MsxContentItem[] {
-  if (!Array.isArray(m.tabs)) {
-    return [{ type: "button", layout: `0,0,${TAB_W},1`, label: m.tabs.label, action: panelAction(ctx.P, ids.panel("seasons", id, n)) }];
-  }
-  return m.tabs.map((t, i) => ({
-    type: "button", layout: `${i * TAB_W},0,${TAB_W},1`, label: t.label,
-    action: replaceContent(seasonFlag(id, n), ctx.P, ids.season(id, t.n)),
-  }));
+/**
+ * Вкладка ведёт `replace:content` с флагом текущего сезона: новый экран придёт со своим флагом (M-01). Вкладки стоят
+ * рядом ниже стражей и поднимаются на ряд (`offset`), высота шапки — прежняя.
+ */
+function tabItems(ctx: AppContext, id: number, n: number, m: SeasonModel): { offset: string; items: MsxContentItem[] } {
+  const tab = (key: string, i: number, label: string, action: string): MsxContentItem =>
+    ({ id: `t_${key}`, type: "button", layout: `${i * TAB_W},1,${TAB_W},1`, offset: "0,-1,0,0", label, action });
+  const tabs = Array.isArray(m.tabs)
+    ? m.tabs.map((t, i) => tab(String(t.n), i, t.label, replaceContent(seasonFlag(id, n), ctx.P, ids.season(id, t.n))))
+    : [tab("more", 0, m.tabs.label, panelAction(ctx.P, ids.panel("seasons", id, n)))];
+  const guards = tabs.map((t, i) => guard({ id: t.id as string, x: i * TAB_W, y: 0, w: TAB_W, h: 1 }, 0));
+  return { offset: "0,0,0,-1", items: [...tabs, ...guards] };
 }
 
 /** «Серия 4» без названия (или с названием «Серия 4»), «4. Название» с названием (V-26). */

@@ -65,18 +65,27 @@ describe("listScreen (S5, CC-05)", () => {
     const t = await make();
     assert.equal(visible("movie"), 203);
     const s: MsxContentRoot = await t.request(ids.list(MOVIES));
-    const { items: _items, template, options: _options, ...root } = s;
+    const { items: _items, template, options: _options, inserts, ...root } = s;
     assert.deepEqual(root, {
-      type: "list", compress: true, flag: listFlag(MOVIES), cache: false, reuse: false,
+      type: "list", flag: listFlag(MOVIES), cache: false, reuse: false, preload: "next",
       headline: "Фильмы · Обновлённые", extension: "{ico:msx-red:stop} Обновлённые · 203 фильма",
     });
-    assert.deepEqual(template, gridTemplate(t.ctx, "0,0,2,4"));
+    assert.deepEqual(template, gridTemplate(t.ctx));
     const tiles = items(s);
     assert.equal(tiles.length, 48);
     assert.deepEqual(tiles.at(-1)?.live, live(MOVIES, "down", 48));
     assert.equal(tiles.filter((i) => i.live !== undefined).length, 1);
     const page = await t.run(t.ctx.repo.listPage(listSource(decodeListKey(MOVIES)), 1));
-    assert.deepEqual(tiles.map(({ live: _l, ...tile }) => tile), posterTiles(t.ctx, page.value.items));
+    // Первая плитка — в фокусе при открытии (а не страж над ней), первая плитка последнего ряда начинает вставку.
+    const expected = posterTiles(t.ctx, page.value.items);
+    expected[0] = { ...expected[0], focus: true };
+    expected[42] = { ...expected[42], break: "context:end" };
+    assert.deepEqual(tiles.map(({ live: _l, ...tile }) => tile), expected);
+    // Стражи над первым рядом и под последним (msx/edges.ts): «вверх» и «вниз» на краю не переносят фокус по кругу.
+    assert.deepEqual(inserts?.map((p) => [p.position, p.items.map((g) => g.selection?.action)]), [
+      ["page:0", tiles.slice(0, 6).map((i) => `focus:${i.id}`)],
+      ["context:end", tiles.slice(42).map((i) => `focus:${i.id}`)],
+    ]);
     const first = t.mock.calls().find((c) => c.path === "/v1/items");
     const q = new URLSearchParams(first?.query);
     assert.deepEqual([q.get("type"), q.get("sort"), q.get("page"), q.get("perpage")], ["movie", "-updated", "1", "48"]);

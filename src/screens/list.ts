@@ -5,12 +5,13 @@ import type { ListSource } from "../cache/repo.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
 import { commitMsg } from "../msx/actions.ts";
+import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { decodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
 import { CARTOONS_GENRE, DEFAULT_SORT, filterOptions, listExtension, listTitle } from "./list-head.ts";
-import { gridTemplate, posterTiles } from "./tiles.ts";
+import { GRID, ROW, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 export { SORTS, listTitle } from "./list-head.ts";
 
@@ -23,22 +24,24 @@ export { SORTS, listTitle } from "./list-head.ts";
 // весь список, а окно [from, to) до 96 плиток. Крайние плитки окна несут live `setup`: последняя —
 // `extend:<ключ>:down:<to>`, первая (если окно сдвинуто) — `extend:<ключ>:up:<from>`. Сдвиг идёт на 48 плиток
 // от края, к которому идёт пользователь, а `reload:content` держит фокус по `id` элемента (MSX KB, Focus Separator):
-// сфокусированная плитка остаётся в окне.
+// сфокусированная плитка остаётся в окне. Над первым и под последним рядом окна — стражи (`msx/edges.ts`): «вверх» и
+// «вниз» на краю не переносят фокус по кругу; догрузку у края по-прежнему делает live последней плитки.
 
 const TAG = "list";
 const PER_PAGE = 48;
 /** Списков в памяти не больше этого: каждая сортировка и жанр — свой ключ, а сессия на ТВ длится часами (CNFR-17). */
 export const MAX_LISTS = 16;
-/** 16×8 (`compress`): 8 плиток в ряд; картинка 2×3 и полоса названия (`separate`). */
-const GRID = "0,0,2,4";
-/** Страница MSX при `GRID`: 2 ряда по 8. Начало окна кратно ей — при сдвиге плитки не меняют колонку. */
-const PAGE = 16;
-/** Плиток в ответе не больше этого (6 страниц MSX, ~25 КБ): каждая перерисовка стоит одинаково. */
+/**
+ * Страница MSX — ряд из 6 плиток 2×4 (`tiles.ts`). Начало окна кратно ей — при сдвиге плитки не меняют колонку; окно
+ * ужимается по байтам тоже рядами.
+ */
+const PAGE = ROW;
+/** Плиток в ответе не больше этого (16 рядов): каждая перерисовка стоит одинаково. */
 export const WINDOW = 96;
-/** Сдвиг окна — порция API: у края пользователя остаётся 48 плиток (3 экрана), фокус не выпадает из окна. */
+/** Сдвиг окна — порция API (8 рядов): у края пользователя остаётся 48 плиток, фокус не выпадает из окна. */
 const STEP = PER_PAGE;
-/** Уже виденных плиток у границы сдвига, которые не отрезает даже ужатие по байтам (2 экрана). */
-const KEEP = 2 * PAGE;
+/** Уже виденных плиток у границы сдвига, которые не отрезает даже ужатие по байтам (3 ряда — два экрана). */
+const KEEP = 3 * PAGE;
 /** CNFR-16: ответ списка в байтах UTF-8. */
 export const MAX_BYTES = 32 * 1024;
 
@@ -271,7 +274,7 @@ function prefetchNext(ctx: AppContext, src: ListSource, st: ListState): void {
 
 function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): MsxContentRoot {
   const root: MsxContentRoot = {
-    type: "list", compress: true, flag: listFlag(key), cache: false, reuse: false, headline: st.headline ?? listTitle(k),
+    type: "list", flag: listFlag(key), cache: false, reuse: false, ...gridPreload(ctx), headline: st.headline ?? listTitle(k),
   };
   const extension = listExtension(k, { genre: st.genre, total: st.total, offline: st.offline !== undefined });
   if (extension !== undefined) root.extension = extension;
@@ -281,7 +284,7 @@ function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): Msx
     root.pages = [{ items: emptyItems(k) }];
     return root;
   }
-  root.template = gridTemplate(ctx, GRID);
+  root.template = gridTemplate(ctx);
   fill(ctx, root, key, st);
   return root;
 }
@@ -301,7 +304,7 @@ function fill(ctx: AppContext, root: MsxContentRoot, key: string, st: ListEntry)
     const items = tiles.slice(from - w.from, to - w.from);
     edge(items, 0, from > 0, key, "up", from);
     edge(items, items.length - 1, to < st.items.length || !st.done, key, "down", to);
-    root.items = items;
+    framed(root, items);
     if (to - from <= 2 * PAGE || bytes(root) <= MAX_BYTES) break;
     if (down) {
       if (from + PAGE <= pivot - KEEP || to - PAGE <= pivot) from += PAGE;
@@ -311,6 +314,18 @@ function fill(ctx: AppContext, root: MsxContentRoot, key: string, st: ListEntry)
   }
   st.from = from;
   st.to = to;
+}
+
+/**
+ * Плитки окна со стражами над первым и под последним рядом; первая плитка — в фокусе при открытии (иначе MSX ставит
+ * фокус на стража). Возврат и перерисовка держат фокус по `id`.
+ */
+function framed(root: MsxContentRoot, tiles: MsxContentItem[]): void {
+  const first = tiles[0];
+  const { items, inserts } = gridEdges(first === undefined ? tiles : [{ ...first, focus: true }, ...tiles.slice(1)], GRID, { top: "shift", bottom: true });
+  root.items = items;
+  if (inserts === undefined) delete root.inserts;
+  else root.inserts = inserts;
 }
 
 /** Копия плитки с live `setup`: сами плитки окна переиспользуются при ужатии. */
@@ -326,7 +341,7 @@ export function bytes(v: unknown): number {
 /** Страница должна содержать фокусируемый элемент (msx-platform §2.4), поэтому кроме текста — «Назад». */
 function emptyItems(k: ListKey): MsxContentItem[] {
   return [
-    { type: "space", layout: "0,0,16,2", text: k.src === "folder" ? T.emptyFolder : T.empty },
-    { id: "b_back", type: "button", layout: "0,2,4,1", label: T.back, action: "back" },
+    { type: "space", layout: `0,0,${GRID.width},2`, text: k.src === "folder" ? T.emptyFolder : T.empty },
+    { id: "b_back", type: "button", layout: "0,2,3,1", label: T.back, action: "back" },
   ];
 }

@@ -52,6 +52,7 @@ describe("DEFAULT_FLAGS", () => {
       events: "handleEvent",
       autonext: "button",
       focusPrefetch: "on",
+      gridPreload: "next",
       postBody: "form",
       apiBase: BUILD.apiBase,
       apiFallbackBase: BUILD.apiFallbackBase,
@@ -59,7 +60,8 @@ describe("DEFAULT_FLAGS", () => {
   });
 
   it("lists choices for every enumerable flag, defaults included", () => {
-    assert.deepEqual(Object.keys(FLAG_CHOICES).sort(), ["autonext", "events", "focusPrefetch", "heartbeat", "playerPropsIn", "postBody", "streamMode"]);
+    assert.deepEqual(Object.keys(FLAG_CHOICES).sort(), ["autonext", "events", "focusPrefetch", "gridPreload", "heartbeat", "playerPropsIn", "postBody", "streamMode"]);
+    assert.deepEqual(FLAG_CHOICES.gridPreload, ["next", "none"]);
     assert.deepEqual(FLAG_CHOICES.streamMode, ["hls1", "hls2"]);
     assert.deepEqual(FLAG_CHOICES.heartbeat, ["ticks", "timer", "percent"]);
     for (const [k, choices] of Object.entries(FLAG_CHOICES)) {

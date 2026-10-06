@@ -5,7 +5,7 @@ import type { ListState } from "../../src/app/context.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids } from "../../src/router/ids.ts";
 import { MAX_BYTES, WINDOW, onExtend } from "../../src/screens/list.ts";
-import { posterTiles } from "../../src/screens/tiles.ts";
+import { ROW, posterTiles } from "../../src/screens/tiles.ts";
 import { catalog } from "../../tools/kpmock/fixtures.ts";
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
@@ -61,7 +61,7 @@ describe("list response window (CNFR-16)", () => {
     assert.ok(got.length <= WINDOW, `${got.length} tiles`);
     assert.equal(new Set(got).size, got.length);
     assert.deepEqual(got, slice(st, st.from, st.to));
-    assert.equal(st.from % 16, 0);
+    assert.equal(st.from % ROW, 0);
     const end = st.to === st.items.length && st.done;
     assert.deepEqual(items(s)[0]?.live, st.from > 0 ? live(key, "up", st.from) : undefined);
     if (got.length > 1) assert.deepEqual(items(s).at(-1)?.live, end ? undefined : live(key, "down", st.to));
@@ -83,7 +83,8 @@ describe("list response window (CNFR-16)", () => {
     }
     const total = visible("movie");
     assert.equal(total, 203);
-    assert.deepEqual(spans, [{ from: 0, to: 48 }, { from: 0, to: 96 }, { from: 48, to: 144 }, { from: 96, to: 192 }, { from: 112, to: 203 }]);
+    // Начало окна кратно ряду из 6 плиток: при сдвиге плитки не меняют колонку.
+    assert.deepEqual(spans, [{ from: 0, to: 48 }, { from: 0, to: 96 }, { from: 48, to: 144 }, { from: 96, to: 192 }, { from: 108, to: 203 }]);
     assert.equal(seen.size, total);
     assert.equal(state(t, MOVIES).done, true);
     for (let p = 1; p <= 5; p++) assert.equal(pageCalls(t, p), 1, `page ${p}`);
@@ -112,18 +113,18 @@ describe("list response window (CNFR-16)", () => {
     const st = state(t, MOVIES);
     while (!st.done) await t.run(onExtend(t.ctx, MOVIES));
     let s = await t.request(ids.list(MOVIES));
-    assert.deepEqual(windowOf(t, MOVIES, s), { from: 112, to: 203 });
+    assert.deepEqual(windowOf(t, MOVIES, s), { from: 108, to: 203 });
     const head = items(s)[0]?.id;
     const calls = t.mock.calls().length;
     t.host.actions.length = 0;
 
     await fire(t, items(s)[0]);
     s = await t.request(ids.list(MOVIES));
-    assert.deepEqual(windowOf(t, MOVIES, s), { from: 64, to: 160 });
+    assert.deepEqual(windowOf(t, MOVIES, s), { from: 60, to: 156 });
     assert.equal(tileIds(s).indexOf(head ?? ""), 48);
     await fire(t, items(s)[0]);
     s = await t.request(ids.list(MOVIES));
-    assert.deepEqual(windowOf(t, MOVIES, s), { from: 16, to: 112 });
+    assert.deepEqual(windowOf(t, MOVIES, s), { from: 12, to: 108 });
     await fire(t, items(s)[0]);
     s = await t.request(ids.list(MOVIES));
     assert.deepEqual(windowOf(t, MOVIES, s), { from: 0, to: 96 });
@@ -174,9 +175,9 @@ describe("list response window (CNFR-16)", () => {
     assert.deepEqual(windowOf(t, MOVIES, await t.request(ids.list(MOVIES))), { from: 48, to: 144 });
   });
 
-  it("long titles: the window shrinks by MSX pages keeping 32 seen tiles at the shift; every answer ≤ 32 KB", async () => {
+  it("long titles: the window shrinks by rows keeping 18 seen tiles (3 rows) at the shift; every answer ≤ 32 KB", async () => {
     const t = await make();
-    // Продолжение названия плитка несёт дважды — `titleFooter` и `ktail` для шапки (V-10): окно — около 48 плиток.
+    // Название плитка несёт дважды — две строки `titleHeader` и `kn` для шапки (V-10): окно — около 48 плиток.
     const long = "Очень длинное название фильма ".repeat(3);
     const big: ItemSummary[] = Array.from({ length: 144 }, (_, i) => ({
       id: 5000 + i, type: "movie", subtype: "", title: `${long}${i} / Long ${i}`, year: 2001, genres: [], countries: [],
@@ -187,15 +188,15 @@ describe("list response window (CNFR-16)", () => {
     let s = await t.request(ids.list(MOVIES));
     const first = windowOf(t, MOVIES, s);
     assert.equal(first.from, 0);
-    assert.ok(first.to < WINDOW && first.to % 16 === 0, `to ${first.to}`);
-    assert.ok(bytes({ ...s, items: [...items(s), ...posterTiles(t.ctx, big.slice(first.to, first.to + 16))] }) > MAX_BYTES);
+    assert.ok(first.to < WINDOW && first.to % ROW === 0, `to ${first.to}`);
+    assert.ok(bytes({ ...s, items: [...items(s), ...posterTiles(t.ctx, big.slice(first.to, first.to + ROW))] }) > MAX_BYTES);
 
     const edgeTile = items(s).at(-1)?.id ?? "";
     await fire(t, items(s).at(-1));
     s = await t.request(ids.list(MOVIES));
     const next = windowOf(t, MOVIES, s);
     assert.ok(next.from > 0 && next.to > first.to, JSON.stringify(next));
-    assert.deepEqual(tileIds(s).slice(0, tileIds(s).indexOf(edgeTile) + 1), slice(state(t, MOVIES), first.to - 32, first.to));
+    assert.deepEqual(tileIds(s).slice(0, tileIds(s).indexOf(edgeTile) + 1), slice(state(t, MOVIES), first.to - 3 * ROW, first.to));
 
     const headTile = items(s)[0]?.id ?? "";
     await fire(t, items(s)[0]);
@@ -203,6 +204,6 @@ describe("list response window (CNFR-16)", () => {
     const back = windowOf(t, MOVIES, s);
     assert.ok(back.from < next.from, JSON.stringify(back));
     const at = tileIds(s).indexOf(headTile);
-    assert.deepEqual(tileIds(s).slice(at, at + 32), slice(state(t, MOVIES), next.from, next.from + 32));
+    assert.deepEqual(tileIds(s).slice(at, at + 3 * ROW), slice(state(t, MOVIES), next.from, next.from + 3 * ROW));
   });
 });

@@ -17,9 +17,9 @@ let bootId = "";
 
 const movies = encodeListKey({ src: "catalog", type: "movie", sort: "-updated" });
 const serials = encodeListKey({ src: "catalog", type: "serial", sort: "-updated" });
-/** Порция API и сетка списка S5: 48 плиток по 8 в ряд (src/screens/list.ts). */
+/** Порция API и сетка списка S5: 48 плиток по 6 в ряд (src/screens/tiles.ts). */
 const PORTION = 48;
-const ROWS = PORTION / 8;
+const ROWS = PORTION / 6;
 /**
  * Задержка mock для второй порции в CE-06. План называет 2 с, но отсчёт идёт не от extend, а от фонового запроса
  * порции 2 при открытии списка (спец. §8.3), и до extend проходит ещё до секунды цикла live; 3 с оставляют запас,

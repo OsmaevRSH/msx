@@ -37,7 +37,9 @@ async function make(flags: Partial<Flags> = {}): Promise<TestApp> {
 const open = async (t: TestApp, id: number, n: number): Promise<MsxContentRoot> =>
   (await t.request(ids.season(id, n))) as MsxContentRoot;
 const eps = (s: MsxContentRoot): MsxContentItem[] => s.items ?? [];
-const tabs = (s: MsxContentRoot): MsxContentItem[] => s.header?.items ?? [];
+const isGuard = (i: MsxContentItem): boolean => /^focus:/.test(String(i.selection?.action ?? ""));
+/** Вкладки сезонов — элементы шапки без стражей над ними (`msx/edges.ts`). */
+const tabs = (s: MsxContentRoot): MsxContentItem[] => (s.header?.items ?? []).filter((i) => !isGuard(i));
 const ep = (s: MsxContentRoot, m: number): MsxContentItem => {
   const found = eps(s).find((i) => i.id === `e${m}`);
   assert.ok(found, `no episode e${m}`);
@@ -131,7 +133,20 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     const t = await make();
     const s = await open(t, BIG, 1);
     assert.deepEqual(tabs(s).map((i) => ({ label: i.label, action: i.action, layout: i.layout })), [
-      { label: "Сезон 1 ▾", action: panelAction(P, ids.panel("seasons", BIG, 1)), layout: "0,0,3,1" },
+      { label: "Сезон 1 ▾", action: panelAction(P, ids.panel("seasons", BIG, 1)), layout: "0,1,3,1" },
+    ]);
+  });
+
+  it("guards over the tabs and under the last row of episodes: no wrap-around at the edges of the season", async () => {
+    const t = await make();
+    const s = await open(t, SMALL, 1);
+    // Вкладки стоят рядом ниже стражей и поднимаются на ряд; шапка той же высоты, что раньше.
+    assert.equal(s.header?.offset, "0,0,0,-1");
+    assert.deepEqual(tabs(s).map((i) => [i.id, i.layout, i.offset]), [["t_1", "0,1,3,1", "0,-1,0,0"], ["t_2", "3,1,3,1", "0,-1,0,0"]]);
+    assert.deepEqual((s.header?.items ?? []).filter(isGuard).map((g) => [g.layout, g.selection?.action]), [["0,0,3,1", "focus:t_1"], ["3,0,3,1", "focus:t_2"]]);
+    // Под последним рядом серий — вставка со стражами; над первым — вкладки, свои стражи не нужны.
+    assert.deepEqual(s.inserts?.map((p) => [p.position, p.items.map((g) => g.selection?.action)]), [
+      ["context:end", eps(s).map((e) => `focus:${e.id}`)],
     ]);
   });
 
@@ -171,8 +186,8 @@ describe("seasonScreen: tabs, parts, errors", () => {
     const t = await make();
     const s = await open(t, SMALL, 1);
     assert.deepEqual(tabs(s).map((i) => ({ type: i.type, label: i.label, layout: i.layout, action: i.action })), [
-      { type: "button", label: "{ico:check} Сезон 1 · 1/3", layout: "0,0,3,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 1)) },
-      { type: "button", label: "Сезон 2 · 0/3", layout: "3,0,3,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 2)) },
+      { type: "button", label: "{ico:check} Сезон 1 · 1/3", layout: "0,1,3,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 1)) },
+      { type: "button", label: "Сезон 2 · 0/3", layout: "3,1,3,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 2)) },
     ]);
     assert.equal(tabs(s)[1]?.action, `replace:content:ep_2002_1:request:interaction:season:2002:2@${P}`);
     assert.equal(s.headline, "Тестовый сериал «Короткий» · Сезон 1 из 2");
@@ -207,6 +222,10 @@ describe("seasonScreen: tabs, parts, errors", () => {
     assert.equal(p1.action, resolveAction(P, ids.playEp(FIX.MOVIE_MULTI, mid(FIX.MOVIE_MULTI, 1), 0, 1)));
     assert.equal(p1.focus, true);
     assert.equal(p1.options?.items?.[0]?.action, commitMsg(msgs.act("item", "watched", FIX.MOVIE_MULTI, 0, 1, 1)));
+    // Без вкладок стражи и над рядом частей: одна вставка с обоими краями (msx/edges.ts).
+    assert.deepEqual(s.inserts?.map((p) => [p.position, p.area, p.items.map((g) => [g.layout, g.selection?.action])]), [
+      ["page:0", "0,1,16,4", eps(s).flatMap((e, k) => [[`${4 * k},0,4,1`, `focus:${e.id}`]]).concat(eps(s).map((e, k) => [`${4 * k},5,4,1`, `focus:${e.id}`]))],
+    ]);
   });
 
   it("an episode with its own name: «1. Национальный гимн»; without one — «Серия N» (V-26)", async () => {

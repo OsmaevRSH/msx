@@ -37,7 +37,12 @@ describe("bookmarksScreen (S11)", () => {
     assert.equal(s.template?.layout, "0,0,4,2");
     assert.equal(s.template?.icon, undefined, "the template icon was drawn over the folder name");
     assert.equal(s.template?.enumerate, false);
-    assert.deepEqual(s.items, [{ headline: "{ico:bookmark} Избранное", text: "2 шт.", action: contentAction(P, ids.list(folderKey(1))) }]);
+    assert.deepEqual(s.items, [{ id: "f1", focus: true, headline: "{ico:bookmark} Избранное", text: "2 шт.", action: contentAction(P, ids.list(folderKey(1))) }]);
+    assert.equal(s.preload, "next");
+    // Стражи над рядом папок и под ним (msx/edges.ts): «вверх» и «вниз» на краю не переносят фокус по кругу.
+    assert.deepEqual(s.inserts?.map((p) => [p.position, p.items.map((g) => [g.layout, g.color, g.selection?.action])]), [
+      ["page:0", [["0,0,4,1", "transparent", "focus:f1"], ["0,3,4,1", "transparent", "focus:f1"]]],
+    ]);
   });
 
   it("every folder gets a tile in the server order", async () => {

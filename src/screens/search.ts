@@ -3,13 +3,14 @@ import type { ItemSummary, Page } from "../api/models.ts";
 import { toKpError } from "../core/errors.ts";
 import { fmtCount } from "../core/format.ts";
 import { commitMsg } from "../msx/actions.ts";
+import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentRoot } from "../msx/types.ts";
 import { ids, msgs } from "../router/ids.ts";
 import type { Msg, SearchControl } from "../router/ids.ts";
 import { KEY_CHARS, keyboardPage } from "./keyboard.ts";
 import type { SearchView } from "./keyboard.ts";
 import { MAX_BYTES, WINDOW, bytes } from "./list.ts";
-import { gridTemplate, posterTiles } from "./tiles.ts";
+import { GRID_DECOMPRESSED, ROW, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 // Поиск S7 (спец. §3.4, §6.3, §11 S7): строка запроса живёт в памяти плагина. Каждое нажатие сразу
 // перерисовывает экран (ввод пришёл с текущего экрана), запрос к API — через 500 мс после последнего
@@ -18,13 +19,11 @@ import { gridTemplate, posterTiles } from "./tiles.ts";
 const TAG = "search";
 const FLAG = "search";
 const EXTEND_KEY = "search";
-/** Как у списков S5: 8 плиток в ряд в сетке 16×8. */
-const GRID = "0,0,2,4";
 const PER_PAGE = 48;
 /** Как окно списка S5: дальше 96 результатов поиск не листают, а уточняют запрос (CNFR-16). */
 const MAX_RESULTS = WINDOW;
-/** Страница MSX при `GRID`: 2 ряда по 8; выдача ужимается по байтам целыми страницами. */
-const PAGE = 16;
+/** Ряд плиток — страница MSX; выдача ужимается по байтам целыми рядами. */
+const PAGE = ROW;
 const MIN_CHARS = 2;
 const MAX_CHARS = 32;
 /** CNFR-10: результат ≤ 1,5 с после последней буквы. */
@@ -43,7 +42,7 @@ const norm = (q: string): string => q.trim();
 
 export async function searchScreen(ctx: AppContext): Promise<MsxContentRoot> {
   const s: SearchEntry = ctx.state.search;
-  const root: MsxContentRoot = { type: "list", compress: true, flag: FLAG, cache: false, reuse: false, headline: T.headline };
+  const root: MsxContentRoot = { type: "list", compress: true, flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: T.headline };
   // `header` — страница над шаблонными элементами; без результатов клавиатура — единственная страница.
   if (s.items.length === 0) {
     root.pages = [keyboardPage(ctx, s)];
@@ -52,14 +51,18 @@ export async function searchScreen(ctx: AppContext): Promise<MsxContentRoot> {
   // V-09: в результатах клавиатура уходит вверх, а `headline` MSX у экрана из меню не показывает — запрос в `extension`.
   root.extension = `${T.query} «${norm(s.query)}» · ${fmtCount(s.total ?? s.items.length, RESULTS)}`;
   const tiles = posterTiles(ctx, s.items);
-  if (!s.done) tiles[tiles.length - 1].live = { type: "setup", action: commitMsg(msgs.extend(EXTEND_KEY)) };
-  const template = gridTemplate(ctx, GRID);
-  // CNFR-16 при любых названиях: хвост выдачи отрезается страницами MSX, подсказка говорит, сколько показано.
+  if (!s.done) tiles[tiles.length - 1] = { ...tiles[tiles.length - 1], live: { type: "setup", action: commitMsg(msgs.extend(EXTEND_KEY)) } };
+  // Корень сжат ради клавиатуры 16×8, плитки — те же 12×6, что в каталоге (`decompress`).
+  const template = gridTemplate(ctx, true);
+  // CNFR-16 при любых названиях: хвост выдачи отрезается рядами, подсказка говорит, сколько показано. Под последним
+  // рядом — стражи (`msx/edges.ts`); над первым — клавиатура.
   for (let n = tiles.length; ; n = (Math.ceil(n / PAGE) - 1) * PAGE) {
     const cut = n < tiles.length;
     root.header = keyboardPage(ctx, s.capped === true || cut ? { ...s, shown: n } : s);
     root.template = template;
-    root.items = cut ? tiles.slice(0, n) : tiles;
+    const { items, inserts } = gridEdges(cut ? tiles.slice(0, n) : tiles, GRID_DECOMPRESSED, { bottom: true });
+    root.items = items;
+    if (inserts !== undefined) root.inserts = inserts;
     if (n <= PAGE || bytes(root) <= MAX_BYTES) return root;
   }
 }

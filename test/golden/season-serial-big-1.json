@@ -513,7 +513,8 @@
             "action": "video:resolve:request:interaction:play:2001:2001017:1:17:start@https://example.github.io/msx/app/index.html"
           }
         ]
-      }
+      },
+      "break": "context:end"
     },
     {
       "id": "e2001018",
@@ -604,12 +605,23 @@
     }
   ],
   "header": {
+    "offset": "0,0,0,-1",
     "items": [
       {
+        "id": "t_more",
         "type": "button",
-        "layout": "0,0,3,1",
+        "layout": "0,1,3,1",
+        "offset": "0,-1,0,0",
         "label": "Сезон 1 ▾",
         "action": "panel:request:interaction:panel:seasons:2001:1@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "layout": "0,0,3,1",
+        "offset": "0,0,0,0",
+        "color": "transparent",
+        "selection": {
+          "action": "focus:t_more"
+        }
       }
     ]
   },
@@ -627,5 +639,46 @@
         "key": "red"
       }
     ]
-  }
+  },
+  "inserts": [
+    {
+      "position": "context:end",
+      "area": "0,0,16,4",
+      "offset": "0,0,0,-1",
+      "items": [
+        {
+          "layout": "0,4,4,1",
+          "offset": "0,-4,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:e2001017"
+          }
+        },
+        {
+          "layout": "4,4,4,1",
+          "offset": "0,-4,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:e2001018"
+          }
+        },
+        {
+          "layout": "8,4,4,1",
+          "offset": "0,-4,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:e2001019"
+          }
+        },
+        {
+          "layout": "12,4,4,1",
+          "offset": "0,-4,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:e2001020"
+          }
+        }
+      ]
+    }
+  ]
 }

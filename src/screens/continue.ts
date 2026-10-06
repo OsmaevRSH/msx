@@ -6,7 +6,11 @@ import type { OverlayEntry, OverlayLookup } from "../progress/overlay.ts";
 // «Продолжить просмотр» (Plan B §8.3.1, Р-21): история по порядку, первая запись тайтла; позиция из оверлея ТВ
 // главнее, если она новее записи истории (спец. §10.2).
 
-export interface ContinueTile { id: number; type: ItemType; title: string; posters: Posters; progress?: number; tag?: string; badge?: string; stamp?: string }
+/** Год и рейтинг — для серой строки под названием, как у плиток каталога (есть у записей истории и фильмов в просмотре). */
+export interface ContinueTile {
+  id: number; type: ItemType; title: string; posters: Posters; year?: number; kpRating?: number;
+  progress?: number; tag?: string; badge?: string; stamp?: string;
+}
 
 const MAX = 15;
 /** Plan B §8.3.1 п. 2: фильм с прогрессом от 90 % считается досмотренным. */
@@ -17,6 +21,13 @@ const SERIES: ReadonlySet<ItemType> = new Set<ItemType>(["serial", "docuserial",
 export type EpisodesLookup = (itemId: number) => (OverlayEntry & { season: number; video: number })[];
 
 const head = (id: number, type: ItemType, title: string, posters: Posters): ContinueTile => ({ id, type, title, posters });
+
+/** Год и рейтинг тайтла, если они известны. */
+function meta(t: ContinueTile, it: Pick<ItemSummary, "year" | "kpRating">): ContinueTile {
+  if (it.year !== undefined) t.year = it.year;
+  if (it.kpRating !== undefined) t.kpRating = it.kpRating;
+  return t;
+}
 
 function withBadge(t: ContinueTile, fresh: number): ContinueTile {
   if (fresh > 0) t.badge = `+${fresh}`;
@@ -34,7 +45,7 @@ function film(e: HistoryEntry, overlay: OverlayLookup): ContinueTile | undefined
   }
   const progress = media.duration > 0 ? time / media.duration : 0;
   if (progress >= DONE) return undefined;
-  return { ...head(item.id, item.type, item.title, item.posters), progress, stamp: fmtRemaining(media.duration - time) };
+  return { ...meta(head(item.id, item.type, item.title, item.posters), item), progress, stamp: fmtRemaining(media.duration - time) };
 }
 
 function serial(e: HistoryEntry, w: SerialWatching | undefined, episodes: EpisodesLookup): ContinueTile | undefined {
@@ -44,7 +55,7 @@ function serial(e: HistoryEntry, w: SerialWatching | undefined, episodes: Episod
   const watched = Math.min(w.total, w.watched + tv.filter((o) => o.status === 1).length);
   if (watched >= w.total && w.new <= 0) return undefined;
   const last = tv.at(-1);
-  const t = head(e.item.id, e.item.type, e.item.title, e.item.posters);
+  const t = meta(head(e.item.id, e.item.type, e.item.title, e.item.posters), e.item);
   t.progress = w.total > 0 ? watched / w.total : 0;
   // V-18: тег — «1×4» вместо латинского «S1E4» (`episodeName`, короткая форма: лента тега узкая).
   t.tag = episodeName(last ?? { season: e.media.snumber, video: e.media.number }, "short");
@@ -57,7 +68,7 @@ export function buildContinue(
   if (h.length === 0) {
     return [
       ...s.map((w) => withBadge(head(w.id, w.type, w.title, w.posters), w.new)),
-      ...m.map((it) => head(it.id, it.type, it.title, it.posters)),
+      ...m.map((it) => meta(head(it.id, it.type, it.title, it.posters), it)),
     ].slice(0, MAX);
   }
   const seen = new Set<number>();

@@ -25,6 +25,8 @@ const state = (over: Partial<SearchState> = {}): SearchState => ({
 
 const input = (ch: string): string => `interaction:commit:message:search:input:${ch}`;
 const control = (c: string): string => `interaction:commit:message:search:control:${c}`;
+const isGuard = (i: MsxContentItem): boolean => /^focus:/.test(String(i.selection?.action ?? ""));
+const ROWS = { ru: 11, en: 9 } as const;
 const box = (i: MsxContentItem): number[] => (i.layout ?? "").split(",").map(Number);
 const isLetter = (i: MsxContentItem): boolean => i.type === "button" && !DIGITS.includes(i.label ?? "") && box(i)[2] === 1;
 const letters = (p: MsxContentPage): MsxContentItem[] => p.items.filter(isLetter);
@@ -96,12 +98,12 @@ describe("keyboardPage (S7, spec §3.4)", () => {
     }
   });
 
-  it("all items stay inside the 16×8 grid and do not overlap", async () => {
+  it("all items stay inside the 16×8 grid and do not overlap (guards aside: they sit in the field row and under the keys)", async () => {
     const t = await make();
     for (const lang of ["ru", "en"] as const) {
       const page = keyboardPage(t.ctx, state({ lang }));
       const taken = new Set<string>();
-      for (const i of page.items) {
+      for (const i of page.items.filter((x) => !isGuard(x))) {
         const [x, y, w, h] = box(i);
         assert.ok(x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= 16 && y + h <= 8, `${lang} ${i.layout}`);
         for (let cx = x; cx < x + w; cx++) {
@@ -111,8 +113,32 @@ describe("keyboardPage (S7, spec §3.4)", () => {
           }
         }
       }
-      assert.equal(page.items.length, 2 + LAYOUTS[lang].length + 10 + 4);
+      assert.equal(page.items.filter((x) => !isGuard(x)).length, 2 + LAYOUTS[lang].length + 10 + 4);
     }
+  });
+
+  it("guards above the top row and under the bottom one bring the focus back to the key: no wrap-around (spec §11 S7)", async () => {
+    const t = await make();
+    for (const lang of ["ru", "en"] as const) {
+      const page = keyboardPage(t.ctx, state({ lang }));
+      const row = ROWS[lang];
+      const top = Array.from({ length: row }, (_, x) => [`${x},0,1,1`, "0,1,0,-1", `focus:k${x}_1`]);
+      const bottom = Array.from({ length: 10 }, (_, x) => [`${x},5,1,1`, "0,-1,0,-1", `focus:k${x}_4`]);
+      const guards = page.items.filter(isGuard).map((g) => [g.layout, g.offset, g.selection?.action]);
+      assert.deepEqual(guards, [...top, ["12,0,4,1", "0,1,0,-1", "focus:k_back"], ...bottom, ["12,5,4,1", "0,-1,0,-1", "focus:k_lang"]]);
+      // После клавиш: номера клавиш не зависят от стражей, в ячейке 0,0 MSX регистрирует последний элемент.
+      const first = page.items.findIndex(isGuard);
+      assert.ok(first > 0 && page.items.slice(0, first).every((i) => !isGuard(i)) && page.items.slice(first).every(isGuard));
+      assert.equal(page.items[2]?.label, LAYOUTS[lang][0], "the first letter right after the field: MSX focuses it on open");
+      const keys = new Set(page.items.map((i) => i.id));
+      for (const g of guards) assert.ok(keys.has(String(g[2]).slice("focus:".length)), String(g[2]));
+    }
+  });
+
+  it("with results «down» from the bottom row leads to them: no guards under the keys", async () => {
+    const t = await make();
+    const page = keyboardPage(t.ctx, Object.assign(state({ query: "фи", status: "ready" }), { items: [{ id: 1 }] as never }));
+    assert.ok(page.items.filter(isGuard).every((g) => g.layout?.split(",")[1] === "0"));
   });
 
   it("V-28: a glass field with the query and a cursor above the letters, the state hint on the right", async () => {
@@ -142,11 +168,11 @@ describe("keyboardPage (S7, spec §3.4)", () => {
     assert.equal(inputRow(keyboardPage(t.ctx, s)), "{ico:search} фи_ | Найдено: 263, показаны первые 96 — уточните запрос");
   });
 
-  it("the keyboard page JSON is light: ≤ 6 KB in both layouts (it is redrawn on every key)", async () => {
+  it("the keyboard page JSON is light: ≤ 8 KB in both layouts with the edge guards (it is redrawn on every key)", async () => {
     const t = await make();
     for (const lang of ["ru", "en"] as const) {
       const bytes = Buffer.byteLength(JSON.stringify(keyboardPage(t.ctx, state({ lang, query: "абвгдеёжзийклмнопрстуфхцчшщъыьэ" }))), "utf8");
-      assert.ok(bytes <= 6 * 1024, `${lang}: ${bytes} bytes`);
+      assert.ok(bytes <= 8 * 1024, `${lang}: ${bytes} bytes`);
     }
   });
 });

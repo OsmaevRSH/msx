@@ -9,6 +9,8 @@ export interface Flags {
   events: "handleEvent" | "triggers";
   autonext: "button" | "resolve";
   focusPrefetch: "on" | "off";
+  /** `preload` у сеток постеров (главная, списки, поиск, закладки): MSX заранее строит следующую страницу с картинками. */
+  gridPreload: "next" | "none";
   postBody: "form" | "query";
   apiBase: string;
   apiFallbackBase: string;
@@ -21,6 +23,7 @@ export const DEFAULT_FLAGS: Flags = Object.freeze({
   events: "handleEvent",
   autonext: "button",
   focusPrefetch: "on",
+  gridPreload: "next",
   postBody: "form",
   apiBase: BUILD.apiBase,
   apiFallbackBase: BUILD.apiFallbackBase,
@@ -35,6 +38,7 @@ export const FLAG_CHOICES: { [K in keyof Flags]?: readonly Flags[K][] } = Object
   events: choices("handleEvent", "triggers"),
   autonext: choices("button", "resolve"),
   focusPrefetch: choices("on", "off"),
+  gridPreload: choices("next", "none"),
   postBody: choices("form", "query"),
 });
 

@@ -9,6 +9,7 @@ import { commitMsg, contentAction, replaceContent } from "../../src/msx/actions.
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids, msgs } from "../../src/router/ids.ts";
 import { homeScreen, warmHome } from "../../src/screens/home.ts";
+import { TILE_STYLE } from "../../src/screens/tiles.ts";
 import { MAX_BYTES, bytes } from "../../src/screens/list.ts";
 import { refreshAfterPlayback } from "../../src/screens/refresh.ts";
 import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
@@ -43,12 +44,12 @@ async function make(o: TestAppOptions = {}): Promise<TestApp> {
 const open = async (t: TestApp): Promise<MsxContentRoot> => (await t.request(HOME)) as MsxContentRoot;
 const items = (s: MsxContentRoot): MsxContentItem[] => (s.pages ?? []).flatMap((p) => p.items);
 const headers = (s: MsxContentRoot): string[] =>
-  items(s).filter((i) => i.type === "space" && /^0,[04],16,1$/.test(i.layout ?? "")).map((i) => i.headline ?? "");
+  items(s).filter((i) => i.type === "space" && i.layout === "0,0,12,1").map((i) => i.headline ?? "");
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 const counter = (t: TestApp, name: string): number => t.ctx.metrics.summary().counters[name] ?? 0;
 const calls = (t: TestApp, path: string): number => t.mock.calls().filter((c) => c.path === path).length;
 
-/** Элементы полки: заголовок `0,y,16,1` и плитки `x,y+1,2,3` той же страницы. */
+/** Плитки полки: заголовок `0,0,12,1` и плитки `x,1,2,4` той же страницы (стражи — в рядах 0 и 5). */
 function shelf(s: MsxContentRoot, title: string): MsxContentItem[] {
   for (const p of s.pages ?? []) {
     const h = p.items.find((i) => i.type === "space" && i.headline === title);
@@ -118,41 +119,57 @@ async function persisted(t: TestApp): Promise<void> {
 }
 
 describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
-  it("16×8 list, flag home, not cached by MSX, eight shelves two per page in the Plan B order", async () => {
+  it("12×6 list of large tiles, flag home, not cached by MSX, a shelf per page in the Plan B order, next page preloaded", async () => {
     const t = await make();
     const s = await open(t);
     assert.equal(s.type, "list");
-    assert.equal(s.compress, true);
+    assert.equal(s.compress, undefined);
+    assert.equal(s.preload, "next");
     assert.equal(s.flag, "home");
     assert.equal(s.cache, false);
     assert.equal(s.reuse, false);
     assert.equal(s.headline, "Главная");
     assert.equal(s.extension, undefined, "«нет связи» only when KinoPub did not answer");
     assert.deepEqual(headers(s), ALL);
-    assert.equal(s.pages?.length, 4);
-    for (const p of s.pages ?? []) {
-      assert.deepEqual(p.items.filter((i) => i.type === "space").map((i) => i.layout), ["0,0,16,1", "0,4,16,1"]);
-    }
+    assert.equal(s.pages?.length, 8);
+    s.pages?.forEach((p, i) => {
+      assert.deepEqual(p.items.filter((it) => it.type === "space").map((it) => [it.layout, it.offset]), [["0,0,12,1", "0,0,0,-0.5"]]);
+      // Полка поднята на полряда: страница ниже на полряда, у последней — ещё и ряд стражей.
+      assert.equal(p.offset, i === 7 ? "0,0,0,-1.5" : "0,0,0,-0.5");
+    });
   });
 
-  it("catalog shelf: 7 posters x = 0…12 with explicit numeric pf selection, «Ещё →» at 14 to the full list", async () => {
+  it("guards over the first shelf and under the last one bring the focus back: no wrap-around at the edges", async () => {
+    const t = await make();
+    const s = await open(t);
+    const guards = (i: number): MsxContentItem[] => (s.pages?.[i]?.items ?? []).filter((it) => /^focus:/.test(String(it.selection?.action)));
+    const first = shelf(s, "Продолжить просмотр");
+    assert.deepEqual(guards(0).map((g) => [g.layout, g.offset, g.selection?.action]), first.map((tile, k) => [`${2 * k},0,2,1`, "0,0.5,0,3", `focus:${tile.id}`]));
+    const last = shelf(s, "Горячее: сериалы");
+    assert.deepEqual(guards(7).map((g) => [g.layout, g.offset, g.selection?.action]), last.map((tile, k) => [`${2 * k},5,2,1`, "0,-4.5,0,3", `focus:${tile.id}`]));
+    for (let i = 1; i < 7; i++) assert.deepEqual(guards(i), []);
+    assert.ok([...guards(0), ...guards(7)].every((g) => g.color === "transparent" && g.action === undefined && g.id === undefined));
+  });
+
+  it("catalog shelf: 5 posters x = 0…8 with the full name and numeric pf in selection, «Показать все» at 10 to the full list", async () => {
     const t = await make();
     const s = await open(t);
     const tiles = shelf(s, "Новые фильмы");
-    assert.deepEqual(tiles.map((i) => i.layout), [0, 2, 4, 6, 8, 10, 12, 14].map((x) => `${x},5,2,3`));
+    assert.deepEqual(tiles.map((i) => [i.layout, i.offset]), [0, 2, 4, 6, 8, 10].map((x) => [`${x},1,2,4`, "0,-0.5,0,0"]));
     const more = tiles.pop();
-    assert.equal(more?.title, "Ещё →");
+    assert.deepEqual([more?.icon, more?.titleHeader, more?.titleFooter], ["arrow-forward", "{col:msx-white}Показать все{br} ", "Новые фильмы"]);
     assert.equal(more?.action, contentAction(P, ids.list(encodeListKey({ src: "fresh", type: "movie" }))));
     for (const tile of tiles) {
       const id = Number(/^content:request:interaction:item:(\d+)@/.exec(tile.action ?? "")?.[1]);
       assert.ok(id > 0, `tile action ${tile.action}`);
-      assert.deepEqual(tile.selection, { action: commitMsg(msgs.pf(id)) });
-      assert.ok(tile.image !== undefined && tile.title !== undefined);
-      // V-04: подпись под постером, как в каталоге; шаблон корня MSX к `pages` не применяет — вид в самой плитке.
-      assert.deepEqual([tile.type, tile.imageFiller, tile.color, tile.round], ["separate", "cover", "msx-glass", true]);
-      assert.match(tile.stamp ?? "", /^\d{4} · \d,\d$/);
+      assert.equal(tile.selection?.action, commitMsg(msgs.pf(id)));
+      assert.match(String(tile.selection?.headline), /^Тестовый /);
+      assert.ok(tile.image !== undefined && tile.titleHeader !== undefined);
+      // Шаблон корня MSX к `pages` не применяет — вид крупной плитки в самой плитке, как у сетки каталога.
+      for (const [k, v] of Object.entries(TILE_STYLE)) assert.deepEqual(tile[k], v, k);
+      assert.match(tile.titleFooter ?? "", /^\d{4} · \d,\d$/);
     }
-    assert.deepEqual([tiles[0]?.title, tiles[0]?.titleFooter], ["Тестовый", "{col:msx-white}фильм 1000"]);
+    assert.equal(tiles[0]?.titleHeader, "{col:msx-white}Тестовый{br}фильм 1000");
     assert.equal(shelf(s, "Горячее: сериалы").at(-1)?.action, contentAction(P, ids.list(encodeListKey({ src: "hot", type: "serial" }))));
   });
 
@@ -169,14 +186,16 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
   it("«Продолжить»: progress, tag, badge and stamp, tiles to the card; no «Ещё» (Р-22)", async () => {
     const t = await make();
     const tiles = shelf(await open(t), "Продолжить просмотр");
-    assert.deepEqual(tiles.map((i) => i.layout), ["0,1,2,3", "2,1,2,3", "4,1,2,3"]);
+    assert.deepEqual(tiles.map((i) => i.layout), ["0,1,2,4", "2,1,2,4", "4,1,2,4"]);
     const [big, movie] = tiles;
     assert.equal(big?.action, contentAction(P, ids.item(FIX.SERIAL_BIG)));
-    assert.deepEqual(big?.selection, { action: commitMsg(msgs.pf(FIX.SERIAL_BIG)) });
+    assert.deepEqual(big?.selection, { headline: "Тестовый сериал «Большой»", action: commitMsg(msgs.pf(FIX.SERIAL_BIG)) });
     assert.equal(big?.tag, "1×4");
     assert.equal(big?.badge, "+2");
     assert.equal(big?.progressColor, "msx-blue");
-    assert.deepEqual([big?.type, big?.title, big?.titleFooter], ["separate", "Тестовый", "{col:msx-white}сериал «Большой»"]);
+    // Тег, бейдж и прогресс — на постере (`imageBoundary`), под ним название и год с рейтингом.
+    assert.deepEqual([big?.imageBoundary, big?.titleHeader], [true, "{col:msx-white}Тестовый{br}сериал «Большой»"]);
+    assert.match(big?.titleFooter ?? "", /^\d{4} · \d,\d$/);
     assert.equal(movie?.action, contentAction(P, ids.item(FIX.MOVIE_SIMPLE)));
     // V-05: короткий остаток, который MSX не режет до «ОСТАЛО…».
     assert.equal(movie?.stamp, "1 ч 10 м");
@@ -194,45 +213,44 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     assert.deepEqual([after?.tag, after?.badge], ["1×5", "+2"]);
   });
 
-  it("«Продолжить» holds up to 8 titles, x = 0…14", async () => {
+  it("«Продолжить» holds a row of 6 titles, x = 0…10", async () => {
     const t = await make();
     const now = Math.floor(Date.now() / 1000);
     const films = catalog().filter((it) => it.type === "movie" && it.videos?.[0] !== undefined && it.deleted !== true).slice(0, 10);
     films.forEach((it, i) => t.mock.state.history.push({ item: it.id, season: 0, video: 1, time: 60, lastSeen: now - 86_400 - i }));
     const tiles = shelf(await open(t), "Продолжить просмотр");
-    assert.deepEqual(tiles.map((i) => i.layout), [0, 2, 4, 6, 8, 10, 12, 14].map((x) => `${x},1,2,3`));
-    assert.ok(tiles.every((i) => i.title !== "Ещё →"));
+    assert.deepEqual(tiles.map((i) => i.layout), [0, 2, 4, 6, 8, 10].map((x) => `${x},1,2,4`));
+    assert.ok(tiles.every((i) => i.icon === undefined));
   });
 
-  it("«Закладки»: a folder tile with the icon above its name (V-30), no «Ещё →» for fewer than 7 folders (V-06)", async () => {
+  it("«Закладки»: a folder tile of the same size, a large icon in place of the poster (V-30), no «Показать все» for up to 6 folders (V-06)", async () => {
     const t = await make();
     const tiles = shelf(await open(t), "Закладки");
     assert.equal(tiles.length, 1);
     const [fav] = tiles;
-    assert.deepEqual([fav?.type, fav?.icon, fav?.title, fav?.stamp], ["separate", "bookmark", "Избранное", "2 шт."]);
-    assert.equal(fav?.titleFooter, undefined);
+    assert.deepEqual([fav?.icon, fav?.iconSize, fav?.titleHeader, fav?.titleFooter], ["bookmark", "large", "{col:msx-white}Избранное{br} ", "2 шт."]);
     assert.equal(fav?.action, contentAction(P, ids.list(encodeListKey({ src: "folder", folder: 1 }))));
   });
 
-  it("«Закладки»: 7 folders fit without «Ещё →»; the 8th brings «Ещё →» to the bookmarks screen", async () => {
+  it("«Закладки»: 6 folders fit without «Показать все»; the 7th brings it to the bookmarks screen in place of the 6th", async () => {
     const t = await make();
-    for (let id = 2; id <= 7; id++) t.mock.state.folders.set(id, { title: `Смотреть с детьми ${id}`, items: [], created: id });
-    const seven = shelf(await open(t), "Закладки");
-    assert.equal(seven.length, 7);
-    assert.ok(seven.every((i) => i.title !== "Ещё →"));
-    assert.deepEqual([seven[1]?.title, seven[1]?.titleFooter], ["Смотреть с", "{col:msx-white}детьми 2"]);
-    t.mock.state.folders.set(8, { title: "Восьмая", items: [], created: 8 });
+    for (let id = 2; id <= 6; id++) t.mock.state.folders.set(id, { title: `Смотреть с детьми ${id}`, items: [], created: id });
+    const six = shelf(await open(t), "Закладки");
+    assert.equal(six.length, 6);
+    assert.ok(six.every((i) => i.icon === "bookmark"));
+    assert.equal(six[1]?.titleHeader, "{col:msx-white}Смотреть с{br}детьми 2");
+    t.mock.state.folders.set(7, { title: "Седьмая", items: [], created: 7 });
     t.ctx.cache.markStale(cacheKeys.bookmarks());
     await open(t);
     await driveToAction(t);
-    const eight = shelf(await open(t), "Закладки");
-    assert.equal(eight.length, 8);
-    assert.deepEqual([eight[7]?.title, eight[7]?.layout, eight[7]?.action], ["Ещё →", "14,5,2,3", contentAction(P, ids.bookmarks())]);
+    const seven = shelf(await open(t), "Закладки");
+    assert.equal(seven.length, 6);
+    assert.deepEqual([seven[5]?.icon, seven[5]?.layout, seven[5]?.action], ["arrow-forward", "10,1,2,4", contentAction(P, ids.bookmarks())]);
   });
 
-  it("focus prefetch off — no selection on tiles", async () => {
+  it("focus prefetch off — tiles only name themselves in the headline, no pf messages", async () => {
     const t = await make({ flags: { focusPrefetch: "off" } });
-    assert.ok(items(await open(t)).every((i) => i.selection === undefined));
+    assert.ok(items(await open(t)).every((i) => !String(i.selection?.action ?? "").startsWith("interaction:commit:message:pf:")));
   });
 
   it("inactive subscription from the cache → warning headline with the end date", async () => {

@@ -201,7 +201,7 @@ describe("«Для разработчика» (spec §16.6)", () => {
     assert.ok(root.template !== undefined, "MSX не показывает items корня без template");
     const rows = (root.items ?? []).filter((i) => i.id?.startsWith("f_") && i.id !== "f_reset");
     assert.deepEqual(rows.map((r) => r.id), [
-      "f_streamMode", "f_playerPropsIn", "f_heartbeat", "f_events", "f_autonext", "f_focusPrefetch", "f_postBody", "f_apiBase",
+      "f_streamMode", "f_playerPropsIn", "f_heartbeat", "f_events", "f_autonext", "f_focusPrefetch", "f_gridPreload", "f_postBody", "f_apiBase",
       "f_apiFallbackBase",
     ]);
     const row = (k: string): MsxContentItem | undefined => rows.find((r) => r.id === `f_${k}`);
