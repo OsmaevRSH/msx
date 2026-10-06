@@ -15,7 +15,12 @@
     "imageBoundary": true,
     "badgeColor": "msx-red",
     "truncation": "titleHeader",
-    "enumerate": false
+    "enumerate": false,
+    "properties": {
+      "control:type": "extended",
+      "progress:display": "false",
+      "trigger:back": "player:eject"
+    }
   },
   "items": [
     {

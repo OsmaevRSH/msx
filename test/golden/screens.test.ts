@@ -104,7 +104,7 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("probe", ids.probe());
   });
 
-  it("v1.11: «Я смотрю», «Спорт», «Подборки», «История», the «Пункты меню» panel", LIMIT, async () => {
+  it("v1.12: «Я смотрю», «Спорт», «Подборки», «История», the «Пункты меню» panel", LIMIT, async () => {
     await snap("watching", ids.watching());
     await snap("tv", ids.tv());
     await snap("list-collections", ids.list(encodeListKey({ src: "collections" })));
