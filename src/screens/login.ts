@@ -8,6 +8,7 @@ import { chain, commitMsg, contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { ids, msgs } from "../router/ids.ts";
 import { RETRY_CONTENT, errorItems } from "./error.ts";
+import { refreshMenu } from "./menu.ts";
 
 // Вход по коду S2 (спец. §7.1, §11; Plan B §8.3 S2). Опрос ведёт DeviceFlow по таймеру плагина;
 // экран перерисовывается, только пока он текущий (спец. §6.3, CD-16).
@@ -58,7 +59,7 @@ function failedScreen(ctx: AppContext, code: KpErrorCode): MsxContentRoot {
 function doneScreen(ctx: AppContext): MsxContentRoot {
   return screen([
     { type: "space", layout: "0,0,12,4", headline: T.doneHeadline, text: T.doneText },
-    { type: "button", layout: "0,5,6,1", label: T.reloadMenu, action: "reload:menu" },
+    { type: "button", layout: "0,5,6,1", label: T.reloadMenu, action: refreshMenu(ctx.P) },
     { type: "button", layout: "6,5,6,1", label: T.probe, action: contentAction(ctx.P, ids.probe()) },
   ]);
 }
@@ -66,7 +67,7 @@ function doneScreen(ctx: AppContext): MsxContentRoot {
 function onFlowChange(ctx: AppContext, flow: DeviceFlow, s: LoginState): void {
   if (s.phase === "done") {
     // Меню — не контент: обновляется всегда, на каком бы экране ни был пользователь (спец. §7.1 п. 4).
-    ctx.host.executeAction(chain([`info:${T.done}`, "reload:menu"]));
+    ctx.host.executeAction(chain([`info:${T.done}`, refreshMenu(ctx.P)]));
     return;
   }
   if (ctx.state.login !== flow || !ctx.current.isCurrent(ids.login())) return;

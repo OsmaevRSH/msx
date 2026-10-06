@@ -30,13 +30,15 @@ const catalog = (type: string, genre?: string): ListKey =>
 const shape = (m: MsxMenuRoot): Omit<MsxMenuItem, "id">[] => m.menu.map(({ id: _id, ...rest }) => rest);
 
 describe("buildMenu (S3)", () => {
-  it("root: headline, clock in the extension, Russian MSX dictionary, cached", async () => {
+  it("root: headline, clock in the extension, Russian MSX dictionary, cached, flag for replace:menu", async () => {
     const t = await make(false);
     const m = buildMenu(t.ctx);
     assert.equal(m.headline, "KinoPub");
     assert.equal(m.extension, "{ico:msx-white:access-time} {now:time:hh:mm}");
     assert.equal(m.dictionary, "http://msx.benzac.de/dic/ru.json");
     assert.equal(m.cache, true);
+    // MSX не выполняет reload:menu для меню из start parameter; replace:menu требует флаг (smoke-e2e этапа 27).
+    assert.equal(m.flag, "menu");
   });
 
   it("without login: «Вход», «Диагностика», «Настройки MSX»", async () => {

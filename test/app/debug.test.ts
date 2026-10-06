@@ -59,6 +59,6 @@ describe("installDebugHooks", () => {
     t.ctx.build.debugHooks = true;
     installDebugHooks(t.ctx, t.app);
     await t.run(t.ctx.auth.logout());
-    assert.ok(g.__kp?.stats().actions.includes("reload:menu"));
+    assert.ok(g.__kp?.stats().actions.some((a) => a.startsWith("replace:menu:menu:")));
   });
 });

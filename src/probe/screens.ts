@@ -61,6 +61,9 @@ const T = {
   noSecondAudio: "У серии одна озвучка: плитке a2 нужна вторая",
 };
 
+/** Без `template` MSX не показывает `items` корня («Содержимое недоступно»); у элементов свои тип и раскладка. */
+const ROW_TEMPLATE: MsxContentItem = { type: "control", layout: "0,0,12,1" };
+
 const row = (text: string): MsxContentItem => ({ type: "space", layout: "0,0,12,1", text: msxText(text) });
 
 function button(id: string, label: string, action: string, w = 4): MsxContentItem {
@@ -122,7 +125,7 @@ export async function probeScreen(ctx: AppContext, page?: string): Promise<MsxCo
     button("b_dev", T.dev, contentAction(ctx.P, ids.dev()), 3),
   );
   if (logged) items.push(button("b_logout", T.logout, commitMsg(msgs.act("probe", "logout")), 6));
-  return { type: "list", flag: FLAG, cache: false, reuse: false, headline: T.headline, extension: ctx.build.version, items };
+  return { type: "list", flag: FLAG, cache: false, reuse: false, headline: T.headline, extension: ctx.build.version, template: ROW_TEMPLATE, items };
 }
 
 /** Перерисовать «Диагностику», только если она всё ещё текущий экран (спец. §6.3, CD-16). */
@@ -163,7 +166,7 @@ export async function onProbeAct(ctx: AppContext, name: string, args: string[]):
       onFlagAct(ctx, name, args);
       return;
     case "logout":
-      // `device/unlink` и удаление токенов; меню перерисовывает обработчик выхода (`reload:menu`).
+      // `device/unlink` и удаление токенов; меню перерисовывает обработчик выхода (`replace:menu`).
       await ctx.auth.logout();
       return;
   }

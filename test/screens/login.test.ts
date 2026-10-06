@@ -20,7 +20,8 @@ async function make(o: Omit<TestAppOptions, "mock"> = {}): Promise<TestApp> {
   return t;
 }
 
-const DONE = "[info:Вход выполнен|reload:menu]";
+const REFRESH_MENU = `replace:menu:menu:request:interaction:init@${TEST_P}`;
+const DONE = `[info:Вход выполнен|${REFRESH_MENU}]`;
 const RETRY = "[invalidate:content|reload:content]";
 const CODE_TTL_MS = 600_000;   // expires_in у kpmock
 
@@ -69,7 +70,7 @@ describe("loginScreen (S2)", () => {
     assert.equal(codeOf(s), mockCodes(t)[0]);
   });
 
-  it("after the pending polls: toast + reload:menu, logged in, the device is named after the TV", async () => {
+  it("after the pending polls: toast + replace:menu, logged in, the device is named after the TV", async () => {
     const t = await make();
     t.ctx.state.msxInfo = { platform: "tizen", model: "QE55Q80" };
     await t.request("login");
@@ -156,7 +157,7 @@ describe("loginScreen (S2)", () => {
     assert.equal(t.mock.calls().length, 0);
     assert.equal(t.ctx.state.login, undefined);
     assert.ok(texts(s).some((x) => x.includes("Вход выполнен")));
-    assert.ok(buttons(s).some((b) => b.action === "reload:menu"));
+    assert.ok(buttons(s).some((b) => b.action === REFRESH_MENU));
   });
 });
 

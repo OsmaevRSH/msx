@@ -251,7 +251,7 @@ describe("onSettingsAct", () => {
     assert.equal(t.mock.calls().filter((c) => c.method === "POST").length, 0);
   });
 
-  it("logout → device unlink on the server, kp.auth.* is empty, reload:menu (CAC-24: other TVs keep their devices)", async () => {
+  it("logout → device unlink on the server, kp.auth.* is empty, replace:menu (CAC-24: other TVs keep their devices)", async () => {
     const t = await make();
     const other = t.mock.issueToken();
     t.ctx.prefs.update({ maxQuality: 720 });
@@ -264,7 +264,7 @@ describe("onSettingsAct", () => {
     assert.deepEqual(keys().filter((k) => k?.startsWith("kp.auth.")), []);
     assert.deepEqual(kept.filter((k) => !keys().includes(k)), [], "logout removes only kp.auth.* (спец. §7.3)");
     assert.equal(t.ctx.auth.isLoggedIn(), false);
-    assert.ok(actions(t).includes("reload:menu"), JSON.stringify(actions(t)));
+    assert.ok(actions(t).includes(`replace:menu:menu:request:interaction:init@${TEST_P}`), JSON.stringify(actions(t)));
     assert.ok(t.mock.state.tokens.has(other.access), "another TV's token survived");
   });
 });

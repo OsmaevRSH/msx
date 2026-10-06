@@ -31,6 +31,7 @@ import { Outbox } from "../progress/outbox.ts";
 import { Overlay } from "../progress/overlay.ts";
 import { ProgressTracker } from "../progress/tracker.ts";
 import { App } from "../router/router.ts";
+import { refreshMenu } from "../screens/menu.ts";
 import { OVERLAY_KEY, persistState } from "./context.ts";
 import type { AppContext, AppState } from "./context.ts";
 
@@ -110,7 +111,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
     // Прежний вход по коду завершён: следующий экран входа начнёт новый (этап 17).
     ctx.state.login?.stop();
     ctx.state.login = undefined;
-    ctx.host.executeAction("reload:menu");
+    ctx.host.executeAction(refreshMenu(ctx.P));
   };
   ctx.tracker.addListener((e) => onTrackerEvent(ctx, e));
 

@@ -57,6 +57,7 @@ describe("probeScreen (spec §16.2, decision R-11)", () => {
     assert.equal(root.type, "list");
     assert.equal(root.flag, "probe");
     assert.equal(root.cache, false);
+    assert.ok(root.template !== undefined, "MSX не показывает items корня без template (smoke-e2e этапа 27)");
     assert.deepEqual(checkRows(root), ["CDG-01", "CDG-02", "CDG-09", "CDG-10"]);
     assert.equal(byLabel(root, "Вход")?.action, contentAction(P, ids.login()));
     assert.ok(!actions(root).some((a) => a.startsWith("video:resolve:")));
@@ -133,13 +134,13 @@ describe("onProbeAct", () => {
     assert.match(t.host.actions.at(-1)?.action ?? "", /^\[info:Маркер записан.*\|reload:content\]$/);
   });
 
-  it("act:probe:logout → device/unlink in the mock journal, tokens removed, reload:menu", async () => {
+  it("act:probe:logout → device/unlink in the mock journal, tokens removed, replace:menu", async () => {
     const t = await make({ loggedIn: true });
     t.app.handleData({ message: msgs.act("probe", "logout") });
     await until(t, () => !t.ctx.auth.isLoggedIn(), "logout");
     assert.equal(t.mock.calls().filter((c) => c.method === "POST" && c.path === "/v1/device/unlink").length, 1);
     assert.equal(t.storage.getItem("kp.auth.pair"), null);
-    assert.ok(t.host.actions.some((a) => a.action === "reload:menu"));
+    assert.ok(t.host.actions.some((a) => a.action === `replace:menu:menu:request:interaction:init@${TEST_P}`));
   });
 
   it("console → one console.log line «KPREPORT {…}» and a toast", async (tc) => {
@@ -166,6 +167,7 @@ describe("«Для разработчика» (spec §16.6)", () => {
     const t = await make({ flags: { heartbeat: "timer" } });
     const root = await devScreen(t.ctx);
     assert.equal(root.flag, "dev");
+    assert.ok(root.template !== undefined, "MSX не показывает items корня без template");
     const rows = (root.items ?? []).filter((i) => i.id?.startsWith("f_") && i.id !== "f_reset");
     assert.deepEqual(rows.map((r) => r.id), [
       "f_streamMode", "f_playerPropsIn", "f_heartbeat", "f_events", "f_autonext", "f_focusPrefetch", "f_postBody", "f_apiBase",
