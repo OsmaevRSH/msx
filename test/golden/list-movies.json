@@ -5,7 +5,7 @@
   "cache": false,
   "reuse": false,
   "headline": "Фильмы · Обновлённые",
-  "extension": "{ico:msx-red:stop} Сортировка и жанр",
+  "extension": "{ico:msx-red:stop} Обновлённые · 203 фильма",
   "options": {
     "headline": "Сортировка и жанр",
     "template": {
@@ -16,14 +16,14 @@
       {
         "id": "o_sort",
         "icon": "sort",
-        "label": "Сортировка",
-        "action": "panel:request:interaction:panel:sort:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html"
+        "label": "Сортировка: Обновлённые",
+        "action": "[back|panel:request:interaction:panel:sort:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html]"
       },
       {
         "id": "o_genre",
         "icon": "category",
-        "label": "Жанр",
-        "action": "panel:request:interaction:panel:genre:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html"
+        "label": "Жанр: все жанры",
+        "action": "[back|panel:request:interaction:panel:genre:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html]"
       }
     ]
   },

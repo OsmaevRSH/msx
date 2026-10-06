@@ -32,6 +32,14 @@ export function fmtRemaining(sec: number): string {
   return m === 0 ? `${total / 60} ч` : `${Math.floor(total / 60)} ч ${m} м`;
 }
 
+/** Русское множественное число: 1 фильм, 2 фильма, 5 фильмов; разряды — неразрывным пробелом (1 234). */
+export function fmtCount(n: number, forms: readonly [string, string, string]): string {
+  const v = Math.max(0, Math.floor(n));
+  const [ten, hundred] = [v % 10, v % 100];
+  const form = ten === 1 && hundred !== 11 ? forms[0] : ten >= 2 && ten <= 4 && (hundred < 12 || hundred > 14) ? forms[1] : forms[2];
+  return `${String(v).replace(/\B(?=(\d{3})+$)/g, "\u00a0")} ${form}`;
+}
+
 /** Unix-секунды → "DD.MM.YYYY" в местном времени ТВ. */
 export function fmtDate(ts: number): string {
   const d = new Date(ts * 1000);

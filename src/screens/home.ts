@@ -14,6 +14,7 @@ import { encodeListKey, ids, msgs } from "../router/ids.ts";
 import { buildContinue } from "./continue.ts";
 import { RETRY_CONTENT, errorItems } from "./error.ts";
 import { MAX_BYTES, bytes } from "./list.ts";
+import { shelfTitle } from "./list-head.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import { posterTiles, titleLines } from "./tiles.ts";
 
@@ -51,16 +52,19 @@ const FG: ReqOpts = { cls: "fg" };
 const BG: ReqOpts = { cls: "bg" };
 interface Def { id: string; title: string; kind: Kind; type?: string }
 
-/** Plan B S4: порядок — и на экране, и в очереди запросов холодной сборки (спец. §8.4 п. 2). */
+/**
+ * Plan B S4: порядок — и на экране, и в очереди запросов холодной сборки (спец. §8.4 п. 2). Названия подборок — общие
+ * с их списками «Ещё →» (V-08).
+ */
 const DEFS: readonly Def[] = [
   { id: "c", title: "Продолжить просмотр", kind: "continue" },
-  { id: "fm", title: "Новые фильмы", kind: "fresh", type: "movie" },
-  { id: "fs", title: "Новые сериалы", kind: "fresh", type: "serial" },
+  { id: "fm", title: shelfTitle("fresh", "movie"), kind: "fresh", type: "movie" },
+  { id: "fs", title: shelfTitle("fresh", "serial"), kind: "fresh", type: "serial" },
   { id: "b", title: "Закладки", kind: "bookmarks" },
-  { id: "pm", title: "Популярные фильмы", kind: "popular", type: "movie" },
-  { id: "ps", title: "Популярные сериалы", kind: "popular", type: "serial" },
-  { id: "hm", title: "Горячее: фильмы", kind: "hot", type: "movie" },
-  { id: "hs", title: "Горячее: сериалы", kind: "hot", type: "serial" },
+  { id: "pm", title: shelfTitle("popular", "movie"), kind: "popular", type: "movie" },
+  { id: "ps", title: shelfTitle("popular", "serial"), kind: "popular", type: "serial" },
+  { id: "hm", title: shelfTitle("hot", "movie"), kind: "hot", type: "movie" },
+  { id: "hs", title: shelfTitle("hot", "serial"), kind: "hot", type: "serial" },
 ];
 
 /**
