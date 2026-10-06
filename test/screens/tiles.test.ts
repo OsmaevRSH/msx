@@ -47,9 +47,20 @@ describe("posterTile", () => {
   it("id, kid, Russian title in two lines, year and КП rating in the stamp, medium poster, action to the card", async () => {
     const t = await make();
     assert.deepEqual(posterTile(t.ctx, summary()), {
-      id: "i1001", kid: "1001", title: "Тестовый", titleFooter: "{col:msx-white}фильм 1001", stamp: "2001 · 7,9",
+      id: "i1001", kid: "1001", ktail: "фильм 1001", title: "Тестовый", titleFooter: "{col:msx-white}фильм 1001", stamp: "2001 · 7,9",
       image: "https://cdn.test/m/1001.jpg", action: `content:request:interaction:item:1001@${TEST_P}`,
     });
+  });
+
+  it("V-10: ktail continues the first line for the headline of the focused tile; a one-line title — an empty string", async () => {
+    const t = await make();
+    const headline = (it: ItemSummary): string => {
+      const tile = posterTile(t.ctx, it);
+      return `${String(tile.title)} ${String(tile.ktail)}`.trim();
+    };
+    assert.equal(headline(summary({ title: "Властелин колец: Братство кольца / The Lord of the Rings" })), "Властелин колец: Братство кольца");
+    assert.equal(posterTile(t.ctx, summary({ title: "Брат 2" })).ktail, "");
+    assert.equal(headline(summary({ title: "Брат 2" })), "Брат 2");
   });
 
   it("empty stamp parts are dropped; a whole rating keeps one decimal", async () => {
@@ -95,11 +106,11 @@ describe("posterTile", () => {
 });
 
 describe("gridTemplate", () => {
-  it("separate glass tile with cover and round corners; focus prefetch selection by default (CD-10)", async () => {
+  it("separate glass tile with cover and round corners; the full title in the headline (V-10), focus prefetch (CD-10)", async () => {
     const t = await make();
     assert.deepEqual(gridTemplate(t.ctx, "0,0,2,4"), {
       type: "separate", layout: "0,0,2,4", color: "msx-glass", imageFiller: "cover", round: true, enumerate: false,
-      selection: { action: "interaction:commit:message:pf:{context:kid}" },
+      selection: { headline: "{context:title} {context:ktail}", action: "interaction:commit:message:pf:{context:kid}" },
     });
   });
 
@@ -108,10 +119,10 @@ describe("gridTemplate", () => {
     assert.equal(gridTemplate(t.ctx, "0,0,2,4").enumerate, false);
   });
 
-  it("focusPrefetch: off → no selection", async () => {
+  it("focusPrefetch: off → the selection only names the tile, no prefetch message", async () => {
     const t = await make({ flags: { focusPrefetch: "off" } });
     const tpl = gridTemplate(t.ctx, "0,0,2,4");
-    assert.ok(!("selection" in tpl));
+    assert.deepEqual(tpl.selection, { headline: "{context:title} {context:ktail}" });
     assert.equal(tpl.layout, "0,0,2,4");
   });
 });

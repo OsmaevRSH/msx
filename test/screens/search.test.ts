@@ -230,7 +230,9 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.equal(new Set(st(t).items.map((i) => i.id)).size, 96);
     assert.deepEqual(searches(t).map((q) => q.get("page")), ["1", "2"]);
     const s: MsxContentRoot = await t.request(ids.search());
-    assert.equal(items(s).length, 96);
+    // Клавиатура и 96 плиток с полным названием для шапки (V-10) больше 32 КБ: последнюю страницу MSX отрезает предохранитель.
+    assert.equal(items(s).length, 80);
+    assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
   });
 
   it("results stop at 96 (CNFR-16): no live, no third page, the hint says to refine the query", async () => {
@@ -243,7 +245,7 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.equal(st(t).done, true);
     const s: MsxContentRoot = await t.request(ids.search());
     assert.ok(items(s).every((i) => i.live === undefined));
-    assert.equal(line(s), `{ico:search} фи_ | Найдено: ${matches("фи")}, показаны первые 96 — уточните запрос`);
+    assert.equal(line(s), `{ico:search} фи_ | Найдено: ${matches("фи")}, показаны первые ${items(s).length} — уточните запрос`);
     assert.ok(Buffer.byteLength(JSON.stringify(s), "utf8") <= 32 * 1024);
     send(t, "extend:search");
     await t.clock.advance(1000);

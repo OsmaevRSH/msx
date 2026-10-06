@@ -176,7 +176,8 @@ describe("list response window (CNFR-16)", () => {
 
   it("long titles: the window shrinks by MSX pages keeping 32 seen tiles at the shift; every answer ≤ 32 KB", async () => {
     const t = await make();
-    const long = "Очень длинное название фильма ".repeat(6);
+    // Продолжение названия плитка несёт дважды — `titleFooter` и `ktail` для шапки (V-10): окно — около 48 плиток.
+    const long = "Очень длинное название фильма ".repeat(3);
     const big: ItemSummary[] = Array.from({ length: 144 }, (_, i) => ({
       id: 5000 + i, type: "movie", subtype: "", title: `${long}${i} / Long ${i}`, year: 2001, genres: [], countries: [],
       quality: 2160, kpRating: 7.9,

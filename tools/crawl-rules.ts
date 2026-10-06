@@ -108,11 +108,14 @@ export function addressIssues(v: unknown, P: string): string[] {
 }
 
 const CONTEXT = /\{context:([^{}]*)\}/g;
-const contextAllowed = (path: string): boolean => path === "template.selection.action" || path.startsWith("template.properties.");
+const CONTEXT_PATHS = new Set(["template.selection.action", "template.selection.headline", "template.selection.text"]);
+const contextAllowed = (path: string): boolean => CONTEXT_PATHS.has(path) || path.startsWith("template.properties.");
+const CONTEXT_WHERE = "outside template.selection (action, headline, text) and template.properties";
 
 /**
- * Р-36: `{context:…}` — только в `template.selection.action` и `template.properties`; MSX раскрывает его полем
- * элемента, нестроковое поле — пустой строкой, поэтому у каждого элемента корня поле есть и оно строка.
+ * Р-36: `{context:…}` — только в `template.selection` (`action`, `headline`, `text`) и `template.properties`; в
+ * `template.action` MSX его не раскрывает. Раскрывает полем элемента, нестроковое поле — пустой строкой, поэтому
+ * у каждого элемента корня поле есть и оно строка.
  */
 export function contextIssues(root: unknown): string[] {
   if (!isObj(root)) return [];
@@ -122,7 +125,7 @@ export function contextIssues(root: unknown): string[] {
     const names = [...s.matchAll(CONTEXT)].map((m) => m[1] ?? "");
     if (names.length === 0) return;
     if (contextAllowed(path)) for (const n of names) fields.add(n);
-    else out.push(`${path}: {context:…} outside template.selection.action and template.properties`);
+    else out.push(`${path}: {context:…} ${CONTEXT_WHERE}`);
   });
   const items = Array.isArray(root.items) ? root.items : [];
   for (const name of fields) {

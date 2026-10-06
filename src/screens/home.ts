@@ -130,7 +130,7 @@ const withMore = (ctx: AppContext, d: Def, tiles: MsxContentItem[], dataId: stri
   tiles.length === 0 ? [] : [...tiles, { id: `${d.id}_more`, title: T.more, action: contentAction(ctx.P, dataId) }];
 
 function titles(ctx: AppContext, d: Def, items: ItemSummary[]): MsxContentItem[] {
-  return posterTiles(ctx, items).map(({ kid: _kid, ...t }, i) => {
+  return posterTiles(ctx, items).map(({ kid: _kid, ktail: _ktail, ...t }, i) => {
     const id = items[i]?.id ?? 0;
     return focus(ctx, { ...TILE, ...t, id: `${d.id}${id}` }, id);
   });

@@ -57,21 +57,27 @@ describe("crawl rules", () => {
     assert.deepEqual(splitChain("a"), ["a"]);
   });
 
-  it("{context:…}: only in template.selection.action and template.properties, item fields are strings", () => {
+  it("{context:…}: only in template.selection (action, headline, text) and template.properties, item fields are strings", () => {
     const good = {
-      template: { selection: { action: "interaction:commit:message:pf:{context:kid}" }, properties: { "kp:i": "{context:kid}" } },
-      items: [{ kid: "1" }, { kid: "2" }],
+      template: {
+        selection: { action: "interaction:commit:message:pf:{context:kid}", headline: "{context:kname}", text: "{context:kid}" },
+        properties: { "kp:i": "{context:kid}" },
+      },
+      items: [{ kid: "1", kname: "Один" }, { kid: "2", kname: "" }],
     };
     assert.deepEqual(contextIssues(good), []);
     assert.deepEqual(expandContext("pf:{context:kid}", { kid: "7" }), "pf:7");
+    const where = "{context:…} outside template.selection (action, headline, text) and template.properties";
     assert.deepEqual(contextIssues({
-      template: { action: "content:{context:kid}", selection: { action: "pf:{context:kid}" } },
-      items: [{ kid: 1 }, { title: "{context:kid}" }],
+      template: { action: "content:{context:kid}", selection: { action: "pf:{context:kid}", headline: "{context:kname}", label: "{context:kid}" } },
+      items: [{ kid: 1, kname: "А" }, { title: "{context:kid}" }],
     }), [
-      "template.action: {context:…} outside template.selection.action and template.properties",
-      "items[1].title: {context:…} outside template.selection.action and template.properties",
+      `template.action: ${where}`,
+      `template.selection.label: ${where}`,
+      `items[1].title: ${where}`,
       "items[0].kid: {context:kid} needs a string field, got number",
       "items[1].kid: {context:kid} needs a string field, got undefined",
+      "items[1].kname: {context:kname} needs a string field, got undefined",
     ]);
   });
 

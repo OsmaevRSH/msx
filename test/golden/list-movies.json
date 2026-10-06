@@ -35,6 +35,7 @@
     "round": true,
     "enumerate": false,
     "selection": {
+      "headline": "{context:title} {context:ktail}",
       "action": "interaction:commit:message:pf:{context:kid}"
     }
   },
@@ -42,6 +43,7 @@
     {
       "id": "i1000",
       "kid": "1000",
+      "ktail": "фильм 1000",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1000",
       "stamp": "2003 · 7,4",
@@ -51,6 +53,7 @@
     {
       "id": "i1003",
       "kid": "1003",
+      "ktail": "фильм 1003",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1003",
       "stamp": "2005 · 5,8",
@@ -60,6 +63,7 @@
     {
       "id": "i1005",
       "kid": "1005",
+      "ktail": "фильм 1005",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1005",
       "stamp": "1994 · 8,0",
@@ -69,6 +73,7 @@
     {
       "id": "i1009",
       "kid": "1009",
+      "ktail": "фильм 1009",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1009",
       "stamp": "2009 · 7,5",
@@ -78,6 +83,7 @@
     {
       "id": "i1011",
       "kid": "1011",
+      "ktail": "фильм 1011",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1011",
       "stamp": "1998 · 9,7",
@@ -87,6 +93,7 @@
     {
       "id": "i1013",
       "kid": "1013",
+      "ktail": "фильм 1013",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1013",
       "stamp": "2024 · 7,0",
@@ -96,6 +103,7 @@
     {
       "id": "i1016",
       "kid": "1016",
+      "ktail": "фильм 1016",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1016",
       "stamp": "2026 · 5,4",
@@ -105,6 +113,7 @@
     {
       "id": "i1019",
       "kid": "1019",
+      "ktail": "фильм 1019",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1019",
       "stamp": "1991 · 8,7",
@@ -114,6 +123,7 @@
     {
       "id": "i1020",
       "kid": "1020",
+      "ktail": "фильм 1020",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1020",
       "stamp": "2004 · 9,8",
@@ -123,6 +133,7 @@
     {
       "id": "i1023",
       "kid": "1023",
+      "ktail": "фильм 1023",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1023",
       "stamp": "2006 · 8,2",
@@ -132,6 +143,7 @@
     {
       "id": "i1026",
       "kid": "1026",
+      "ktail": "фильм 1026",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1026",
       "stamp": "2008 · 6,6",
@@ -141,6 +153,7 @@
     {
       "id": "i1029",
       "kid": "1029",
+      "ktail": "фильм 1029",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1029",
       "stamp": "2010 · 5,0",
@@ -150,6 +163,7 @@
     {
       "id": "i1031",
       "kid": "1031",
+      "ktail": "фильм 1031",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1031",
       "stamp": "1999 · 7,2",
@@ -159,6 +173,7 @@
     {
       "id": "i1033",
       "kid": "1033",
+      "ktail": "фильм 1033",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1033",
       "stamp": "2025 · 9,4",
@@ -168,6 +183,7 @@
     {
       "id": "i1036",
       "kid": "1036",
+      "ktail": "фильм 1036",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1036",
       "stamp": "1990 · 7,8",
@@ -177,6 +193,7 @@
     {
       "id": "i1038",
       "kid": "1038",
+      "ktail": "фильм 1038",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1038",
       "stamp": "2016 · 5,1",
@@ -186,6 +203,7 @@
     {
       "id": "i1041",
       "kid": "1041",
+      "ktail": "фильм 1041",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1041",
       "stamp": "2018 · 8,4",
@@ -195,6 +213,7 @@
     {
       "id": "i1044",
       "kid": "1044",
+      "ktail": "фильм 1044",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1044",
       "stamp": "2020 · 6,8",
@@ -204,6 +223,7 @@
     {
       "id": "i1046",
       "kid": "1046",
+      "ktail": "фильм 1046",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1046",
       "stamp": "2009 · 9,0",
@@ -213,6 +233,7 @@
     {
       "id": "i1049",
       "kid": "1049",
+      "ktail": "фильм 1049",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1049",
       "stamp": "2011 · 7,4",
@@ -222,6 +243,7 @@
     {
       "id": "i1050",
       "kid": "1050",
+      "ktail": "фильм 1050",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1050",
       "stamp": "2024 · 8,5",
@@ -231,6 +253,7 @@
     {
       "id": "i1053",
       "kid": "1053",
+      "ktail": "фильм 1053",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1053",
       "stamp": "2026 · 6,9",
@@ -240,6 +263,7 @@
     {
       "id": "i1055",
       "kid": "1055",
+      "ktail": "фильм 1055",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1055",
       "stamp": "2015 · 9,1",
@@ -249,6 +273,7 @@
     {
       "id": "i1059",
       "kid": "1059",
+      "ktail": "фильм 1059",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1059",
       "stamp": "1993 · 8,6",
@@ -258,6 +283,7 @@
     {
       "id": "i1061",
       "kid": "1061",
+      "ktail": "фильм 1061",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1061",
       "stamp": "2019 · 5,9",
@@ -267,6 +293,7 @@
     {
       "id": "i1063",
       "kid": "1063",
+      "ktail": "фильм 1063",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1063",
       "stamp": "2008 · 8,1",
@@ -276,6 +303,7 @@
     {
       "id": "i1066",
       "kid": "1066",
+      "ktail": "фильм 1066",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1066",
       "stamp": "2010 · 6,5",
@@ -285,6 +313,7 @@
     {
       "id": "i1069",
       "kid": "1069",
+      "ktail": "фильм 1069",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1069",
       "stamp": "2012 · 9,8",
@@ -294,6 +323,7 @@
     {
       "id": "i1070",
       "kid": "1070",
+      "ktail": "фильм 1070",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1070",
       "stamp": "2025 · 6,0",
@@ -303,6 +333,7 @@
     {
       "id": "i1073",
       "kid": "1073",
+      "ktail": "фильм 1073",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1073",
       "stamp": "1990 · 9,3",
@@ -312,6 +343,7 @@
     {
       "id": "i1076",
       "kid": "1076",
+      "ktail": "фильм 1076",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1076",
       "stamp": "1992 · 7,7",
@@ -321,6 +353,7 @@
     {
       "id": "i1079",
       "kid": "1079",
+      "ktail": "фильм 1079",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1079",
       "stamp": "1994 · 6,1",
@@ -330,6 +363,7 @@
     {
       "id": "i1081",
       "kid": "1081",
+      "ktail": "фильм 1081",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1081",
       "stamp": "2020 · 8,3",
@@ -339,6 +373,7 @@
     {
       "id": "i1083",
       "kid": "1083",
+      "ktail": "фильм 1083",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1083",
       "stamp": "2009 · 5,6",
@@ -348,6 +383,7 @@
     {
       "id": "i1086",
       "kid": "1086",
+      "ktail": "фильм 1086",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1086",
       "stamp": "2011 · 8,9",
@@ -357,6 +393,7 @@
     {
       "id": "i1088",
       "kid": "1088",
+      "ktail": "фильм 1088",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1088",
       "stamp": "2000 · 6,2",
@@ -366,6 +403,7 @@
     {
       "id": "i1091",
       "kid": "1091",
+      "ktail": "фильм 1091",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1091",
       "stamp": "2002 · 9,5",
@@ -375,6 +413,7 @@
     {
       "id": "i1094",
       "kid": "1094",
+      "ktail": "фильм 1094",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1094",
       "stamp": "2004 · 7,9",
@@ -384,6 +423,7 @@
     {
       "id": "i1096",
       "kid": "1096",
+      "ktail": "фильм 1096",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1096",
       "stamp": "1993 · 5,2",
@@ -393,6 +433,7 @@
     {
       "id": "i1099",
       "kid": "1099",
+      "ktail": "фильм 1099",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1099",
       "stamp": "1995 · 8,5",
@@ -402,6 +443,7 @@
     {
       "id": "i1100",
       "kid": "1100",
+      "ktail": "фильм 1100",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1100",
       "stamp": "2008 · 9,6",
@@ -411,6 +453,7 @@
     {
       "id": "i1103",
       "kid": "1103",
+      "ktail": "фильм 1103",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1103",
       "stamp": "2010 · 8,0",
@@ -420,6 +463,7 @@
     {
       "id": "i1105",
       "kid": "1105",
+      "ktail": "фильм 1105",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1105",
       "stamp": "1999 · 5,3",
@@ -429,6 +473,7 @@
     {
       "id": "i1109",
       "kid": "1109",
+      "ktail": "фильм 1109",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1109",
       "stamp": "2014 · 9,7",
@@ -438,6 +483,7 @@
     {
       "id": "i1111",
       "kid": "1111",
+      "ktail": "фильм 1111",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1111",
       "stamp": "2003 · 7,0",
@@ -447,6 +493,7 @@
     {
       "id": "i1113",
       "kid": "1113",
+      "ktail": "фильм 1113",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1113",
       "stamp": "1992 · 9,2",
@@ -456,6 +503,7 @@
     {
       "id": "i1116",
       "kid": "1116",
+      "ktail": "фильм 1116",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1116",
       "stamp": "1994 · 7,6",
@@ -465,6 +513,7 @@
     {
       "id": "i1119",
       "kid": "1119",
+      "ktail": "фильм 1119",
       "title": "Тестовый",
       "titleFooter": "{col:msx-white}фильм 1119",
       "stamp": "1996 · 6,0",
