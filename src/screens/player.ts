@@ -1,8 +1,9 @@
 import type { AppContext } from "../app/context.ts";
-import type { Subtitle } from "../api/models.ts";
+import type { Audio, Subtitle } from "../api/models.ts";
 import { chain, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxResolveResponse } from "../msx/types.ts";
 import type { EpRef } from "../playback/episodes.ts";
+import type { SubsChoice } from "../playback/select.ts";
 import { KP_PROPS } from "../progress/session.ts";
 import { ids } from "../router/ids.ts";
 
@@ -21,8 +22,27 @@ const SNAPSHOT = "interaction:commit:video";
 const NOP = chain([]);
 const PERCENT_STEP = 5;
 const BUFFER_TIMEOUT_SEC = "10";
+/** Режим и шаг fallback пользователю ничего не говорят (V-27): они только в журнале resolve и в проверках «Диагностики». */
 const MODE_LABEL = { hls1: "HLS1", hls2: "HLS2" } as const;
-const STEP_SUFFIX: Record<ResolvedPlay["step"], string> = { 1: "", 2: " (новые ссылки)", 3: " (резерв, озвучка по умолчанию)" };
+const RETRY_TOAST = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
+/** Язык дорожки по-русски: озвучка — «Русский», субтитры — «Русские»; прочие коды — заглавными (V-20). */
+const LANGS: Readonly<Record<string, readonly [audio: string, subs: string]>> = {
+  rus: ["Русский", "Русские"], eng: ["Английский", "Английские"], ukr: ["Украинский", "Украинские"],
+};
+const SUBS_FORCED = "только надписи";
+const SUBS_OFF = "Выключены";
+
+const langName = (lang: string, k: 0 | 1): string => LANGS[lang.toLowerCase()]?.[k] ?? lang.toUpperCase();
+
+/** Студия озвучки, иначе её тип («Оригинал»), иначе язык — на кнопке карточки и в `label:extension`. */
+export const audioTitle = (a: Audio): string => a.authorTitle ?? a.typeTitle ?? langName(a.lang, 0);
+
+/** «Английские», «Английские · только надписи», «Выключены». */
+export function subsTitle(c: SubsChoice | "off"): string {
+  if (c === "off") return SUBS_OFF;
+  const name = langName(c.lang, 1);
+  return c.forced ? `${name} · ${SUBS_FORCED}` : name;
+}
 
 /** Действия, которые зависят от серии: у карточки — готовые строки, у шаблона сезона — `{context:…}`. */
 interface EpisodeActions { item: string; mid: string; prev?: string; next?: string; complete: string }
@@ -131,12 +151,10 @@ export function contextFields(ctx: AppContext, p: PlayerPropsInput): Record<stri
 
 /** Свойства, зависящие от конкретного запуска: позиция, метка, субтитры, режим и шаг цепочки fallback. */
 export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, string> {
-  const mode = MODE_LABEL[r.mode];
-  const label = [r.quality, r.audio, mode].filter((s) => s !== "").join(" · ");
   const out: Record<string, string> = {
     // Позиция KinoPub; `resume:key` не задаём, иначе MSX хранит свою и расходится с KinoPub (Plan B §5.7).
     "resume:position": String(r.position),
-    "label:extension": label + STEP_SUFFIX[r.step],
+    "label:extension": [r.quality, r.audio, r.props.probe === undefined ? "" : MODE_LABEL[r.mode]].filter((s) => s !== "").join(" · "),
   };
   if (r.subtitle !== undefined) {
     out["tizen:subtitle:url"] = r.subtitle.url;
@@ -145,7 +163,7 @@ export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, s
   }
   // Варианты hls2 уже ограничены качеством устройства — стартуем с верхнего (Plan B §5.8).
   if (r.mode === "hls2") out["tizen:stream:ADAPTIVE_INFO"] = "STARTBITRATE=HIGHEST";
-  if (r.step >= 2) out["trigger:load"] = `info:Предыдущий запуск не удался — пробую ${mode}`;
+  if (r.step >= 2) out["trigger:load"] = RETRY_TOAST;
   return out;
 }
 

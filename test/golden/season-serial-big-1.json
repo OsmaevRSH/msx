@@ -18,7 +18,7 @@
       "id": "e2001001",
       "title": "1. Серия 1",
       "titleFooter": "40 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E1",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 1 серия",
       "action": "video:resolve:request:interaction:play:2001:2001001:1:1@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001001.svg",
       "badge": "✓",
@@ -44,7 +44,7 @@
       "id": "e2001002",
       "title": "2. Серия 2",
       "titleFooter": "40 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E2",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 2 серия",
       "action": "video:resolve:request:interaction:play:2001:2001002:1:2@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001002.svg",
       "badge": "✓",
@@ -70,7 +70,7 @@
       "id": "e2001003",
       "title": "3. Серия 3",
       "titleFooter": "41 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E3",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 3 серия",
       "action": "video:resolve:request:interaction:play:2001:2001003:1:3@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001003.svg",
       "badge": "✓",
@@ -96,7 +96,7 @@
       "id": "e2001004",
       "title": "4. Серия 4",
       "titleFooter": "41 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E4",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 4 серия",
       "action": "video:resolve:request:interaction:play:2001:2001004:1:4@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001004.svg",
       "progress": 0.246,
@@ -122,7 +122,7 @@
       "id": "e2001005",
       "title": "5. Серия 5",
       "titleFooter": "41 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E5",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 5 серия",
       "action": "video:resolve:request:interaction:play:2001:2001005:1:5@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001005.svg",
       "options": {
@@ -146,7 +146,7 @@
       "id": "e2001006",
       "title": "6. Серия 6",
       "titleFooter": "41 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E6",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 6 серия",
       "action": "video:resolve:request:interaction:play:2001:2001006:1:6@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001006.svg",
       "options": {
@@ -170,7 +170,7 @@
       "id": "e2001007",
       "title": "7. Серия 7",
       "titleFooter": "41 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E7",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 7 серия",
       "action": "video:resolve:request:interaction:play:2001:2001007:1:7@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001007.svg",
       "options": {
@@ -194,7 +194,7 @@
       "id": "e2001008",
       "title": "8. Серия 8",
       "titleFooter": "41 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E8",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 8 серия",
       "action": "video:resolve:request:interaction:play:2001:2001008:1:8@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001008.svg",
       "options": {
@@ -218,7 +218,7 @@
       "id": "e2001009",
       "title": "9. Серия 9",
       "titleFooter": "42 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E9",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 9 серия",
       "action": "video:resolve:request:interaction:play:2001:2001009:1:9@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001009.svg",
       "options": {
@@ -242,7 +242,7 @@
       "id": "e2001010",
       "title": "10. Серия 10",
       "titleFooter": "42 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E10",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 10 серия",
       "action": "video:resolve:request:interaction:play:2001:2001010:1:10@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001010.svg",
       "options": {
@@ -266,7 +266,7 @@
       "id": "e2001011",
       "title": "11. Серия 11",
       "titleFooter": "42 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E11",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 11 серия",
       "action": "video:resolve:request:interaction:play:2001:2001011:1:11@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001011.svg",
       "options": {
@@ -290,7 +290,7 @@
       "id": "e2001012",
       "title": "12. Серия 12",
       "titleFooter": "42 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E12",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 12 серия",
       "action": "video:resolve:request:interaction:play:2001:2001012:1:12@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001012.svg",
       "options": {
@@ -314,7 +314,7 @@
       "id": "e2001013",
       "title": "13. Серия 13",
       "titleFooter": "42 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E13",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 13 серия",
       "action": "video:resolve:request:interaction:play:2001:2001013:1:13@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001013.svg",
       "options": {
@@ -338,7 +338,7 @@
       "id": "e2001014",
       "title": "14. Серия 14",
       "titleFooter": "42 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E14",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 14 серия",
       "action": "video:resolve:request:interaction:play:2001:2001014:1:14@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001014.svg",
       "options": {
@@ -362,7 +362,7 @@
       "id": "e2001015",
       "title": "15. Серия 15",
       "titleFooter": "43 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E15",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 15 серия",
       "action": "video:resolve:request:interaction:play:2001:2001015:1:15@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001015.svg",
       "options": {
@@ -386,7 +386,7 @@
       "id": "e2001016",
       "title": "16. Серия 16",
       "titleFooter": "43 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E16",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 16 серия",
       "action": "video:resolve:request:interaction:play:2001:2001016:1:16@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001016.svg",
       "options": {
@@ -410,7 +410,7 @@
       "id": "e2001017",
       "title": "17. Серия 17",
       "titleFooter": "43 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E17",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 17 серия",
       "action": "video:resolve:request:interaction:play:2001:2001017:1:17@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001017.svg",
       "options": {
@@ -434,7 +434,7 @@
       "id": "e2001018",
       "title": "18. Серия 18",
       "titleFooter": "43 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E18",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 18 серия",
       "action": "video:resolve:request:interaction:play:2001:2001018:1:18@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001018.svg",
       "options": {
@@ -458,7 +458,7 @@
       "id": "e2001019",
       "title": "19. Серия 19",
       "titleFooter": "43 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E19",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 19 серия",
       "action": "video:resolve:request:interaction:play:2001:2001019:1:19@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001019.svg",
       "options": {
@@ -482,7 +482,7 @@
       "id": "e2001020",
       "title": "20. Серия 20",
       "titleFooter": "40 мин",
-      "playerLabel": "Тестовый сериал «Большой» · S1E20",
+      "playerLabel": "Тестовый сериал «Большой» · 1 сезон, 20 серия",
       "action": "video:resolve:request:interaction:play:2001:2001020:1:20@https://example.github.io/msx/app/index.html",
       "image": "http://kpmock.invalid/poster/thumb/2001020.svg",
       "options": {

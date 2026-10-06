@@ -64,7 +64,7 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     const main = el(s, "b_main");
     assert.equal(main.type, "button");
     assert.equal(main.layout, "3,4,3,1");
-    assert.equal(main.label, "▶ Продолжить S1E4");
+    assert.equal(main.label, "▶ Продолжить: 1 сезон, 4 серия");
     assert.equal(main.focus, true);
     assert.equal(main.action, `video:resolve:request:interaction:play:2001:continue@${P}`);
     assert.equal(main.properties, undefined);
@@ -142,7 +142,7 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     await t.run(t.ctx.repo.item(BIG));
     await t.clock.advance(1000);
     t.ctx.overlay.set(BIG, 1, 4, { time: 2440, status: 1 });
-    assert.equal(el(await open(t, BIG), "b_main").label, "▶ S1E5");
+    assert.equal(el(await open(t, BIG), "b_main").label, "▶ Смотреть: 1 сезон, 5 серия");
   });
 });
 
@@ -150,7 +150,7 @@ describe("itemScreen: films", () => {
   it("MOVIE_SIMPLE: continue from the resume position, «С начала» by resolve, watched toggle in options", async () => {
     const t = await make();
     const s = await open(t, FIX.MOVIE_SIMPLE);
-    assert.equal(el(s, "b_main").label, "▶ Продолжить 19:57");
+    assert.equal(el(s, "b_main").label, "▶ Продолжить с 19:57");
     assert.equal(el(s, "b_second").label, "С начала");
     assert.equal(el(s, "b_second").action, resolveAction(P, ids.playStart(FIX.MOVIE_SIMPLE)));
     assert.deepEqual(options(s)[0], {
@@ -270,11 +270,11 @@ describe("onItemAct", () => {
   it("refresh reloads the card from KinoPub and redraws it", async () => {
     const t = await make();
     const s = await open(t, BIG);
-    assert.equal(el(s, "b_main").label, "▶ Продолжить S1E4");
+    assert.equal(el(s, "b_main").label, "▶ Продолжить: 1 сезон, 4 серия");
     t.mock.state.watching.set(watchKey(BIG, 1, 4), { time: 2440, status: 1, updated: 0 });
     await t.run(onItemAct(t.ctx, "refresh", [String(BIG)]));
     assert.deepEqual(actions(t), ["reload:content"]);
-    assert.equal(el(await open(t, BIG), "b_main").label, "▶ S1E5");
+    assert.equal(el(await open(t, BIG), "b_main").label, "▶ Смотреть: 1 сезон, 5 серия");
   });
 
   it("itemScreen is the router target of item:<id>", async () => {

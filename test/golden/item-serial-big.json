@@ -37,7 +37,7 @@
           "id": "b_main",
           "type": "button",
           "layout": "3,4,3,1",
-          "label": "▶ Продолжить S1E4",
+          "label": "▶ Продолжить: 1 сезон, 4 серия",
           "focus": true,
           "action": "video:resolve:request:interaction:play:2001:continue@https://example.github.io/msx/app/index.html"
         },

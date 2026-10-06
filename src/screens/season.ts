@@ -5,7 +5,7 @@ import { KpError } from "../core/errors.ts";
 import { fmtMinutes, ruTitle } from "../core/format.ts";
 import { panelAction, replaceContent, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
-import { continueTarget, findUnit, mergedState, orderedUnits } from "../playback/episodes.ts";
+import { continueTarget, episodeName, findUnit, mergedState, orderedUnits } from "../playback/episodes.ts";
 import type { EpRef } from "../playback/episodes.ts";
 import { ids } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
@@ -170,9 +170,9 @@ function episodeItem(ctx: AppContext, item: ItemDetail, m: SeasonModel, e: Episo
   return withProps ? { ...out, ...contextFields(ctx, playerInput(item, ref)) } : out;
 }
 
-/** Как метка ответа resolve: сериал «<название> · S1E5», часть фильма «<название> · Часть 2». */
+/** Как метка ответа resolve: сериал «<название> · 1 сезон, 5 серия», часть фильма «<название> · Часть 2». */
 function playerLabel(item: ItemDetail, ref: EpRef, serial: boolean): string {
   const title = ruTitle(item.title);
-  if (serial) return `${title} · S${ref.season}E${ref.video}`;
+  if (serial) return `${title} · ${episodeName(ref)}`;
   return item.videos.length > 1 ? `${title} · ${T.part} ${ref.video}` : title;
 }

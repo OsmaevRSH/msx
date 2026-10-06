@@ -104,7 +104,7 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     assert.equal(e4.title, "4. Серия 4");
     assert.equal(e4.titleFooter, fmtMinutes(duration(BIG, 4)));
     assert.match(e4.image ?? "", /thumb/);
-    assert.equal(e4.playerLabel, "Тестовый сериал «Большой» · S1E4");
+    assert.equal(e4.playerLabel, "Тестовый сериал «Большой» · 1 сезон, 4 серия");
     assert.equal(e4.action, resolveAction(P, ids.playEp(BIG, m4, 1, 4)));
     assert.equal(e4.properties, undefined);
     assert.deepEqual((e4.options?.items ?? []).map((i) => ({ label: i.label, action: i.action })), [

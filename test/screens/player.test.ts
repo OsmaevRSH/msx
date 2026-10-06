@@ -5,11 +5,13 @@ import { resolveAction } from "../../src/msx/actions.ts";
 import type { EpRef } from "../../src/playback/episodes.ts";
 import { ids } from "../../src/router/ids.ts";
 import {
+  audioTitle,
   buildResolveResponse,
   contextFields,
   contextPlayerProps,
   dynamicProps,
   playerProps,
+  subsTitle,
 } from "../../src/screens/player.ts";
 import type { PlayerPropsInput, ResolvedPlay } from "../../src/screens/player.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
@@ -31,7 +33,7 @@ const URL = "https://u.ams-static-14.cdntogo.net/hls/TOKEN/2/46/DBCtPgEVqLdlY5qQ
 
 function resolved(over: Partial<ResolvedPlay> = {}): ResolvedPlay {
   return {
-    url: URL, label: "Черное зеркало · S1E2", position: 1287, quality: "1080p", audio: "Кубик в Кубе",
+    url: URL, label: "Черное зеркало · 1 сезон, 2 серия", position: 1287, quality: "1080p", audio: "Кубик в Кубе",
     mode: "hls1", step: 1, props: MIDDLE, ...over,
   };
 }
@@ -43,7 +45,7 @@ function resolved(over: Partial<ResolvedPlay> = {}): ResolvedPlay {
 const EXAMPLE: Record<string, string> = {
   "kp:i": "8632", "kp:m": "82469", "kp:s": "1", "kp:e": "2", "kp:d": "3720",
   "resume:position": "1287",
-  "label:extension": "1080p · Кубик в Кубе · HLS1",
+  "label:extension": "1080p · Кубик в Кубе",
   "control:type": "extended",
   "tizen:buffer:size:init": "4",
   "tizen:buffer:size:resume": "6",
@@ -88,7 +90,7 @@ describe("buildResolveResponse: example of spec §9.2 (S1E2 with neighbours)", (
     const t = await make();
     const res = buildResolveResponse(t.ctx, resolved());
     assert.equal(res.url, URL);
-    assert.equal(res.label, "Черное зеркало · S1E2");
+    assert.equal(res.label, "Черное зеркало · 1 сезон, 2 серия");
     assert.equal(res.error, undefined);
     const props = res.properties ?? {};
     for (const [k, v] of Object.entries(EXAMPLE)) assert.equal(props[k], v, k);
@@ -250,10 +252,12 @@ describe("contextPlayerProps and contextFields (CDG-06, decision Р-18)", () => 
 });
 
 describe("dynamicProps", () => {
-  it("step 1 hls1: position and label, no trigger:load, no ADAPTIVE_INFO", async () => {
+  const RETRY = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
+
+  it("step 1 hls1: position and label «quality · audio» without the stream mode (V-27)", async () => {
     const t = await make();
     const d = dynamicProps(t.ctx, resolved());
-    assert.deepEqual(d, { "resume:position": "1287", "label:extension": "1080p · Кубик в Кубе · HLS1" });
+    assert.deepEqual(d, { "resume:position": "1287", "label:extension": "1080p · Кубик в Кубе" });
   });
 
   it("position none → \"none\"", async () => {
@@ -261,27 +265,33 @@ describe("dynamicProps", () => {
     assert.equal(dynamicProps(t.ctx, resolved({ position: "none" }))["resume:position"], "none");
   });
 
-  it("step 2 → «(новые ссылки)» and a toast on load", async () => {
+  it("step 2 → the same label, a toast without HLS1/HLS2", async () => {
     const t = await make();
     const d = dynamicProps(t.ctx, resolved({ step: 2 }));
-    assert.equal(d["label:extension"], "1080p · Кубик в Кубе · HLS1 (новые ссылки)");
-    assert.equal(d["trigger:load"], "info:Предыдущий запуск не удался — пробую HLS1");
+    assert.equal(d["label:extension"], "1080p · Кубик в Кубе");
+    assert.equal(d["trigger:load"], RETRY);
   });
 
-  it("step 3 hls2 → reserve label, ADAPTIVE_INFO, toast", async () => {
+  it("step 3 hls2 → «Авто», ADAPTIVE_INFO, toast", async () => {
     const t = await make();
     const d = dynamicProps(t.ctx, resolved({ step: 3, mode: "hls2", quality: "Авто", audio: "" }));
-    assert.equal(d["label:extension"], "Авто · HLS2 (резерв, озвучка по умолчанию)");
+    assert.equal(d["label:extension"], "Авто");
     assert.equal(d["tizen:stream:ADAPTIVE_INFO"], "STARTBITRATE=HIGHEST");
-    assert.equal(d["trigger:load"], "info:Предыдущий запуск не удался — пробую HLS2");
+    assert.equal(d["trigger:load"], RETRY);
   });
 
   it("hls2 on step 1 (flag or manual mode) → ADAPTIVE_INFO without a toast", async () => {
     const t = await make();
     const d = dynamicProps(t.ctx, resolved({ mode: "hls2", quality: "Авто", audio: "" }));
-    assert.equal(d["label:extension"], "Авто · HLS2");
+    assert.equal(d["label:extension"], "Авто");
     assert.equal(d["tizen:stream:ADAPTIVE_INFO"], "STARTBITRATE=HIGHEST");
     assert.equal(d["trigger:load"], undefined);
+  });
+
+  it("a «Диагностика» play (kp:p) keeps the stream mode in the label: it is a technical check", async () => {
+    const t = await make();
+    const d = dynamicProps(t.ctx, resolved({ mode: "hls2", quality: "Авто", audio: "", props: { ...MIDDLE, probe: "hls2" } }));
+    assert.equal(d["label:extension"], "Авто · HLS2");
   });
 
   it("subtitles: url; delay in ms only when shift ≠ 0", async () => {
@@ -300,7 +310,7 @@ describe("buildResolveResponse and playerPropsIn", () => {
     const t = await make();
     const props = buildResolveResponse(t.ctx, resolved({ step: 2 })).properties ?? {};
     assert.equal(props["button:next:key"], "channel_up");
-    assert.equal(props["trigger:load"], "info:Предыдущий запуск не удался — пробую HLS1");
+    assert.equal(props["trigger:load"], "info:Предыдущий запуск не удался — пробую другой способ воспроизведения");
   });
 
   it("item → only dynamic properties: no button:*, no kp:*, no triggers but trigger:load", async () => {
@@ -312,6 +322,26 @@ describe("buildResolveResponse and playerPropsIn", () => {
     assert.deepEqual(keys(props, /^trigger:/), ["trigger:load"]);
     assert.equal(props["resume:position"], "1287");
     assert.equal(res.url, URL);
-    assert.equal(res.label, "Черное зеркало · S1E2");
+    assert.equal(res.label, "Черное зеркало · 1 сезон, 2 серия");
+  });
+});
+
+describe("track names on the card and in the player (V-20)", () => {
+  const audio = (lang: string, extra: { typeTitle?: string; authorTitle?: string } = {}) =>
+    ({ id: 1, index: 1, codec: "aac", channels: 2, lang, ...extra });
+
+  it("audio: studio, otherwise its type, otherwise the language in Russian; an unknown code in capitals", () => {
+    assert.equal(audioTitle(audio("rus", { typeTitle: "Дубляж", authorTitle: "Студия Альфа" })), "Студия Альфа");
+    assert.equal(audioTitle(audio("eng", { typeTitle: "Оригинал" })), "Оригинал");
+    assert.deepEqual(["rus", "ENG", "ukr", "fre"].map((l) => audioTitle(audio(l))), ["Русский", "Английский", "Украинский", "FRE"]);
+  });
+
+  it("subtitles: plural language names, forced as «только надписи», off as «Выключены»", () => {
+    assert.deepEqual(
+      ["rus", "eng", "ukr", "fre"].map((lang) => subsTitle({ lang, forced: false })),
+      ["Русские", "Английские", "Украинские", "FRE"],
+    );
+    assert.equal(subsTitle({ lang: "eng", forced: true }), "Английские · только надписи");
+    assert.equal(subsTitle("off"), "Выключены");
   });
 });
