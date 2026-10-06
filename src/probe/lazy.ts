@@ -16,12 +16,19 @@ export const PROBE_LOAD_TIMEOUT_MS = 15_000;
 const TAG = "probe";
 
 const notConfigured: ProbeLoad = () => Promise.reject(new Error("probe.js loader is not configured"));
+const noop = (): void => undefined;
 
 class LazyProbe {
   private ctx: AppContext;
   private load: ProbeLoad;
   private mod: ProbeModule | undefined;
+  /** Ожидание модуля со сроком: параллельные вызовы ждут одно. */
   private pending: Promise<ProbeModule> | undefined;
+  /**
+   * Вызов загрузчика (`<script>` probe.js) в полёте. Переживает срок ожидания: повтор ждёт его же, а не вставляет
+   * второй `<script>`, который гонялся бы с опоздавшим первым за `globalThis.kpProbe`.
+   */
+  private loading: Promise<ProbeModule> | undefined;
 
   constructor(ctx: AppContext, load: ProbeLoad) {
     this.ctx = ctx;
@@ -34,41 +41,58 @@ class LazyProbe {
 
   get(): Promise<ProbeModule> {
     if (this.mod !== undefined) return Promise.resolve(this.mod);
-    this.pending ??= this.start();
+    this.pending ??= this.wait();
     return this.pending;
   }
 
-  private async start(): Promise<ProbeModule> {
-    const { ctx } = this;
-    const t0 = ctx.clock.perf();
+  private async wait(): Promise<ProbeModule> {
     try {
-      const mod = await this.timed();
-      mod.install(ctx);
-      this.mod = mod;
-      const ms = Math.round(ctx.clock.perf() - t0);
-      ctx.metrics.record("probe:load", ms);
-      ctx.log.info(TAG, "probe.js loaded", { ms });
-      return mod;
+      return await this.timed(this.loading ??= this.fetch());
     } catch (e) {
       this.pending = undefined;
       const msg = e instanceof Error ? e.message : String(e);
-      ctx.log.warn(TAG, "probe_load_failed", { msg });
+      this.ctx.log.warn(TAG, "probe_load_failed", { msg });
       throw new KpError("KP-NET", "probe.js not loaded", undefined, msg);
     }
   }
 
-  /** Поздно пришедший модуль после таймаута не ставится: следующий запрос загрузит заново. */
-  private timed(): Promise<ProbeModule> {
+  /**
+   * Один вызов загрузчика; версию probe.js сверяет он (src/main.ts). Модуль ставится, даже если пришёл после срока
+   * ожидания; отказ освобождает место следующей загрузке.
+   */
+  private fetch(): Promise<ProbeModule> {
+    const t0 = this.ctx.clock.perf();
+    let started: Promise<ProbeModule>;
+    try {
+      started = this.load();
+    } catch (e) {
+      started = Promise.reject(e);
+    }
+    const p = started.then((mod) => this.accept(mod, t0)).finally(() => {
+      this.loading = undefined;
+    });
+    // Отказ после срока ожидания уже никто не ждёт.
+    p.catch(noop);
+    return p;
+  }
+
+  /** Одна регистрация: `install` — только для первого модуля. */
+  private accept(mod: ProbeModule, t0: number): ProbeModule {
+    if (this.mod !== undefined) return this.mod;
+    const { ctx } = this;
+    mod.install(ctx);
+    this.mod = mod;
+    const ms = Math.round(ctx.clock.perf() - t0);
+    ctx.metrics.record("probe:load", ms);
+    ctx.log.info(TAG, "probe.js loaded", { ms });
+    return mod;
+  }
+
+  private timed(p: Promise<ProbeModule>): Promise<ProbeModule> {
     const { clock } = this.ctx;
     return new Promise((resolve, reject) => {
       const timer = clock.setTimeout(() => reject(new Error(`timeout ${PROBE_LOAD_TIMEOUT_MS} ms`)), PROBE_LOAD_TIMEOUT_MS);
-      let started: Promise<ProbeModule>;
-      try {
-        started = this.load();
-      } catch (e) {
-        started = Promise.reject(e);
-      }
-      started.then(resolve, reject).finally(() => clock.clearTimeout(timer));
+      p.then(resolve, reject).finally(() => clock.clearTimeout(timer));
     });
   }
 }
@@ -89,7 +113,8 @@ export function probeOnReady(ctx: AppContext): void {
 
 /**
  * Модуль пробника; первая загрузка ставит `ctx.probe` и проверки уровня ТВ. Параллельные вызовы ждут одну загрузку;
- * отказ или таймаут — `KpError("KP-NET")`, а следующий вызов загружает заново.
+ * отказ или таймаут — `KpError("KP-NET")`. Следующий вызов ждёт ту же загрузку, если она ещё идёт, иначе загружает
+ * заново.
  */
 export function probeModule(ctx: AppContext): Promise<ProbeModule> {
   const p = probes.get(ctx);

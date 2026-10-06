@@ -79,7 +79,7 @@ describe("buildReport and reportLine (spec §13, CM-05)", () => {
     t.ctx.state.msxInfo = { platform: "tizen", version: "0.1.165", player: "tizen", model: `QE55 at ${ip(192, 168, 1, 7)}` };
     t.ctx.log.warn("test", `token ${token} seen from ${ip(10, 20, 30, 40)}`, { url: `https://h/v1/user?access_token=${token}`, user_code: "AB12CD" });
     t.ctx.log.info("test", "device code=QWERTY user_code=AB12CD");
-    t.ctx.probe.record({ id: "CDG-01", ok: true, summary: `ответ от ${ip(172, 16, 5, 4)}, токен ${token}`, values: { status: 401 }, at: 1 });
+    t.ctx.probe!.record({ id: "CDG-01", ok: true, summary: `ответ от ${ip(172, 16, 5, 4)}, токен ${token}`, values: { status: 401 }, at: 1 });
 
     const line = reportLine(buildReport(t.ctx));
     assert.deepEqual(scanText("report.txt", line), []);
@@ -110,8 +110,8 @@ describe("buildReport and reportLine (spec §13, CM-05)", () => {
 describe("reportPages: text pages for a photo (spec §13)", () => {
   it("2–4 pages of ≤ 12 lines; one row per CDG with ✓/✗/—", async () => {
     const t = await make();
-    t.ctx.probe.record({ id: "CDG-05", ok: true, summary: "TTFF p50 1,9 с p95 2,4 с", values: { a1: 1900 }, at: 1 });
-    t.ctx.probe.record({ id: "CDG-09", ok: false, summary: "квота 900 КБ", values: {}, at: 1 });
+    t.ctx.probe!.record({ id: "CDG-05", ok: true, summary: "TTFF p50 1,9 с p95 2,4 с", values: { a1: 1900 }, at: 1 });
+    t.ctx.probe!.record({ id: "CDG-09", ok: false, summary: "квота 900 КБ", values: {}, at: 1 });
     t.ctx.log.error("test", "boom");
     const pages = reportPages(buildReport(t.ctx));
     assert.ok(pages.length >= 2 && pages.length <= 4, String(pages.length));

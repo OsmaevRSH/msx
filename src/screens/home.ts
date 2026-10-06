@@ -1,6 +1,7 @@
 import type { AppContext } from "../app/context.ts";
-import type { ItemSummary } from "../api/models.ts";
+import type { HistoryEntry, ItemSummary, User } from "../api/models.ts";
 import type { ReqClass } from "../api/transport.ts";
+import { cacheKeys } from "../cache/repo.ts";
 import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
@@ -16,8 +17,8 @@ import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import { posterTiles } from "./tiles.ts";
 
 // Главная S4 (спец. §8.4, §11; Plan B S4, D-34, D-40). Всё, что есть в кэше, отдаётся сразу, персональное — с оверлеем
-// прогресса ТВ; KinoPub ждём только при пустом кэше и не дольше 1,5 с (CNFR-05). Не успевшие полки и устаревшие
-// персональные данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его
+// прогресса ТВ; KinoPub ждём, только если из кэша показать нечего, и не дольше 1,5 с (CNFR-05). Недостающие полки и
+// устаревшие персональные данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его
 // персональная часть или набор полок (спец. §6.3). Показ, которого ждёт пользователь, — передний план; прогрев, фоновые
 // сверки и обновление подборок из кэша — `bg`, чтобы не отнимать слоты у действий пользователя (спец. §8.3–8.5).
 
@@ -61,6 +62,7 @@ const DEFS: readonly Def[] = [
 
 /** Плитки без `layout`; `personal` — вклад полки в хеш (Plan B §7.7), `stale` — персональные данные устарели. */
 interface Shelf { def: Def; tiles: MsxContentItem[]; personal?: unknown; stale: boolean }
+/** `stale` — устарели персональные данные полок или строка о подписке (или `user` ещё не пришёл). */
 interface Snap { shelves: Shelf[]; pending: boolean; stale: boolean; err?: unknown }
 
 /**
@@ -133,28 +135,49 @@ async function loadShelf(ctx: AppContext, d: Def, o: ReqOpts): Promise<Shelf> {
   return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES)), more), stale: false };
 }
 
-/** Загрузки всех полок по порядку; `user` — последним, для строки о подписке (только из кэша). */
-function start(ctx: AppContext, o: ReqOpts): Promise<Shelf>[] {
-  const loads = DEFS.map((d) => loadShelf(ctx, d, o));
-  ctx.repo.user(o).catch(noop);
-  return loads;
+/**
+ * Данные полки уже в L1/L2: её загрузка ответит без сети. Запись старше stale-max всё же пойдёт в сеть — такую держит
+ * срок ответа.
+ */
+function cached(ctx: AppContext, d: Def): boolean {
+  const has = (key: string): boolean => ctx.cache.peek(key) !== undefined;
+  if (d.kind === "bookmarks") return has(cacheKeys.bookmarks());
+  if (d.kind !== "continue") return ctx.repo.peekShelf(d.kind, d.type ?? "") !== undefined;
+  const h = ctx.cache.peek<HistoryEntry[]>(cacheKeys.history());
+  return h !== undefined && has(cacheKeys.serials()) && (h.value.length > 0 || has(cacheKeys.movies()));
+}
+
+/**
+ * Загрузки всех полок по порядку; `user` — последним, для строки о подписке. Показ ждёт её из кэша, а если из кэша
+ * показать нечего — до срока вместе с полками.
+ */
+interface Loads { shelves: Promise<Shelf>[]; user: Promise<Got<User> | undefined> }
+
+function start(ctx: AppContext, o: ReqOpts): Loads {
+  const shelves = DEFS.map((d) => loadShelf(ctx, d, o));
+  return { shelves, user: ctx.repo.user(o).catch(() => undefined) };
 }
 
 /** Снимок того, что уже пришло: порядок полок сохраняется, пустые не выводятся. */
-function watch(loads: Promise<Shelf>[]): () => Snap {
+function watch(loads: Loads): () => Snap {
   const done: Shelf[] = [];
-  let left = loads.length;
+  let left = loads.shelves.length;
   let err: unknown;
-  loads.forEach((p, i) => p.then((s) => {
+  let userStale = true;
+  loads.shelves.forEach((p, i) => p.then((s) => {
     done[i] = s;
     left -= 1;
   }, (e: unknown) => {
     err ??= e;
     left -= 1;
   }));
+  void loads.user.then((g) => {
+    userStale = g?.stale === true;
+  });
   return () => {
     const all = done.filter((s) => s !== undefined);
-    const snap: Snap = { shelves: all.filter((s) => s.tiles.length > 0), pending: left > 0, stale: all.some((s) => s.stale) };
+    const stale = userStale || all.some((s) => s.stale);
+    const snap: Snap = { shelves: all.filter((s) => s.tiles.length > 0), pending: left > 0, stale };
     if (err !== undefined) snap.err = err;
     return snap;
   };
@@ -175,7 +198,7 @@ function within(clock: Clock, ps: Promise<unknown>[], ms: number): Promise<void>
 async function settle(ctx: AppContext): Promise<Snap> {
   const loads = start(ctx, BG);
   const snap = watch(loads);
-  await Promise.allSettled(loads);
+  await Promise.allSettled([...loads.shelves, loads.user]);
   return snap();
 }
 
@@ -185,8 +208,8 @@ function headline(ctx: AppContext): string {
   return `${T.warning} ${NO_SUBSCRIPTION_TEXT}${s.endTime > 0 ? ` (до ${fmtDate(s.endTime)})` : ""}`;
 }
 
-function rootOf(ctx: AppContext, pages: MsxContentPage[]): MsxContentRoot {
-  return { type: "list", compress: true, flag: FLAG, cache: false, reuse: false, headline: headline(ctx), template: TEMPLATE, pages };
+function rootOf(head: string, pages: MsxContentPage[]): MsxContentRoot {
+  return { type: "list", compress: true, flag: FLAG, cache: false, reuse: false, headline: head, template: TEMPLATE, pages };
 }
 
 /** Две полки на страницу: заголовок `0,y,16,1`, плитки `x,y+1,2,3` (Plan B S4). */
@@ -210,22 +233,26 @@ function message(text: string): MsxContentItem[] {
   ];
 }
 
-/** Экран и хеш его персональной части. CNFR-16: полки с конца снимаются, пока JSON больше 32 КБ. */
+/**
+ * Экран и хеш его персональной части: строка о подписке и полки. CNFR-16: полки с конца снимаются, пока JSON больше
+ * 32 КБ.
+ */
 function render(ctx: AppContext, s: Snap): { root: MsxContentRoot; hash: string } {
+  const head = headline(ctx);
   let shelves = s.shelves;
   if (shelves.length === 0) {
     const state = s.pending ? "loading" : s.err !== undefined ? "error" : "empty";
     const items = state === "error"
       ? errorItems(ctx, s.err, { retry: RETRY_CONTENT, offerLogin: true, width: WIDTH })
       : message(state === "loading" ? T.loading : T.empty);
-    return { root: rootOf(ctx, [{ items }]), hash: personalHash(state) };
+    return { root: rootOf(head, [{ items }]), hash: personalHash([head, state]) };
   }
-  let root = rootOf(ctx, pagesOf(shelves));
+  let root = rootOf(head, pagesOf(shelves));
   while (shelves.length > 1 && bytes(root) > MAX_BYTES) {
     shelves = shelves.slice(0, -1);
-    root = rootOf(ctx, pagesOf(shelves));
+    root = rootOf(head, pagesOf(shelves));
   }
-  return { root, hash: personalHash(shelves.map((x) => [x.def.id, x.personal])) };
+  return { root, hash: personalHash([head, shelves.map((x) => [x.def.id, x.personal])]) };
 }
 
 function remember(ctx: AppContext, s: Snap): void {
@@ -234,7 +261,7 @@ function remember(ctx: AppContext, s: Snap): void {
   else failures.delete(ctx);
 }
 
-/** Пересчёт для `scheduleRefresh`: дождаться полок, устаревшее — обновить и сверить через 3 с. */
+/** Пересчёт для `scheduleRefresh`: дождаться полок и `user`, устаревшее — обновить и сверить через 3 с. */
 async function recompute(ctx: AppContext): Promise<string> {
   let s = await settle(ctx);
   if (s.stale) {
@@ -246,9 +273,18 @@ async function recompute(ctx: AppContext): Promise<string> {
 }
 
 export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
+  const hits = DEFS.map((d) => cached(ctx, d));
+  const userHit = ctx.repo.peekUser() !== undefined;
+  const t0 = ctx.clock.perf();
   const loads = start(ctx, FG);
   const snap = watch(loads);
-  await within(ctx.clock, loads, DEADLINE_MS);
+  // Полки из кэша — сразу, недостающие придут заменой; сеть ждём, только если из кэша показать нечего.
+  const fromCache: Promise<unknown>[] = loads.shelves.filter((_, i) => hits[i]);
+  if (userHit) fromCache.push(loads.user);
+  await within(ctx.clock, fromCache, DEADLINE_MS);
+  if (snap().shelves.length === 0) {
+    await within(ctx.clock, [...loads.shelves, loads.user], Math.max(0, DEADLINE_MS - (ctx.clock.perf() - t0)));
+  }
   const s = snap();
   const late = s.pending;
   remember(ctx, s);
@@ -267,5 +303,5 @@ export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
 
 /** После `ready` (спец. §6.1, §8.3): полки обновляются через SWR, чтобы L2 был тёплым к открытию главной. */
 export function warmHome(ctx: AppContext): void {
-  void Promise.allSettled(start(ctx, BG));
+  void Promise.allSettled(start(ctx, BG).shelves);
 }

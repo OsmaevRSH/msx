@@ -111,7 +111,7 @@ export async function probeScreen(ctx: AppContext, page?: string): Promise<MsxCo
   if (page?.startsWith("flag:") === true) return flagPanel(ctx, page.slice("flag:".length));
 
   const logged = ctx.auth.isLoggedIn();
-  const byId = new Map(ctx.probe.results().map((r) => [r.id, r]));
+  const byId = new Map(ctx.probe!.results().map((r) => [r.id, r]));
   const items: MsxContentItem[] = (logged ? CHECK_IDS : PUBLIC_CHECKS).map((id) => checkRow(id, byId.get(id)));
   items.push(
     button("b_runApi", T.runApi, chain([`info:${T.apiStarted}`, commitMsg(msgs.act("probe", "runApi"))]), 6),
@@ -139,18 +139,18 @@ function refresh(ctx: AppContext, toast?: string): void {
 export async function onProbeAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
   switch (name) {
     case "runApi":
-      await ctx.probe.runApi();
+      await ctx.probe!.runApi();
       refresh(ctx);
       return;
     case "run": {
       const id = API_CHECKS.find((c) => c === args[0]);
       if (id === undefined) break;
-      await ctx.probe.run(id);
+      await ctx.probe!.run(id);
       refresh(ctx);
       return;
     }
     case "persistWrite":
-      ctx.probe.persistWrite();
+      ctx.probe!.persistWrite();
       refresh(ctx, T.persisted);
       return;
     case "console":

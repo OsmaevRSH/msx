@@ -280,6 +280,31 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
     console.log(`# home from L2: ${realMs.toFixed(1)} ms, ${bytes(s)} bytes`);
   });
 
+  it("L2 has 3 of 8 shelves, KinoPub 600 ms late: those 3 at once, the rest by a single replace (спец. §8.4 п. 1)", async () => {
+    const first = await make();
+    await open(first);
+    await persisted(first);
+    // В L2 остаются «Продолжить просмотр» (история, сериалы), «Новые фильмы» и «Новые сериалы».
+    const gone = [cacheKeys.bookmarks(), ...["popular", "hot"].flatMap((kind) => ["movie", "serial"].map((type) => cacheKeys.shelf(kind, type)))];
+    for (const k of gone) first.ctx.l2.remove(k);
+    first.mock.setScenario({ delayMs: 600 });
+    const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false });
+    const real0 = performance.now();
+    const fake0 = t.clock.perf();
+    const s = (await t.app.handleRequest(HOME, {})) as MsxContentRoot;
+    const realMs = performance.now() - real0;
+    assert.equal(t.clock.perf(), fake0, "answered without waiting for KinoPub");
+    assert.ok(realMs <= 50, `partial home from L2 took ${realMs.toFixed(1)} ms`);
+    assert.deepEqual(headers(s), ALL.slice(0, 3));
+    await driveToAction(t);
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.deepEqual(headers(await open(t)), ALL);
+    await t.clock.advance(RECHECK_MS);
+    await realSleep(50);
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.equal(counter(t, "refresh:replaced"), 1);
+  });
+
   it("stale L2 two hours later: still at once, refresh in the background", async () => {
     const first = await make();
     await open(first);
@@ -302,6 +327,20 @@ function slower(t: TestApp): void {
   const simple = t.mock.state.history.find((h) => h.item === FIX.MOVIE_SIMPLE);
   assert.ok(simple);
   simple.time = 3000;
+}
+
+const ENDED = "{ico:msx-yellow:warning} Подписка KinoPub неактивна (до 15.03.2026)";
+
+/** Mock всегда отдаёт активную подписку: `active: false` подменяет её в ответе `/v1/user` на истёкшую. */
+function subscription(t: TestApp): { active: boolean } {
+  const sub = { active: true };
+  const user = t.ctx.api.user.bind(t.ctx.api);
+  const ended = { active: false, endTime: Date.UTC(2026, 2, 15, 12) / 1000, days: 0 };
+  t.ctx.api.user = async (cls) => {
+    const u = await user(cls);
+    return sub.active ? u : { ...u, subscription: ended };
+  };
+  return sub;
 }
 
 describe("homeScreen: conditional redraw (спец. §6.3, D-40)", () => {
@@ -349,6 +388,34 @@ describe("homeScreen: conditional redraw (спец. §6.3, D-40)", () => {
     await t.clock.advance(RECHECK_MS);
     await realSleep(50);
     assert.equal(counter(t, "refresh:unchanged") + counter(t, "refresh:replaced"), 0);
+  });
+
+  it("subscription expired, then renewed in KinoPub → replace:content:home with the new headline each time", async () => {
+    const t = await make();
+    const sub = subscription(t);
+    assert.equal((await open(t)).headline, "Главная");
+    await persisted(t);
+    for (const [active, headline] of [[false, ENDED], [true, "Главная"]] as const) {
+      sub.active = active;
+      // Устарел только `user`: полки свежие, их вклад в хеш прежний.
+      t.ctx.cache.markStale(cacheKeys.user());
+      const n = actions(t).length;
+      assert.notEqual((await open(t)).headline, headline, "the cached subscription is shown first");
+      await driveToAction(t);
+      assert.deepEqual(actions(t).slice(n), [REPLACE]);
+      assert.equal((await open(t)).headline, headline);
+    }
+  });
+
+  it("first launch: the subscription line arrives after the shelves → replace:content:home with the warning", async () => {
+    const t = await make();
+    subscription(t).active = false;
+    t.mock.setScenario({ rules: [{ path: "^/v1/user$", delayMs: 600 }] });
+    const s = await open(t);
+    assert.deepEqual([s.headline, headers(s)], ["Главная", ALL]);
+    await driveToAction(t);
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.equal((await open(t)).headline, ENDED);
   });
 
   it("after playback the home under the player is redrawn with the TV overlay (trackScreen)", async () => {

@@ -90,7 +90,7 @@ export function buildReport(ctx: AppContext): Report {
     at: ctx.clock.now(),
     msxInfo: ctx.state.msxInfo ?? null,
     flags: ctx.flags.overrides(),
-    results: ctx.probe.results(),
+    results: ctx.probe!.results(),
     metrics: ctx.metrics.summary(),
     persist: loadPersist(ctx.store),
     cold: loadCold(ctx.store),

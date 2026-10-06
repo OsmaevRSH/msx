@@ -101,7 +101,7 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     assertNoCorsVerdict([list, card]);
     const before = probes(t).length;
 
-    const cdg01 = await t.run(t.ctx.probe.run("CDG-01"));
+    const cdg01 = await t.run(t.ctx.probe!.run("CDG-01"));
     assert.equal(cdg01.ok, false);
     assert.equal(cdg01.values.code, "KP-CORS");
     assert.match(cdg01.summary, /^KP-CORS/);

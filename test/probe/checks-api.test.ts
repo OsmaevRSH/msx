@@ -24,7 +24,7 @@ async function make(o: TestAppOptions = {}): Promise<TestApp> {
   return t;
 }
 
-const run = (t: TestApp, id: CheckId): Promise<CheckResult> => t.run(t.ctx.probe.run(id));
+const run = (t: TestApp, id: CheckId): Promise<CheckResult> => t.run(t.ctx.probe!.run(id));
 const apiCalls = (t: TestApp): CallRecord[] => t.mock.calls().filter((c) => c.path.startsWith("/v1/") || c.path.startsWith("/oauth2/"));
 const onlyTypesProbe = (calls: CallRecord[]): boolean =>
   calls.every((c) => c.method === "GET" && c.path === "/v1/types" && c.query === "access_token=x");
@@ -213,7 +213,7 @@ describe("CDG-09: storage survives restarts, quota, purge of kp.l2.* only", () =
     const storage = new MemoryStorage({ quotaBytes: 3_000_000 });
     const t = await make({ storage, loggedIn: true });
     await ready(t);
-    t.ctx.probe.persistWrite();
+    t.ctx.probe!.persistWrite();
     const pair = storage.getItem("kp.auth.pair");
     assert.ok(pair !== null);
     const r = await run(t, "CDG-09");
@@ -243,7 +243,7 @@ describe("CDG-09: storage survives restarts, quota, purge of kp.l2.* only", () =
   it("a lost L2 block or a lost marker shows up in the next start's record", async () => {
     const storage = new MemoryStorage();
     const t = await make({ storage });
-    t.ctx.probe.persistWrite();
+    t.ctx.probe!.persistWrite();
     storage.removeItem("kp.l2.probe.c3");
     const t2 = await make({ storage, mock: t.mock });
     await ready(t2);
@@ -258,7 +258,7 @@ describe("CDG-09: storage survives restarts, quota, purge of kp.l2.* only", () =
   it("blocks evicted by the L2 budget or purged on quota are not a loss; losing a remaining block still is", async () => {
     const storage = new MemoryStorage();
     const t = await make({ storage });
-    t.ctx.probe.persistWrite();
+    t.ctx.probe!.persistWrite();
     await t.clock.advance(1000);
     t.ctx.l2.put("item:1:", "x".repeat(300_000));
     t.ctx.l2.flush();
@@ -346,7 +346,7 @@ describe("ProbeRunner", () => {
   it("runApi without login: 01, 02, 09, 10 run; 03, 04, 08 wait for login", async () => {
     const t = await make();
     await ready(t);
-    const rs = await t.run(t.ctx.probe.runApi());
+    const rs = await t.run(t.ctx.probe!.runApi());
     assert.deepEqual(rs.map((r) => r.id), API);
     for (const r of rs) {
       if (["CDG-03", "CDG-04", "CDG-08"].includes(r.id)) assert.equal(r.ok, null, r.id);
@@ -358,34 +358,34 @@ describe("ProbeRunner", () => {
     const storage = new MemoryStorage();
     const t = await make({ storage, loggedIn: true });
     await ready(t);
-    const rs = await t.run(t.ctx.probe.runApi());
+    const rs = await t.run(t.ctx.probe!.runApi());
     for (const r of rs) assert.equal(r.ok, true, `${r.id}: ${r.summary}`);
     assert.ok(storage.getItem(`kp.cfg.${PROBE_KEYS.results}`) !== null);
 
     const t2 = await make({ storage, mock: t.mock });
-    assert.deepEqual(t2.ctx.probe.results().map((r) => r.id), API);
+    assert.deepEqual(t2.ctx.probe!.results().map((r) => r.id), API);
   });
 
   it("a «needs login» result does not overwrite an earlier one", async () => {
     const t = await make();
     const earlier: CheckResult = { id: "CDG-04", ok: true, summary: "раньше", values: {}, at: 1 };
-    t.ctx.probe.record(earlier);
+    t.ctx.probe!.record(earlier);
     const r = await run(t, "CDG-04");
     assert.equal(r.ok, null);
-    assert.deepEqual(t.ctx.probe.results().find((x) => x.id === "CDG-04"), earlier);
+    assert.deepEqual(t.ctx.probe!.results().find((x) => x.id === "CDG-04"), earlier);
   });
 
   it("TV checks return the recorded result (stage 23 records them)", async () => {
     const t = await make();
     assert.equal((await run(t, "CDG-05")).ok, null);
     const rec: CheckResult = { id: "CDG-05", ok: true, summary: "TTFF", values: { ttff: 1900 }, at: 5 };
-    t.ctx.probe.record(rec);
+    t.ctx.probe!.record(rec);
     assert.deepEqual(await run(t, "CDG-05"), rec);
   });
 
   it("concurrent runs of one check share a single pass", async () => {
     const t = await make();
-    const [a, b] = await t.run(Promise.all([t.ctx.probe.run("CDG-01"), t.ctx.probe.run("CDG-01")]));
+    const [a, b] = await t.run(Promise.all([t.ctx.probe!.run("CDG-01"), t.ctx.probe!.run("CDG-01")]));
     assert.equal(a, b);
     assert.equal(apiCalls(t).length, 1);
   });
