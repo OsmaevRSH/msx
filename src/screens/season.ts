@@ -12,20 +12,29 @@ import { errorScreen } from "./error.ts";
 import {
   freshItem, isSerial, optionsRoot, playerInput, prefetchLinks, scheduleScreenRefresh, watchedRow,
 } from "./item.ts";
+import type { OptionRow } from "./item.ts";
 import { contextFields, contextPlayerProps } from "./player.ts";
 import { personalHash, trackScreen } from "./refresh.ts";
 import type { RefreshSpec } from "./refresh.ts";
 
 // Серии S9 (спец. §11, Plan B §8.3 S9): плитка запускает выбранную серию; автопереход — из свойств плеера (D-29).
 
-const T = { season: "Сезон", parts: "Части", episode: "Серия", part: "Часть", fromStart: "Смотреть с начала", more: "▾" };
+const T = {
+  season: "Сезон", of: "из", parts: "Части", episode: "Серия", part: "Часть", fromStart: "Смотреть с начала", more: "▾",
+  seasons: "Сезоны", pickSeason: "Сезоны…", current: "{ico:check}",
+};
+/** V-23: вкладки уходят за верх экрана, когда фокус на серии, — подсказка красной кнопки видна всегда. */
+const SEASONS_HINT = `{ico:msx-red:stop} ${T.seasons}`;
 
-/** Plan B S9: больше 8 вкладок `2×1` в ряд 16×8 не помещается — тогда одна кнопка с панелью выбора. */
-const MAX_TABS = 8;
-const TAB_W = 2;
-/** Кадр 408×192, 4 плитки в ряд; `enumerate: false` — поведение не зависит от плейлиста MSX (FX-06). */
+/** V-24: вкладка `3×1` вмещает «✓ Сезон 1 · 12/24»; больше 5 в ряд 16×8 не помещается — тогда кнопка с панелью. */
+const MAX_TABS = 5;
+const TAB_W = 3;
+/**
+ * Кадр 408×300, 4 плитки в ряд; 4 ряда сетки на плитку — на экран 16×8 ровно два ряда серий, без половины ряда под
+ * подвалом (V-25). `enumerate: false` — поведение не зависит от плейлиста MSX (FX-06).
+ */
 const TEMPLATE: MsxContentItem = {
-  type: "separate", layout: "0,0,4,3", color: "msx-glass", imageFiller: "cover", progress: -1, progressColor: "msx-blue",
+  type: "separate", layout: "0,0,4,4", color: "msx-glass", imageFiller: "cover", progress: -1, progressColor: "msx-blue",
   enumerate: false,
 };
 
@@ -38,6 +47,8 @@ interface SeasonModel {
   episodes: EpisodeModel[];
   /** Серия «Продолжить», если она в этом сезоне. */
   focus?: number;
+  /** Сезоны сериала с сериями; у фильма из частей — пусто. */
+  seasons: number[];
   tabs: { n: number; label: string }[] | { n: number; label: string; more: true };
 }
 
@@ -59,6 +70,12 @@ export function seasonLabel(ctx: AppContext, item: ItemDetail, fetchedAt: number
   return `${T.season} ${n} · ${watchedOf(ctx, item, fetchedAt, refs)}/${refs.length}`;
 }
 
+/** Подпись вкладки сезона: открытый сезон отмечен «✓», как текущий пункт в панелях выбора (V-24). */
+export function seasonTabLabel(ctx: AppContext, item: ItemDetail, fetchedAt: number, n: number, current: boolean): string {
+  const label = seasonLabel(ctx, item, fetchedAt, n);
+  return current ? `${T.current} ${label}` : label;
+}
+
 const ratio = (time: number, duration: number): number =>
   duration > 0 ? Math.round(Math.min(1, Math.max(0, time / duration)) * 1000) / 1000 : 0;
 
@@ -74,13 +91,13 @@ function model(ctx: AppContext, item: ItemDetail, fetchedAt: number, n: number):
   });
   const target = continueTarget(item, ctx.overlay.get, fetchedAt).ref.mid;
   const serial = isSerial(item);
-  const out: SeasonModel = { serial, episodes, tabs: [] };
+  const seasons = serial ? byNumber(item.seasons).filter((s) => s.episodes.length > 0).map((s) => s.number) : [];
+  const out: SeasonModel = { serial, episodes, seasons, tabs: [] };
   if (refs.some((r) => r.mid === target)) out.focus = target;
   if (serial) {
-    const seasons = byNumber(item.seasons).filter((s) => s.episodes.length > 0).map((s) => s.number);
     out.tabs = seasons.length > MAX_TABS
       ? { n, label: `${T.season} ${n} ${T.more}`, more: true }
-      : seasons.map((s) => ({ n: s, label: seasonLabel(ctx, item, fetchedAt, s) }));
+      : seasons.map((s) => ({ n: s, label: seasonTabLabel(ctx, item, fetchedAt, s, s === n) }));
   }
   return out;
 }
@@ -122,12 +139,21 @@ export async function seasonScreen(ctx: AppContext, id: number, n: number): Prom
   const template: MsxContentItem = { ...TEMPLATE };
   // CDG-06, Р-18: свойства плеера в шаблоне через {context:…}, значения — полями каждой серии.
   if (withProps) template.properties = contextPlayerProps(ctx);
+  const title = ruTitle(item.title);
+  const many = m.seasons.length > 1;
+  // Красная кнопка открывает панель сезонов сразу (Option Shortcut): MSX ищет его в опциях элемента в фокусе, поэтому
+  // пункт есть и у корня, и у каждой серии. Без `back` в начале: у ярлыка опции не открыты, и `back` ушёл бы с экрана.
+  const seasonsRow: OptionRow[] = many ? [{ label: T.pickSeason, action: panelAction(ctx.P, ids.panel("seasons", id, n)), key: "red" }] : [];
   const root: MsxContentRoot = {
     type: "list", compress: true, flag: seasonFlag(id, n), cache: false,
-    headline: `${ruTitle(item.title)} · ${m.serial ? `${T.season} ${n}` : T.parts}`,
-    template, items: m.episodes.map((e) => episodeItem(ctx, item, m, e, withProps)),
+    headline: `${title} · ${m.serial ? `${T.season} ${n}${many ? ` ${T.of} ${m.seasons.length}` : ""}` : T.parts}`,
+    template, items: m.episodes.map((e) => episodeItem(ctx, item, m, e, withProps, seasonsRow)),
   };
   if (m.serial) root.header = { items: tabItems(ctx, id, n, m) };
+  if (many) {
+    root.extension = SEASONS_HINT;
+    root.options = optionsRoot(seasonsRow, title);
+  }
 
   const next = m.episodes.find((e) => e.status !== 1);
   if (next !== undefined) prefetchLinks(ctx, next.ref.mid);
@@ -148,12 +174,20 @@ function tabItems(ctx: AppContext, id: number, n: number, m: SeasonModel): MsxCo
   }));
 }
 
-function episodeItem(ctx: AppContext, item: ItemDetail, m: SeasonModel, e: EpisodeModel, withProps: boolean): MsxContentItem {
+/** «Серия 4» без названия (или с названием «Серия 4»), «4. Название» с названием (V-26). */
+function episodeTitle(title: string, n: number, serial: boolean): string {
+  const generic = `${serial ? T.episode : T.part} ${n}`;
+  const name = title.trim();
+  return name === "" || name.toLowerCase() === generic.toLowerCase() ? generic : `${n}. ${name}`;
+}
+
+function episodeItem(
+  ctx: AppContext, item: ItemDetail, m: SeasonModel, e: EpisodeModel, withProps: boolean, seasonsRow: OptionRow[],
+): MsxContentItem {
   const { ref, unit } = e;
   const id = item.id;
-  const name = unit.title !== "" ? unit.title : `${m.serial ? T.episode : T.part} ${ref.video}`;
   const out: MsxContentItem = {
-    id: `e${ref.mid}`, title: `${ref.video}. ${name}`, titleFooter: fmtMinutes(unit.duration),
+    id: `e${ref.mid}`, title: episodeTitle(unit.title, ref.video, m.serial), titleFooter: fmtMinutes(unit.duration),
     playerLabel: playerLabel(item, ref, m.serial), action: resolveAction(ctx.P, ids.playEp(id, ref.mid, ref.season, ref.video)),
   };
   if (unit.thumbnail !== undefined && unit.thumbnail !== "") out.image = unit.thumbnail;
@@ -164,6 +198,7 @@ function episodeItem(ctx: AppContext, item: ItemDetail, m: SeasonModel, e: Episo
   }
   if (m.focus === ref.mid) out.focus = true;
   out.options = optionsRoot([
+    ...seasonsRow,
     watchedRow(ref, e.status, false),
     { label: T.fromStart, action: resolveAction(ctx.P, ids.playEp(id, ref.mid, ref.season, ref.video, { start: true })) },
   ]);
