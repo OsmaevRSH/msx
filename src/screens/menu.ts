@@ -1,5 +1,5 @@
 import type { AppContext } from "../app/context.ts";
-import { req } from "../msx/actions.ts";
+import { replaceMenu, req } from "../msx/actions.ts";
 import type { MsxMenuItem, MsxMenuRoot } from "../msx/types.ts";
 import { encodeListKey, ids } from "../router/ids.ts";
 
@@ -9,6 +9,8 @@ const HEADLINE = "KinoPub";
 const EXTENSION = "{ico:msx-white:access-time} {now:time:hh:mm}";
 const DICTIONARY = "http://msx.benzac.de/dic/ru.json";
 const CATALOG_SORT = "-updated";
+/** Флаг меню для `replace:menu:…` (Replace Action MSX 0.1.144). */
+export const MENU_FLAG = "menu";
 
 const T = {
   login: "Вход",
@@ -30,6 +32,14 @@ const SECTIONS: readonly { id: string; label: string; icon: string; type: string
   { id: "tvshows", label: "ТВ-шоу", icon: "live-tv", type: "tvshow" },
   { id: "concerts", label: "Концерты", icon: "music-note", type: "concert" },
 ];
+
+/**
+ * Перерисовать меню после входа и выхода. Меню загружено из start parameter, а такое MSX по `reload:menu` не
+ * перезапрашивает (найдено smoke-e2e в web MSX, этап 27); `replace:menu` перезапрашивает и при `cache: true`.
+ */
+export function refreshMenu(P: string): string {
+  return replaceMenu(MENU_FLAG, P, ids.init());
+}
 
 export function buildMenu(ctx: AppContext): MsxMenuRoot {
   const item = (id: string, icon: string, label: string, dataId: string): MsxMenuItem =>
@@ -53,5 +63,5 @@ export function buildMenu(ctx: AppContext): MsxMenuRoot {
       probe,
       msxSettings,
     ];
-  return { headline: HEADLINE, extension: EXTENSION, dictionary: DICTIONARY, cache: true, menu };
+  return { headline: HEADLINE, extension: EXTENSION, dictionary: DICTIONARY, flag: MENU_FLAG, cache: true, menu };
 }

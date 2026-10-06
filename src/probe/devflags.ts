@@ -63,7 +63,8 @@ export async function devScreen(ctx: AppContext): Promise<MsxContentRoot> {
     });
   }
   items.push({ id: "f_reset", type: "button", layout: "0,0,4,1", label: T.reset, action: commitMsg(msgs.act("probe", "flagsReset")) });
-  return { type: "list", flag: "dev", cache: false, reuse: false, headline: T.headline, items };
+  // Без `template` MSX не показывает `items` корня («Содержимое недоступно»).
+  return { type: "list", flag: "dev", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items };
 }
 
 /** Панель `probe:flag:<имя>`: выбор значения шлёт `act:probe:flag:<имя>:<значение>` и закрывает панель. */

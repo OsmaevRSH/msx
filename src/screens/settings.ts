@@ -139,7 +139,7 @@ async function saveDevice(ctx: AppContext, s: Partial<DeviceSettings>): Promise<
 
 /**
  * `act:set:<key>:<value>` → `prefs` или настройки устройства → `[back|reload:content]` (сбой устройства — ещё `info:`);
- * потолок 2160p включает 4K устройства; `act:set:logout` — выход, `reload:menu` даёт `onLoggedOut` (create-app).
+ * потолок 2160p включает 4K устройства; `act:set:logout` — выход, `replace:menu` даёт `onLoggedOut` (create-app).
  */
 export async function onSettingsAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
   if (name === "logout") return ctx.auth.logout();

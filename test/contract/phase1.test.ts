@@ -51,7 +51,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     await mock.close();
   });
 
-  it("1. init without login → «Вход» → code → two pending polls → reload:menu → full menu (CC-02, CAC-01, CAC-02)", async () => {
+  it("1. init without login → «Вход» → code → two pending polls → replace:menu → full menu (CC-02, CAC-01, CAC-02)", async () => {
     mock.setScenario({ pendingPolls: 2 });
     a.app.ready();
     const guest = (await a.request("init")) as MsxMenuRoot;

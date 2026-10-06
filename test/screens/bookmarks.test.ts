@@ -55,6 +55,7 @@ describe("bookmarksScreen (S11)", () => {
     const s = await screen(t);
     const texts = allItems(s).map((i) => i.text);
     assert.ok(texts.includes("Папок нет. Добавьте тайтл в закладки из карточки"), JSON.stringify(s));
+    assert.ok(s.items === undefined || s.template !== undefined, "MSX не показывает items корня без template");
   });
 
   it("folder contents are the S5 list of that folder (paging and window come from list.ts)", async () => {

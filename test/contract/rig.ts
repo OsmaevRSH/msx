@@ -8,7 +8,8 @@ import { noCorsCalls } from "../progress/progress-rig.ts";
 // Общие помощники сквозных contract-тестов Phase 1 (этап 29): плагин ведётся только действиями из своих ответов,
 // как это сделал бы MSX, а проверки трафика и журнала — по журналу kpmock и `ctx.log`.
 
-export const CHAIN_DONE = "[info:Вход выполнен|reload:menu]";
+/** Меню из start parameter перерисовывается только `replace:menu` (smoke-e2e этапа 27). */
+export const CHAIN_DONE = `[info:Вход выполнен|replace:menu:menu:request:interaction:init@${TEST_P}]`;
 const COMMIT = "interaction:commit:message:";
 
 /** `request:…`, `content:request:…`, `panel:request:…`, `video:resolve:request:…` с полным адресом плагина → dataId. */

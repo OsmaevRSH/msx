@@ -27,6 +27,8 @@ export async function bookmarksScreen(ctx: AppContext): Promise<MsxContentRoot> 
     root.template = { layout: "0,0,4,2", icon: "bookmark", color: "msx-glass" };
     root.items = items;
   } else {
+    // Без `template` MSX не показывает `items` корня («Содержимое недоступно»).
+    root.template = { type: "space", layout: "0,0,16,2" };
     root.items = [
       { type: "space", layout: "0,0,16,2", text: T.empty },
       { type: "button", layout: "0,2,4,1", label: T.back, action: "back" },
