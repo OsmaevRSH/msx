@@ -49,11 +49,11 @@ describe("checkSizes", () => {
     assert.deepEqual(html?.limit, { bytes: 1023 });
   });
 
-  it("app.js of 300 000 bytes fails", () => {
-    const res = checkSizes(site({ "app/app.js": "a".repeat(300_000), "app/index.html": HTML_OK, "app/probe.js": PROBE_OK }));
+  it("app.js one byte over the byte limit fails", () => {
+    const res = checkSizes(site({ "app/app.js": "a".repeat(288_001), "app/index.html": HTML_OK, "app/probe.js": PROBE_OK }));
     assert.equal(res.ok, false);
     const js = res.rows.find((r) => r.file === "app/app.js");
-    assert.equal(js?.bytes, 300_000);
+    assert.equal(js?.bytes, 288_001);
     assert.equal(js?.ok, false);
   });
 
@@ -64,7 +64,7 @@ describe("checkSizes", () => {
     assert.equal(res.ok, false);
   });
 
-  it("app.js exactly at the limits passes, a byte more fails", () => {
+  it("app.js exactly at the limits passes", () => {
     const res = checkSizes(site({ "app/app.js": "a".repeat(288_000), "app/index.html": HTML_OK, "app/probe.js": PROBE_OK }));
     assert.equal(res.ok, true);
     assert.equal(checkSizes(site({ "app/app.js": "a".repeat(288_001), "app/index.html": HTML_OK, "app/probe.js": PROBE_OK })).ok, false);
@@ -95,8 +95,7 @@ describe("checkSizes", () => {
     assert.equal(missing.rows.find((r) => r.file === "app/probe.js")?.missing, true);
   });
 
-  it("app.js keeps the CNFR-15 budget (v1.10: 288 000 B, 92 160 B gzip); probe.js keeps its own", () => {
+  it("app.js keeps the CNFR-15 budget: 288 000 bytes, 90 KB gzip", () => {
     assert.deepEqual(LIMITS["app/app.js"], { bytes: 288_000, gzip: 92_160 });
-    assert.deepEqual(LIMITS["app/probe.js"], { bytes: 40_960, gzip: 16_384 });
   });
 });

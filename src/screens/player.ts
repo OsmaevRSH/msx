@@ -18,6 +18,8 @@ export interface ResolvedPlay {
   mode: "hls1" | "hls2"; step: 1 | 2 | 3; subtitle?: Subtitle; props: PlayerPropsInput;
   /** Nonce запуска (`kp:r`, фикс 34b): свой у каждого resolve, по нему трекер отличает запуски одного видео. */
   run: string;
+  /** Перезапуск из панели плеера (фикс 35a): шаг цепочки тот же, что играл, — сообщения о сбое нет. */
+  restart?: boolean;
 }
 
 /** Снимок позиции: свойства-действия не несут своих данных, поэтому все триггеры шлют одно и то же (спец. §10.1). */
@@ -164,7 +166,7 @@ export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, s
   }
   // Варианты hls2 уже ограничены качеством устройства — стартуем с верхнего (Plan B §5.8).
   if (r.mode === "hls2") out["tizen:stream:ADAPTIVE_INFO"] = "STARTBITRATE=HIGHEST";
-  if (r.step >= 2) out["trigger:load"] = RETRY_TOAST;
+  if (r.step >= 2 && !r.restart) out["trigger:load"] = RETRY_TOAST;
   return out;
 }
 

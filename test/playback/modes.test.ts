@@ -107,6 +107,58 @@ describe("FallbackChain (Plan B §5.11, D-27), streamMode hls1", () => {
   });
 });
 
+describe("FallbackChain.restart: a restart from the player panel is not a failure (fix 35a)", () => {
+  it("three restarts 9 s apart without any start signal → step 1 every time, links from the cache", async () => {
+    chain.next(MID);
+    for (let i = 0; i < 3; i++) {
+      await clock.advance(9_000);
+      assert.deepEqual(chain.restart(MID), step(1, "hls1", false), `restart ${i + 1}`);
+    }
+  });
+
+  it("a restart keeps the step that plays now (fresh links are a cure for a failure only)", async () => {
+    chain.next(MID);
+    await clock.advance(9_000);
+    assert.equal(chain.next(MID).step, 2);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.restart(MID), step(2, "hls1", false));
+    await clock.advance(9_000);
+    assert.equal(chain.next(MID).step, 3);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.restart(MID), step(3, "hls2", false));
+  });
+
+  it("a restart of a started launch keeps its step too", async () => {
+    chain.next(MID);
+    await clock.advance(9_000);
+    chain.next(MID);
+    chain.markStarted(MID);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.restart(MID), step(2, "hls1", false));
+  });
+
+  it("a real failure after a restart still moves on: no start 9 s after the restart → the next step", async () => {
+    chain.next(MID);
+    await clock.advance(9_000);
+    assert.equal(chain.restart(MID).step, 1);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.next(MID), step(2, "hls1", true));
+    await clock.advance(3_000);
+    assert.equal(chain.next(MID).step, 2, "an impatient press after it — the same step");
+  });
+
+  it("no entry, another mode or an error shown (step 4) → step 1", async () => {
+    assert.deepEqual(chain.restart(MID), step(1, "hls1", false));
+    chain.next(MID);
+    await clock.advance(9_000);
+    chain.next(MID);
+    assert.deepEqual(chain.restart(MID, "hls2"), step(1, "hls2", false));
+    chain.advance(MID, "hls2");
+    assert.equal(chain.advance(MID, "hls2").step, 4);
+    assert.deepEqual(chain.restart(MID, "hls2"), step(1, "hls2", false));
+  });
+});
+
 describe("FallbackChain: streamMode hls2 or a manual mode", () => {
   it("flag hls2 → 1 hls2 (cache), 2 hls2 (fresh), then 4", async () => {
     flags.set("streamMode", "hls2");

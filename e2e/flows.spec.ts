@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { chain, commitMsg, contentAction, panelAction, replaceContent } from "../src/msx/actions.ts";
+import { chain, commitMsg, contentAction, panelAction, replaceContent, resolveAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids, listFlag, msgs } from "../src/router/ids.ts";
 import { FIX, findItem } from "../tools/kpmock/fixtures.ts";
 import { P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press, stats } from "./fixtures.ts";
@@ -13,7 +13,7 @@ import type { Tl } from "./flows-kit.ts";
 // Пользовательские сценарии Plan B §12.6 E-03…E-14 на клиентской схеме (этап 34, спец. §14.4): одна сессия web MSX на
 // файл, навигация пультом, `exec` — короткий путь к экрану. E-01 нет (сопряжения нет), E-02 — в smoke, E-04 — это CE-02.
 // Порядок: навигация и главная до просмотров (E-03, E-13), списки и поиск (E-12, E-05, E-06, E-07), карточки (E-14),
-// плеер (E-08, E-10, E-09), ошибки последними (E-11: лимитер после 429 ещё 30 с держит параллельность 1).
+// плеер (E-08, E-10, E-09, E-15), ошибки последними (E-11: лимитер после 429 ещё 30 с держит параллельность 1).
 
 test.describe.configure({ mode: "serial" });
 
@@ -26,7 +26,7 @@ const PORTION = 48;
 /** Серии SERIAL_SMALL по 60 с — как WebM mock; S1E3 → S2E1 — автопереход через границу сезона. */
 const SMALL = FIX.SERIAL_SMALL;
 const [s1, s2] = findItem(SMALL)!.seasons!.map((s) => s.episodes.map((e) => e.id));
-const [S1E2, S1E3, S2E1, S2E2] = [s1[1], s1[2], s2[0], s2[1]];
+const [S1E1, S1E2, S1E3, S2E1, S2E2] = [s1[0], s1[1], s1[2], s2[0], s2[1]];
 /** CNFR-14: «просмотрено» — с 90 % длительности, у WebM mock это 54 с из 60. */
 const WATCHED_AT = 54;
 const restartOf = (mid: number, s: number, e: number): RegExp => new RegExp(`^play:${SMALL}:${mid}:${s}:${e}:at(\\d+)$`);
@@ -371,6 +371,59 @@ test("E-09b: перезапуск из панели за 10 с до 90 % — п�
   const end = await until(page, (x) => evs(x, "load").some((e) => e.s?.mid === S2E2), 25_000, "автопереход на S2E2", again.i);
   expect(evs(end, "watched").filter((e) => e.s?.mid === S2E1), "досмотренная S2E1 отмечена «просмотрено»").toHaveLength(1);
   await closePlayer(page);
+});
+
+// Фикс 35a (полевой тест на ТВ): смена озвучки в плеере позже 8 с после старта показывала «Предыдущий запуск не удался»,
+// вторая уводила на hls2 (озвучка потока по умолчанию), третья — в ошибку. Признака старта не было: автостарт не шлёт
+// `video:play`, первый тик на ТВ — через 60 с. Теперь перезапуск из панели (`:at<сек>`) — не сбой, плеер не закрывается.
+test("E-15: три смены озвучки подряд в плеере — без «Предыдущий запуск не удался», плеер не закрывается, позиция идёт вперёд", async () => {
+  // Тики как на ТВ (60, Р-26): все смены — до первого снимка позиции.
+  await kp(page, (k) => {
+    k.ctx.build.heartbeatTicks = 60;
+  });
+  const c0 = await callCount();
+  const play = ids.playEp(SMALL, S1E1, 1, 1, { start: true });
+  const from = await mark(page);
+  await exec(page, resolveAction(P, play));
+  await answered(page, play, from);
+  await playing(page, S1E1, from);
+  let props = (await answer(page, play)).properties;
+  let now = "Студия";
+  let last = 0;
+  const restart = restartOf(S1E1, 1, 1);
+  for (const [i, [keys, next]] of ([[["ArrowDown"], "Оригинал"], [["ArrowUp"], "Студия"], [["ArrowDown"], "Оригинал"]] as const).entries()) {
+    await sleep(9_000);
+    const before = await mark(page);
+    const again = await switchAudio(page, props["button:content:action"], now, [...keys], next, restart);
+    const res = await answer(page, again.v);
+    expect(res.properties["trigger:load"], `смена ${i + 1}: не «пробую другой способ»`).toBeUndefined();
+    expect(res.properties["label:extension"], `смена ${i + 1}: играет выбранная озвучка`).toContain(next);
+    expect(res.properties["tizen:stream:ADAPTIVE_INFO"], `смена ${i + 1}: не hls2`).toBeUndefined();
+    const at = Number(restart.exec(again.v)![1]);
+    expect(at, `смена ${i + 1}: позиция перезапуска идёт вперёд`).toBeGreaterThan(last);
+    expect(res.properties["resume:position"]).toBe(String(at));
+    await playing(page, S1E1, again.i);
+    const tl = await timeline(page, before);
+    expect(evs(tl, "handleEvent:video:stop"), `смена ${i + 1}: плеер не закрывался — без video:stop`).toEqual([]);
+    await sleep(1000);
+    await expect(page.locator("#appNotificationScene"), `смена ${i + 1}: нет сообщения о сбое`).not.toContainText("не удался");
+    props = res.properties;
+    now = next;
+    last = at;
+  }
+  const steps = await kpWith(page, (k, m) => k.ctx.log.entries()
+    .filter((e: any) => e.tag === "resolve" && e.msg === "resolved" && e.data?.mid === m).slice(-4)
+    .map((e: any) => `${e.data.step} ${e.data.mode}`), S1E1);
+  expect(steps, "цепочка fallback не сдвинулась: hls1, шаг 1").toEqual(["1 hls1", "1 hls1", "1 hls1", "1 hls1"]);
+  const stop = await closePlayer(page);
+  expect(stop.pos ?? 0, "выход — дальше последней смены").toBeGreaterThan(last);
+  await expect.poll(async () => (await callsSince(c0, /^\/v1\/watching\/marktime$/)).filter((c) => c.q.get("video") === "1").map((c) => Number(c.q.get("time"))),
+    { message: "marktime выхода", timeout: 5000 }).toContain(Math.floor(stop.pos!));
+  const marks = (await callsSince(c0, /^\/v1\/watching\/marktime$/)).filter((c) => c.q.get("season") === "1" && c.q.get("video") === "1").map((c) => Number(c.q.get("time")));
+  expect(marks, "marktime не откатывается").toEqual([...marks].sort((a, b) => a - b));
+  await kp(page, (k) => {
+    k.ctx.build.heartbeatTicks = 10;
+  });
 });
 
 test("E-11: 429 без CORS на список — через 6 с KP-NET с «Повторить», поздний 429 его не меняет; сбой снят — «Повторить» открывает список", async () => {

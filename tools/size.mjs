@@ -3,12 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-/**
- * CNFR-15, v1.10: визуальное качество (крупные плитки, стражи краёв) важнее нескольких КБ — на ТВ разница в загрузке
- * незаметна, а при обычной работе `app.js?v=<hash>` берётся из HTTP-кэша.
- * @type {Record<string, import("./size.d.mts").SizeLimit>}
- */
+/** @type {Record<string, import("./size.d.mts").SizeLimit>} */
 export const LIMITS = {
+  // 90 КБ gzip (спец. v1.9.2): визуальное качество важнее нескольких КБ. Gzip в CI (официальный Node с zlib Chromium)
+  // чуть больше, чем у Node из Homebrew с системной zlib, поэтому нужен запас, а не впритык.
   "app/app.js": { bytes: 288_000, gzip: 92_160 },
   "app/index.html": { bytes: 1023 },
   // Пробник грузится только при открытии «Диагностики». ~1,2× его размера на этапе 23b (34 КБ, 13,5 КБ gzip):

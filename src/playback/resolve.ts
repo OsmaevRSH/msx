@@ -20,8 +20,11 @@ import { qualityLabel, withAudio, withLoc } from "./url.ts";
 export const NO_SUBSCRIPTION_TEXT = "Подписка KinoPub неактивна";
 export const NO_START_TEXT = "Видео не запускается. Откройте Диагностику";
 
-/** Параметры, которые пробник (этап 23) задаёт принудительно; `t0` — начало resolve для метрики. */
-export interface ResolveOverrides { manual?: StreamMode; audio?: Audio; probe?: string; ticks?: number; t0?: number }
+/**
+ * Параметры, которые пробник (этап 23) задаёт принудительно; `t0` — начало resolve для метрики; `restart` —
+ * перезапуск из панели плеера (фикс 35a).
+ */
+export interface ResolveOverrides { manual?: StreamMode; audio?: Audio; probe?: string; ticks?: number; t0?: number; restart?: boolean }
 
 const TAG = "resolve";
 /** Plan B D-41: «Продолжить» по свежим данным — карточку старше 600 с ждём не дольше 500 мс. */
@@ -47,7 +50,8 @@ type PlayStep = { step: ResolvedPlay["step"]; mode: StreamMode; freshLinks: bool
 
 /**
  * `play:<id>:continue|start`, `play:<id>:<mid>:<s>:<e>[:start|:at<сек>]`. Серия и позиция «Продолжить»
- * выбираются в момент resolve по свежим данным (спец. §9.1, D-41).
+ * выбираются в момент resolve по свежим данным (спец. §9.1, D-41). `:at<сек>` даёт только панель плеера: это
+ * намеренный перезапуск, а не повтор после сбоя (фикс 35a).
  */
 export async function resolvePlay(ctx: AppContext, r: PlayRoute): Promise<MsxResolveResponse> {
   const t0 = ctx.clock.perf();
@@ -55,12 +59,12 @@ export async function resolvePlay(ctx: AppContext, r: PlayRoute): Promise<MsxRes
   const byProgress = r.k === "play" ? r.what === "continue" : !r.start && r.at === undefined;
   const got = await ctx.repo.item(r.id, byProgress ? { freshWithinMs: FRESH_CARD_MS, waitMs: FRESH_WAIT_MS } : undefined);
   const t = target(ctx, got.value, got.fetchedAt, r);
-  return resolveUnit(ctx, got.value, t.ref, t.position, { t0 });
+  return resolveUnit(ctx, got.value, t.ref, t.position, { t0, restart: r.k === "playEp" && r.at !== undefined });
 }
 
 /**
  * Ответ resolve для известной серии: шаг цепочки fallback → ссылки → файл, озвучка, субтитры → свойства плеера.
- * Ошибка API — сразу следующий шаг (не больше двух раз); шаг 4 — `{ error }`.
+ * Ошибка API — сразу следующий шаг (не больше двух раз); шаг 4 — `{ error }`. Перезапуск — на шаге, который играет.
  */
 export async function resolveUnit(
   ctx: AppContext, item: ItemDetail, ref: EpRef, position: number | "none", o: ResolveOverrides = {},
@@ -71,7 +75,7 @@ export async function resolveUnit(
   await ctx.auth.ensureFreshFor(unit.duration + TOKEN_MARGIN_SEC);
   const prefs = ctx.prefs.get();
   const manual = o.manual ?? prefs.titleMode[String(item.id)] ?? prefs.streamMode;
-  let step = ctx.chain.next(ref.mid, manual);
+  let step = o.restart ? ctx.chain.restart(ref.mid, manual) : ctx.chain.next(ref.mid, manual);
   for (let failures = 0; ; failures++) {
     const s = playable(step);
     if (s === undefined) {
@@ -84,7 +88,7 @@ export async function resolveUnit(
       const now = ctx.clock.perf();
       ctx.state.resolveAt.set(ref.mid, now);
       ctx.metrics.record("resolve", now - t0);
-      ctx.log.info(TAG, "resolved", { mid: ref.mid, step: s.step, mode: s.mode, ms: now - t0 });
+      ctx.log.info(TAG, "resolved", { mid: ref.mid, step: s.step, mode: s.mode, restart: o.restart, ms: now - t0 });
       return buildResolveResponse(ctx, play);
     } catch (e) {
       const err = toKpError(e);
@@ -180,6 +184,7 @@ function resolved(
     url: withLoc(url, prefs.loc), label: playLabel(item, ref), position, quality, audio: audioText,
     mode: step.mode, step: step.step, props, run: ctx.tracker.newRun(),
   };
+  if (o.restart) out.restart = true;
   const sub = pickSubtitle(links.subtitles, sp, audio?.lang);
   if (sub !== undefined) out.subtitle = { ...sub, url: withLoc(sub.url, prefs.loc) };
   return out;

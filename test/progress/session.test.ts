@@ -23,14 +23,17 @@ describe("sessionFromProps", () => {
       hasNext: true,
       loadedAt: NOW,
       started: false,
+      from: 0,
       peak: 0,
       watchedDone: false,
       ended: false,
     });
   });
 
-  it("resume:position («Продолжить») starts the session maximum; none or junk — 0 (этап 33c)", () => {
+  it("resume:position («Продолжить») starts the session maximum and is its start position; none or junk — 0 (этап 33c, фикс 35a)", () => {
     assert.equal(sessionFromProps({ ...PROPS, "resume:position": "1287" }, NOW)?.peak, 1287);
+    assert.equal(sessionFromProps({ ...PROPS, "resume:position": "1287" }, NOW)?.from, 1287);
+    assert.equal(sessionFromProps({ ...PROPS, "resume:position": "none" }, NOW)?.from, 0);
     assert.equal(sessionFromProps({ ...PROPS, "resume:position": "none" }, NOW)?.peak, 0);
     assert.equal(sessionFromProps({ ...PROPS, "resume:position": "-5" }, NOW)?.peak, 0);
   });

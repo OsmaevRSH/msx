@@ -193,16 +193,24 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.deepEqual(current(await panel(t, "audio", A12, M12, "c")), [`${CHECK}Многоголосый · Студия Бета · стерео`]);
   });
 
-  it("audio choice in the player: the same mid restarts from the player position", async () => {
+  it("audio choice in the player: the same mid restarts from the player position, the player stays open (fix 35a)", async () => {
     const t = await make();
     t.host.responses.set("video", { video: { data: { position: 321.7 } } });
     await act(t, "audio", A12, M12, 4, "p");
     assert.equal(t.ctx.prefs.get().titleAudio[String(A12)], "rus|2|12");
     assert.deepEqual(t.host.actions, [{
-      action: chain(["cleanup", "player:eject", resolveAction(P, ids.playEp(A12, M12, 0, 1, { at: 321 }))]),
+      action: chain(["cleanup", resolveAction(P, ids.playEp(A12, M12, 0, 1, { at: 321 }))]),
       data: { playerLabel: "Тестовый фильм «12 озвучек»" },
     }]);
     assert.match(actions(t)[0], /play:2004:2004001:0:1:at321@/);
+  });
+
+  it("flag restart: eject — the old way: close the player, then the same resolve", async () => {
+    const t = await make();
+    t.ctx.flags.set("restart", "eject");
+    t.host.responses.set("video", { video: { data: { position: 321.7 } } });
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.equal(actions(t)[0], chain(["cleanup", "player:eject", resolveAction(P, ids.playEp(A12, M12, 0, 1, { at: 321 }))]));
   });
 
   it("a serial episode restarts with the label of resolve: «<title> · 1 сезон, 5 серия» (V-18)", async () => {
@@ -210,7 +218,7 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     t.host.responses.set("video", { video: { data: { position: 100 } } });
     await act(t, "quality", 2001, 2001005, 720, "p");
     assert.deepEqual(t.host.actions, [{
-      action: chain(["cleanup", "player:eject", resolveAction(P, ids.playEp(2001, 2001005, 1, 5, { at: 100 }))]),
+      action: chain(["cleanup", resolveAction(P, ids.playEp(2001, 2001005, 1, 5, { at: 100 }))]),
       data: { playerLabel: "Тестовый сериал «Большой» · 1 сезон, 5 серия" },
     }]);
   });
@@ -230,7 +238,7 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     // «Продолжить»: проверенной позиции ещё нет, максимум сессии засеян `resume:position`.
     t.ctx.tracker.session = () => ({ mid: M12, peak: 1287 }) as PlaybackSession;
     await act(t, "audio", A12, M12, 4, "p");
-    assert.match(actions(t)[0], /^\[cleanup\|player:eject\|video:resolve:.*play:2004:2004001:0:1:at1287@/);
+    assert.match(actions(t)[0], /^\[cleanup\|video:resolve:.*play:2004:2004001:0:1:at1287@/);
     t.host.clearActions();
     t.ctx.tracker.session = () => ({ mid: M12, lastPos: 640.4, peak: 700 }) as PlaybackSession;
     await act(t, "quality", A12, M12, 720, "p");
@@ -260,7 +268,7 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     await act(t, "audio", A12, M12, 4, "p");
     assert.equal(t.ctx.prefs.get().titleAudio[String(A12)], "rus|2|12");
     assert.deepEqual(actions(t), ["[back|info:Не удалось узнать позицию — выбор сработает при следующем запуске]"]);
-    assert.ok(!actions(t)[0].includes("player:eject"));
+    assert.ok(!actions(t)[0].includes("video:resolve"));
   });
 
   it("in the player, the voice that already plays: only close the panel", async () => {
@@ -293,7 +301,7 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     t.host.responses.set("video", { video: { data: { position: 10 } } });
     await act(t, "quality", A12, M12, 0, "p");
     assert.deepEqual(t.ctx.prefs.get().titleQuality, {});
-    assert.match(actions(t)[0], /^\[cleanup\|player:eject\|video:resolve:.*play:2004:2004001:0:1:at10@/);
+    assert.match(actions(t)[0], /^\[cleanup\|video:resolve:.*play:2004:2004001:0:1:at10@/);
     t.host.clearActions();
     await act(t, "quality", A12, M12, 1080, "p");
     assert.deepEqual(actions(t), ["back"]);
@@ -332,7 +340,7 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.deepEqual(actions(t), [chain([
       "back", "player:commit:message:tizen:subtitle:silent:false", `player:commit:message:tizen:subtitle:url:${url(false)}`,
     ])]);
-    assert.ok(!actions(t)[0].includes("player:eject"));
+    assert.ok(!actions(t)[0].includes("video:resolve"));
     t.host.clearActions();
     await act(t, "subs", A12, M12, "eng.forced", "p");
     assert.ok(actions(t)[0].endsWith(`player:commit:message:tizen:subtitle:url:${url(true)}]`));

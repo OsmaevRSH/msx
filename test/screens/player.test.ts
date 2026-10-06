@@ -283,6 +283,11 @@ describe("dynamicProps", () => {
     assert.equal(d["trigger:load"], RETRY);
   });
 
+  it("a restart from the player panel on step 2 → no toast: it is not a failure (fix 35a)", async () => {
+    const t = await make();
+    assert.equal(dynamicProps(t.ctx, resolved({ step: 2, restart: true }))["trigger:load"], undefined);
+  });
+
   it("step 3 hls2 → «Авто», ADAPTIVE_INFO, toast", async () => {
     const t = await make();
     const d = dynamicProps(t.ctx, resolved({ step: 3, mode: "hls2", quality: "Авто", audio: "" }));

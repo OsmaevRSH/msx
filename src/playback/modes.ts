@@ -60,7 +60,18 @@ export class FallbackChain {
     return this.save(mid, { step, resolvedAt: this.ctx.clock.perf(), started: false, kind });
   }
 
-  /** Признак старта (`video:play` или первый снимок позиции > 0, спец. §9.2) сбрасывает цепочку этого `mid`. */
+  /**
+   * Перезапуск из панели плеера (`:at<сек>`: смена озвучки или качества, фикс 35a) — не сбой: тот же шаг, что
+   * играет, даже без признака старта. Свежие ссылки лечат только сбой — здесь ссылки из кэша.
+   */
+  restart(mid: number, manual?: StreamMode): ChainStep {
+    const kind = this.kind(manual);
+    const e = this.entries.get(mid);
+    const step = e === undefined || e.kind !== kind || e.step === 4 ? 1 : e.step;
+    return { ...this.save(mid, { step, resolvedAt: this.ctx.clock.perf(), started: false, kind }), freshLinks: false };
+  }
+
+  /** Признак старта (`video:play` или позиция, ушедшая от стартовой, спец. §9.2) сбрасывает цепочку этого `mid`. */
   markStarted(mid: number): void {
     const e = this.entries.get(mid);
     if (e !== undefined) e.started = true;

@@ -137,6 +137,7 @@ https://msx.benzac.de/?start=menu:request:interaction:init@https://osmaevrsh.git
 | Снимки позиции (`heartbeat`) | `ticks` | CDG-07: тики не приходят → `timer`; без позиции и в нём → `percent` |
 | Источник событий (`events`) | `handleEvent` | CDG-07: события плеера не доходят до плагина → `triggers` |
 | Автопереход (`autonext`) | `button` | CDG-11: следующая серия не стартует → `resolve` |
+| Смена озвучки в плеере (`restart`) | `inplace` | новая озвучка или качество не запускаются в открытом плеере → `eject` (плеер закроется и откроется снова) |
 | Префетч по фокусу (`focusPrefetch`) | `on` | CDG-12: рывки при навигации → `off` |
 | POST-тела (`postBody`) | `form` | CDG-03: тело POST не принимается → `query` |
 | Хост API (`apiBase`, `apiFallbackBase`) | `api.service-kp.com`, `api.srvkp.com` | только если KinoPub сменит адрес API |
@@ -198,7 +199,7 @@ Chrome нужно запустить с флагом `--disable-features=LocalNe
 | `npm test` | unit, contract и golden-тесты (`node --test`) |
 | `npm run typecheck` | `tsc` без сборки |
 | `npm run build` | боевая сборка в `dist/`: `app/app.js`, `app/probe.js`, `app/index.html`, `start.json`, `build-info.json` |
-| `npm run size` | бюджет: `app.js` ≤ 288 000 Б и ≤ 92 160 Б gzip, `probe.js` ≤ 40 960 Б и ≤ 16 384 Б gzip, `index.html` < 1 КБ |
+| `npm run size` | бюджет: `app.js` ≤ 288 000 Б и ≤ 92 160 Б (90 КБ) gzip, `probe.js` ≤ 40 960 Б и ≤ 16 384 Б gzip, `index.html` < 1 КБ |
 | `npm run privacy` | «ничего личного»: токены, IP-адреса вне тестовых диапазонов, отчёты, `.clear(` |
 | `npm run crawl` | краулер: обход всех экранов и действий от `init` против mock, проверка JSON MSX, размеров и кэша |
 | `npm run e2e` | Playwright в web-MSX против mock (один раз нужен `npx playwright install chromium`) |

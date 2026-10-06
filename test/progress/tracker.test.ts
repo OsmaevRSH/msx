@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { TrackerEvent } from "../../src/progress/tracker.ts";
 import {
   EP, MOVIE, apiCalls, kpProps, load, logged, marktimes, pass, pct, player, q, recordEvents, snapshot, toggles, useApps,
-  waitFor, watchingReads,
+  videoData, waitFor, watchingReads,
 } from "./progress-rig.ts";
 
 const make = useApps();
@@ -57,6 +57,83 @@ describe("ProgressTracker: session and start (CC-09)", () => {
     assert.equal(kinds(ev, "load").length, 1);
     const raw = kinds(ev, "raw") as Extract<TrackerEvent, { kind: "raw" }>[];
     assert.deepEqual(raw.map((e) => [e.source, e.position]), [["handleEvent", 0], ["handleData", 45], ["handleData", 50]]);
+  });
+});
+
+describe("ProgressTracker: start without video:play (fix 35a)", () => {
+  /** «Продолжить» с 600 с: MSX возвращает `resume:position` вместе с `kp:*`. */
+  const RESUMED = kpProps(EP, { "resume:position": "600" });
+  const videoRequests = (t: Parameters<typeof load>[0]): number => t.host.requests.filter((r) => r === "video").length;
+
+  it("pause or stop with a position moved from the start position → started (autostart sends no video:play)", async () => {
+    const t = await make();
+    const ev = recordEvents(t);
+    load(t, RESUMED, 600);
+    player(t, "pause", { state: 2, position: 640, duration: EP.duration });
+    assert.equal(kinds(ev, "started").length, 1);
+    load(t, { ...RESUMED, "kp:r": "b" }, 600);
+    player(t, "stop", { state: 0, position: 615, duration: EP.duration });
+    assert.deepEqual(ev.filter((e) => e.kind === "started" || e.kind === "stop").map((e) => e.kind), ["started", "started", "stop"]);
+  });
+
+  it("a launch that never played does not count: stop, pause or a snapshot at the start position or at 0", async () => {
+    const t = await make();
+    const ev = recordEvents(t);
+    load(t, RESUMED, 600);
+    snapshot(t, 600, RESUMED);
+    player(t, "pause", { state: 2, position: 600.4, duration: EP.duration });
+    player(t, "stop", { state: 0, position: 600, duration: EP.duration });
+    load(t, kpProps(EP, { "kp:r": "b" }), 0);
+    player(t, "stop", { state: 0, position: 0, duration: EP.duration });
+    assert.equal(kinds(ev, "started").length, 0);
+  });
+
+  it("a seek back right after «Продолжить» is a start too: a snapshot at 100 after resume 600", async () => {
+    const t = await make();
+    const ev = recordEvents(t);
+    load(t, RESUMED, 600);
+    snapshot(t, 100, RESUMED);
+    assert.equal(kinds(ev, "started").length, 1);
+  });
+
+  it("early check: 5 s after video:load without video:play — one requestData(\"video\"); moved → started, no progress write", async () => {
+    const t = await make();
+    const ev = recordEvents(t);
+    t.host.responses.set("video", videoData(604, RESUMED));
+    load(t, RESUMED, 600);
+    await pass(t, 4900);
+    assert.equal(videoRequests(t), 0);
+    await pass(t, 200);
+    assert.equal(videoRequests(t), 1);
+    assert.equal(kinds(ev, "started").length, 1);
+    assert.equal(t.ctx.tracker.session()?.started, true);
+    await pass(t, 70_000);
+    assert.equal(videoRequests(t), 1, "once per launch: heartbeat is not touched");
+    assert.deepEqual(marktimes(t), [], "the check only confirms the start");
+  });
+
+  it("early check: the position still at the start → not started; after video:play or for a replaced launch → no request", async () => {
+    const t = await make();
+    const ev = recordEvents(t);
+    t.host.responses.set("video", videoData(600, RESUMED));
+    load(t, RESUMED, 600);
+    await pass(t, 6000);
+    assert.deepEqual([videoRequests(t), kinds(ev, "started").length], [1, 0]);
+
+    load(t, { ...RESUMED, "kp:r": "b" }, 600);
+    player(t, "play", { state: 1, position: 600, duration: EP.duration });
+    await pass(t, 6000);
+    assert.equal(videoRequests(t), 1, "video:play already started it");
+
+    load(t, { ...RESUMED, "kp:r": "c" }, 600);
+    await pass(t, 3000);
+    t.host.responses.set("video", videoData(604, { ...RESUMED, "kp:r": "c" }));
+    load(t, { ...RESUMED, "kp:r": "d" }, 600);
+    await pass(t, 3000);
+    assert.equal(videoRequests(t), 1, "launch c was replaced by d before its check");
+    await pass(t, 3000);
+    assert.equal(videoRequests(t), 2);
+    assert.equal(kinds(ev, "started").length, 1, "only video:play of b: the answer of d's check is c's data");
   });
 });
 

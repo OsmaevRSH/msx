@@ -26,8 +26,8 @@ async function resolve(t: TestApp, dataId: string): Promise<Record<string, strin
 const s2e1 = (t: TestApp): number[] => marktimes(t).filter((m) => m.season === 2 && m.video === 1).map((m) => m.time);
 
 describe("E-09 (fix 34b): a restart from the player panel, then autonext", () => {
-  it("audio change → restart from 20 s → seek to 52 s → 90 % → autonext without stop: toggle and the last marktime of S2E1", async () => {
-    const t = await createTestApp({ loggedIn: true });
+  it("restart: eject — audio change → restart from 20 s → seek to 52 s → 90 % → autonext without stop: toggle and the last marktime of S2E1", async () => {
+    const t = await createTestApp({ loggedIn: true, flags: { restart: "eject" } });
     try {
       const p1 = await resolve(t, ids.playEp(SMALL, mid(2, 1), 2, 1));
       load(t, p1, 0, DURATION);
@@ -74,6 +74,89 @@ describe("E-09 (fix 34b): a restart from the player panel, then autonext", () =>
       assert.equal(logged(t, "late_snapshot_ignored"), 0);
       assert.equal(t.ctx.tracker.session()?.mid, mid(2, 2));
       assert.equal(t.ctx.tracker.session()?.run, p3["kp:r"]);
+    } finally {
+      await t.close();
+    }
+  });
+});
+
+describe("fix 35a: audio changes in the player in a row (field test on the TV)", () => {
+  const resolvedSteps = (t: TestApp): unknown[] =>
+    t.ctx.log.entries().filter((e) => e.tag === "resolve" && e.msg === "resolved").map((e) => {
+      const d = e.data as { step?: number; mode?: string };
+      return [d.step, d.mode];
+    });
+  const linkCalls = (t: TestApp, m: number): number =>
+    t.mock.calls().filter((c) => c.path === "/v1/items/media-links" && q(c).get("mid") === String(m)).length;
+
+  it("three changes 9 s apart, no video:play (autostart) → in-place restarts at hls1 step 1, no failure toast, position and marktime kept", async () => {
+    const t = await createTestApp({ loggedIn: true });
+    try {
+      const m = mid(1, 2);
+      let p = await resolve(t, ids.playEp(SMALL, m, 1, 2));
+      load(t, p, 0, DURATION);
+      const labels: string[] = [];
+      for (const [i, pos] of [31, 40, 48].entries()) {
+        await t.clock.advance(9_000);
+        const panel = (await t.request(follow(p["button:content:action"], "panel"))) as MsxContentRoot;
+        const row = pick(panel.items, (it) => !(it.label ?? "").startsWith("{ico:check}"), "another audio");
+        t.host.responses.set("video", videoData(pos, p, DURATION));
+        t.host.clearActions();
+        commit(t, row.action);
+        await t.run(until(() => actions(t).some((a) => a.includes("video:resolve"))));
+        const steps = /^\[(.*)\]$/.exec(actions(t)[0] ?? "")?.[1]?.split("|") ?? [];
+        assert.equal(steps.length, 2, `switch ${i + 1}: ${actions(t)[0]}`);
+        assert.equal(steps[0], "cleanup", "the panel closes, the player stays: no player:eject");
+        const restart = follow(steps[1], "video:resolve");
+        assert.equal(restart, ids.playEp(SMALL, m, 1, 2, { at: pos }));
+
+        const res = (await t.request(restart)) as MsxResolveResponse;
+        assert.equal(res.error, undefined, `switch ${i + 1}: ${res.error}`);
+        const next = res.properties ?? {};
+        assert.equal(next["trigger:load"], undefined, `switch ${i + 1}: no «Предыдущий запуск не удался»`);
+        assert.equal(next["resume:position"], String(pos));
+        assert.notEqual(next["kp:r"], p["kp:r"]);
+        assert.match(res.url ?? "", /\/master-v1a\d\.m3u8\?loc=nl$/, "hls1 with the audio in the URL");
+        labels.push(`${/master-v1a(\d)/.exec(res.url ?? "")?.[1]} ${next["label:extension"]}`);
+        // Плеер не закрывался: `stop` нет, MSX сразу шлёт `video:load` нового запуска.
+        load(t, next, pos, DURATION);
+        p = next;
+        await waitFor(t, () => marktimes(t).some((x) => x.time === pos), `marktime ${pos} of switch ${i + 1}`);
+      }
+      assert.deepEqual(labels, ["2 1080p · Оригинал", "1 1080p · Студия Гамма", "2 1080p · Оригинал"]);
+      assert.deepEqual(resolvedSteps(t), [[1, "hls1"], [1, "hls1"], [1, "hls1"], [1, "hls1"]]);
+      assert.equal(linkCalls(t, m), 1, "links from the cache: no fresh-links step");
+      // Позиция перед каждой сменой уходит в KinoPub снимком (без `eject` нет `stop`); откатов нет.
+      assert.deepEqual(marktimes(t).map((x) => [x.season, x.video, x.time]), [[1, 2, 31], [1, 2, 40], [1, 2, 48]]);
+      assert.equal(t.ctx.tracker.session()?.run, p["kp:r"]);
+      assert.equal(t.ctx.tracker.session()?.peak, 48);
+    } finally {
+      await t.close();
+    }
+  });
+
+  it("no start signal at all (the player answers nothing, no events) → the restart flag alone keeps step 1", async () => {
+    const t = await createTestApp({ loggedIn: true });
+    try {
+      const m = mid(1, 2);
+      t.host.responses.set("video", () => Promise.reject(new Error("no player data")));
+      let p = await resolve(t, ids.playEp(SMALL, m, 1, 2, { at: 20 }));
+      load(t, p, 20, DURATION);
+      for (let i = 0; i < 3; i++) {
+        await t.clock.advance(9_000);
+        const panel = (await t.request(follow(p["button:content:action"], "panel"))) as MsxContentRoot;
+        t.host.clearActions();
+        commit(t, pick(panel.items, (it) => !(it.label ?? "").startsWith("{ico:check}"), "another audio").action);
+        await t.run(until(() => actions(t).some((a) => a.includes("video:resolve"))));
+        const restart = follow(/^\[cleanup\|(.*)\]$/.exec(actions(t)[0] ?? "")?.[1], "video:resolve");
+        assert.equal(restart, ids.playEp(SMALL, m, 1, 2, { at: 20 }), "the session position (X-2)");
+        p = await resolve(t, restart);
+        assert.equal(p["trigger:load"], undefined, `switch ${i + 1}`);
+        load(t, p, 20, DURATION);
+      }
+      assert.equal(t.ctx.tracker.session()?.started, false);
+      assert.deepEqual(resolvedSteps(t), [[1, "hls1"], [1, "hls1"], [1, "hls1"], [1, "hls1"]]);
+      assert.equal(linkCalls(t, m), 1);
     } finally {
       await t.close();
     }

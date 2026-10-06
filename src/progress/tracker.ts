@@ -30,6 +30,11 @@ const END_SLACK_SEC = 3;
  */
 const LATE_MS = 10_000;
 const RUNS_KEPT = 8;
+/**
+ * Фикс 35a: автостарт web MSX не шлёт `video:play` (на ТВ, видимо, тоже), а первый тик — через 60 с. Через 5 с после
+ * `video:load` плагин один раз спрашивает позицию: ушла от стартовой — запуск стартовал.
+ */
+const START_CHECK_MS = 5000;
 
 type MarkKind = "hb" | "pause" | "stop" | "snapshot";
 type SnapshotSource = "handleData" | "timer";
@@ -38,6 +43,12 @@ interface Pending { s: PlaybackSession; pos: number; kind: MarkKind; timer: Time
 interface Closed { itemId: number; mid: number; video: number; at: number }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Признак старта по позиции (фикс 35a): > 0 и дальше секунды от стартовой. Незапустившийся плеер отвечает 0 или
+ * `resume:position`, а перемотка назад сразу после «Продолжить» — тоже старт.
+ */
+const moved = (s: PlaybackSession, pos: number | undefined): boolean => pos !== undefined && pos > 0 && Math.abs(pos - s.from) >= 1;
 
 function errData(e: unknown): Record<string, unknown> {
   const err = toKpError(e);
@@ -110,7 +121,7 @@ export class ProgressTracker {
     }
     const s = this.sessionFor(fresh);
     if (s === undefined || position === undefined) return;
-    if (position > 0 && !s.started) this.markStarted(s, false);
+    if (!s.started && moved(s, position)) this.markStarted(s, false);
     this.emit({ kind: "snapshot", s, pos: position });
     if (!this.trusted(s, position)) return;
     s.lastPos = position;
@@ -169,6 +180,7 @@ export class ProgressTracker {
     this.ctx.heartbeat.stop();
     const s = this.current;
     if (s === undefined) return;
+    if (!s.started && moved(s, pos)) this.markStarted(s, false);
     // Plan B §9.2: пауза без позиции пропускается; откат без подтверждения — тоже, ожидающий снимок остаётся.
     const p = pos !== undefined && this.trusted(s, pos) ? pos : undefined;
     if (p !== undefined) {
@@ -188,6 +200,7 @@ export class ProgressTracker {
     this.armed = false;
     const s = this.current;
     if (s === undefined) return;
+    if (!s.started && moved(s, evPos)) this.markStarted(s, false);
     this.cancelPending();
     const pos = evPos !== undefined && evPos > 0 && this.trusted(s, evPos) ? evPos : s.lastPos;
     s.ended = endedFlag || (pos !== undefined && s.duration > 0 && pos >= s.duration - END_SLACK_SEC);
@@ -224,6 +237,16 @@ export class ProgressTracker {
     this.armed = false;
     this.ctx.log.info(TAG, "load", { item: s.itemId, mid: s.mid, season: s.season, video: s.video, probe: s.probe, peak: s.peak, run: s.run });
     this.emit({ kind: "load", s });
+    this.ctx.clock.setTimeout(() => this.checkStart(s), START_CHECK_MS);
+  }
+
+  /** Ранняя проверка старта (фикс 35a): только признак старта, прогресс она не пишет и heartbeat не трогает. */
+  private checkStart(s: PlaybackSession): void {
+    if (this.current !== s || s.started) return;
+    this.ctx.host.requestData("video").then((d: unknown) => {
+      const f = sessionFromProps(propsFrom(d), 0);
+      if (this.current === s && !s.started && (f === undefined || sameRun(s, f)) && moved(s, positionFrom(d).position)) this.markStarted(s, false);
+    }, () => undefined);
   }
 
   /** Сессия закрыта (`stop`) или вытеснена новым запуском: её снимки с nonce больше не слушаем, без — `LATE_MS`. */

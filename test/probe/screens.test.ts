@@ -201,11 +201,12 @@ describe("«Для разработчика» (spec §16.6)", () => {
     assert.ok(root.template !== undefined, "MSX не показывает items корня без template");
     const rows = (root.items ?? []).filter((i) => i.id?.startsWith("f_") && i.id !== "f_reset");
     assert.deepEqual(rows.map((r) => r.id), [
-      "f_streamMode", "f_playerPropsIn", "f_heartbeat", "f_events", "f_autonext", "f_focusPrefetch", "f_gridPreload", "f_postBody", "f_apiBase",
-      "f_apiFallbackBase",
+      "f_streamMode", "f_playerPropsIn", "f_heartbeat", "f_events", "f_autonext", "f_restart", "f_focusPrefetch", "f_gridPreload",
+      "f_postBody", "f_apiBase", "f_apiFallbackBase",
     ]);
     const row = (k: string): MsxContentItem | undefined => rows.find((r) => r.id === `f_${k}`);
     assert.equal(row("streamMode")?.extensionLabel, "hls1");
+    assert.equal(row("restart")?.extensionLabel, "inplace");
     assert.equal(row("heartbeat")?.extensionLabel, "{txt:msx-yellow:timer}");
     assert.equal(row("streamMode")?.action, panelAction(P, ids.probe("flag:streamMode")));
     assert.equal(root.items?.find((i) => i.id === "f_reset")?.action, act("flagsReset"));

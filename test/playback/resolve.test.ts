@@ -235,6 +235,45 @@ describe("resolvePlay: links and the fallback chain", () => {
     assert.equal(linkCalls(t), 3);
   });
 
+  it("fix 35a: three audio changes in the player (:at restarts) 9 s apart without start events → no fallback step", async () => {
+    const t = await make();
+    props(await play(t, ids.playContinue(BIG)));
+    const unit = (await t.run(t.ctx.repo.item(BIG))).value.seasons[0]!.episodes[3]!;
+    for (const [i, a] of [unit.audios[1]!, unit.audios[0]!, unit.audios[1]!].entries()) {
+      await t.clock.advance(9_000);
+      t.ctx.prefs.chooseAudio(BIG, a);
+      const at = 600 + i * 10;
+      const res = await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4, { at }));
+      const p = props(res);
+      assert.equal(p["trigger:load"], undefined, `restart ${i + 1}: no «previous launch failed»`);
+      assert.match(res.url ?? "", new RegExp(`/master-v1a${a.index}\\.m3u8\\?loc=nl$`), `restart ${i + 1}: the chosen audio`);
+      assert.equal(p["resume:position"], String(at));
+      assert.equal(p["tizen:stream:ADAPTIVE_INFO"], undefined, "hls1, not hls2");
+      assert.deepEqual(lastResolved(t), { step: 1, mode: "hls1" });
+    }
+    assert.equal(linkCalls(t), 1, "links from the cache: a restart is not a failure");
+  });
+
+  it("fix 35a: a restart after a failed start keeps the working step (2) without a new toast or fresh links", async () => {
+    const t = await make();
+    props(await play(t, ids.playContinue(BIG)));
+    await t.clock.advance(9_000);
+    assert.equal(props(await play(t, ids.playContinue(BIG)))["trigger:load"], RETRY);
+    await t.clock.advance(9_000);
+    const p = props(await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4, { at: 700 })));
+    assert.equal(p["trigger:load"], undefined);
+    assert.deepEqual(lastResolved(t), { step: 2, mode: "hls1" });
+    assert.equal(linkCalls(t), 2);
+  });
+
+  it("a real failed start is still detected: no start events, the same title again after 9 s → step 2", async () => {
+    const t = await make();
+    props(await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4, { at: 600 })));
+    await t.clock.advance(9_000);
+    assert.equal(props(await play(t, ids.playContinue(BIG)))["trigger:load"], RETRY);
+    assert.deepEqual(lastResolved(t), { step: 2, mode: "hls1" });
+  });
+
   it("an impatient second press within 8 s → the same step, links from the cache", async () => {
     const t = await make();
     props(await play(t, ids.playContinue(BIG)));

@@ -8,6 +8,8 @@ export interface Flags {
   heartbeat: "ticks" | "timer" | "percent";
   events: "handleEvent" | "triggers";
   autonext: "button" | "resolve";
+  /** Смена озвучки и качества в плеере (фикс 35a): новый поток в открытом плеере или через закрытие плеера. */
+  restart: "inplace" | "eject";
   focusPrefetch: "on" | "off";
   /** `preload` у сеток постеров (главная, списки, поиск, закладки): MSX заранее строит следующую страницу с картинками. */
   gridPreload: "next" | "none";
@@ -22,6 +24,7 @@ export const DEFAULT_FLAGS: Flags = Object.freeze({
   heartbeat: "ticks",
   events: "handleEvent",
   autonext: "button",
+  restart: "inplace",
   focusPrefetch: "on",
   gridPreload: "next",
   postBody: "form",
@@ -37,6 +40,7 @@ export const FLAG_CHOICES: { [K in keyof Flags]?: readonly Flags[K][] } = Object
   heartbeat: choices("ticks", "timer", "percent"),
   events: choices("handleEvent", "triggers"),
   autonext: choices("button", "resolve"),
+  restart: choices("inplace", "eject"),
   focusPrefetch: choices("on", "off"),
   gridPreload: choices("next", "none"),
   postBody: choices("form", "query"),
