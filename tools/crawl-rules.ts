@@ -156,7 +156,7 @@ export function splitChain(a: string): string[] {
 
 /** Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник). */
 const FORMS: readonly RegExp[] = [
-  /^back$/, /^home$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/,
+  /^back$/, /^home$/, /^cleanup$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/,
   /^interaction:commit:message:[^|]+$/, /^(?:shot:)?interaction:commit:video$/,
   /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+)$/,
 ];

@@ -9,7 +9,7 @@ import { noCorsCalls } from "../progress/progress-rig.ts";
 // как это сделал бы MSX, а проверки трафика и журнала — по журналу kpmock и `ctx.log`.
 
 /** Меню из start parameter перерисовывается только `replace:menu` (smoke-e2e этапа 27). */
-export const CHAIN_DONE = `[home|lazy:replace:menu:menu:request:interaction:init@${TEST_P}|info:Вход выполнен]`;
+export const CHAIN_DONE = `[home|cleanup|lazy:replace:menu:menu:request:interaction:init@${TEST_P}|info:Вход выполнен]`;
 const COMMIT = "interaction:commit:message:";
 
 /** `request:…`, `content:request:…`, `panel:request:…`, `video:resolve:request:…` с полным адресом плагина → dataId. */

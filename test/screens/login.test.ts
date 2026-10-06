@@ -23,7 +23,7 @@ async function make(o: Omit<TestAppOptions, "mock"> = {}): Promise<TestApp> {
 
 const REFRESH_MENU = `replace:menu:menu:request:interaction:init@${TEST_P}`;
 /** X-3: вход мог завершиться на вложенном экране — сначала `home`, замена меню — после анимации. */
-const DONE = `[home|lazy:${REFRESH_MENU}|info:Вход выполнен]`;
+const DONE = `[home|cleanup|lazy:${REFRESH_MENU}|info:Вход выполнен]`;
 const RETRY = "[invalidate:content|reload:content]";
 const CODE_TTL_MS = 600_000;   // expires_in у kpmock
 

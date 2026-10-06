@@ -42,8 +42,8 @@ describe("crawl rules", () => {
       "interaction:commit:message:act:item:refresh:1", "interaction:commit:video", "shot:interaction:commit:video",
       "[interaction:commit:video|player:eject]", "player:button:next:execute", "player:ticking:restart",
       "player:commit:message:subs:off",
-      // X-3: меню после входа и выхода — `home`, затем `replace:menu` после анимации.
-      `[home|lazy:replace:menu:menu:${req("init")}|info:Готово]`,
+      // X-3: меню после входа и выхода — `home`, `cleanup`, затем `replace:menu` после анимации.
+      `[home|cleanup|lazy:replace:menu:menu:${req("init")}|info:Готово]`,
     ]) assert.deepEqual(actionIssues(a), [], a);
     assert.deepEqual(actionIssues("lazy:reload:menu"), ["lazy:reload:menu: unknown action"]);
     assert.deepEqual(actionIssues("reload:menu"), ["reload:menu: unknown action"]);

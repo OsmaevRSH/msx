@@ -19,8 +19,11 @@ async function make(): Promise<TestApp> {
 }
 
 const REFRESH_MENU = `replace:menu:menu:request:interaction:init@${TEST_P}`;
-/** X-3: `replace:menu` MSX выполняет только на корневом экране — сначала `home`, замена меню — после анимации. */
-const TO_MENU = (toast: string): string => `[home|lazy:${REFRESH_MENU}|info:${toast}]`;
+/**
+ * X-3: `replace:menu` MSX выполняет только на корневом экране — сначала `home` и `cleanup` (на корне `home` открывает
+ * системное «Меню» MSX), замена меню — после анимации.
+ */
+const TO_MENU = (toast: string): string => `[home|cleanup|lazy:${REFRESH_MENU}|info:${toast}]`;
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 
 describe("auth.onLoggedOut (createApp)", () => {
