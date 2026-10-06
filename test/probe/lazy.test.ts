@@ -30,12 +30,27 @@ function loader(): ProbeLoad & { calls: number; next: (() => Promise<ProbeModule
   return f;
 }
 
-function deferred(): { promise: Promise<ProbeModule>; resolve: () => void } {
+interface Deferred { promise: Promise<ProbeModule>; resolve: () => void; reject: (e: Error) => void }
+
+/** Загрузка, которую тест завершает сам: модулем `mod` (по умолчанию — пробник) или отказом. */
+function deferred(mod: ProbeModule = probeEntry): Deferred {
   let resolve = (): void => {};
-  const promise = new Promise<ProbeModule>((r) => {
-    resolve = () => r(probeEntry);
+  let reject = (_: Error): void => {};
+  const promise = new Promise<ProbeModule>((ok, fail) => {
+    resolve = () => ok(mod);
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
+}
+
+/** Модуль пробника со счётчиком регистраций (`install`). */
+function counted(): ProbeModule & { installs: number } {
+  const m = Object.assign({}, probeEntry, { installs: 0 });
+  m.install = (ctx) => {
+    m.installs += 1;
+    probeEntry.install(ctx);
+  };
+  return m;
 }
 
 const offline = (): Promise<ProbeModule> => Promise.reject(new TypeError("Failed to fetch"));
@@ -139,15 +154,46 @@ describe("probe.js: loaded on first use (stage 23b)", () => {
     assert.equal(res.error, errorText(new TypeError("x")).text);
   });
 
-  it(`a load that hangs gives up after ${PROBE_LOAD_TIMEOUT_MS / 1000} s with KP-NET; a late module is not installed`, async () => {
+  it(`a hanging load: KP-NET after ${PROBE_LOAD_TIMEOUT_MS / 1000} s; a retry meanwhile inserts no second probe.js`, async () => {
     const l = loader();
-    const d = deferred();
+    const mod = counted();
+    const d = deferred(mod);
     l.next.push(() => d.promise);
     const t = await make({ probe: l });
     const t0 = t.clock.now();
     assertNetError((await t.request(ids.probe())) as MsxContentRoot);
     assert.ok(t.clock.now() - t0 >= PROBE_LOAD_TIMEOUT_MS);
+    const again = t.app.handleRequest(ids.probe(), {});
+    await pass(t, 100);
+    assert.equal(l.calls, 1, "the retry waits for the first probe.js, which may still arrive");
     d.resolve();
+    assert.equal(((await t.run(again)) as MsxContentRoot).headline, "Диагностика");
+    assert.deepEqual([l.calls, mod.installs], [1, 1]);
+  });
+
+  it("probe.js that arrives after the timeout is installed once; the next probe route does not load it again", async () => {
+    const l = loader();
+    const mod = counted();
+    const d = deferred(mod);
+    l.next.push(() => d.promise);
+    const t = await make({ probe: l });
+    assertNetError((await t.request(ids.probe())) as MsxContentRoot);
+    d.resolve();
+    await pass(t, 100);
+    assert.ok(probeLoaded(t));
+    assert.equal(((await t.request(ids.probe())) as MsxContentRoot).headline, "Диагностика");
+    assert.equal(((await t.request(ids.dev())) as MsxContentRoot).headline, "Для разработчика");
+    assert.deepEqual([l.calls, mod.installs], [1, 1]);
+  });
+
+  it("a late probe.js of another version is refused, not installed; the retry loads again", async () => {
+    const l = loader();
+    const d = deferred();
+    l.next.push(() => d.promise);
+    const t = await make({ probe: l });
+    assertNetError((await t.request(ids.probe())) as MsxContentRoot);
+    // Так отвечает загрузчик src/main.ts, когда `kpProbe.v` не совпал с версией app.js.
+    d.reject(new Error("probe.js version 0123456789, expected abcdefabcd"));
     await pass(t, 100);
     assert.equal(probeLoaded(t), false);
     assert.equal(((await t.request(ids.probe())) as MsxContentRoot).headline, "Диагностика");
