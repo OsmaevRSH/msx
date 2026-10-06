@@ -183,6 +183,11 @@ export class Repo {
       (await this.api.shelf(kind, { type: opt(type), page: 1, perpage: SHELF_SIZE }, c)).items));
   }
 
+  /** Только L1/L2, без сети: подборку из кэша главная показывает сразу и обновляет фоном (спец. §8.4 п. 1). */
+  peekShelf(kind: "fresh" | "popular" | "hot", type: string): Got<ItemSummary[]> | undefined {
+    return this.cache.peek<ItemSummary[]>(cacheKeys.shelf(kind, type));
+  }
+
   search(q: string, page: number): Promise<Got<Page<ItemSummary>>> {
     return this.cache.get(cacheKeys.search(q, page), SEARCH, () => this.api.search(q, page, PER_PAGE));
   }

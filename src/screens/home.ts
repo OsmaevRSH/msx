@@ -18,8 +18,8 @@ import { posterTiles } from "./tiles.ts";
 // Главная S4 (спец. §8.4, §11; Plan B S4, D-34, D-40). Всё, что есть в кэше, отдаётся сразу, персональное — с оверлеем
 // прогресса ТВ; KinoPub ждём только при пустом кэше и не дольше 1,5 с (CNFR-05). Не успевшие полки и устаревшие
 // персональные данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его
-// персональная часть или набор полок (спец. §6.3). Показ, которого ждёт пользователь, — передний план; прогрев и фоновые
-// сверки — `bg`, чтобы не отнимать слоты у действий пользователя (спец. §8.3, §8.5).
+// персональная часть или набор полок (спец. §6.3). Показ, которого ждёт пользователь, — передний план; прогрев, фоновые
+// сверки и обновление подборок из кэша — `bg`, чтобы не отнимать слоты у действий пользователя (спец. §8.3–8.5).
 
 const FLAG = "home";
 const DEADLINE_MS = 1500;
@@ -126,7 +126,9 @@ async function loadShelf(ctx: AppContext, d: Def, o: ReqOpts): Promise<Shelf> {
     }));
     return { def: d, tiles: withMore(ctx, d, tiles, ids.bookmarks()), personal: folders.map((f) => [f.id, f.count]), stale: g.stale };
   }
-  const g = await ctx.repo.shelf(d.kind, d.type ?? "", o);
+  const type = d.type ?? "";
+  // Спец. §8.4 п. 1: подборку из кэша пользователь не ждёт — её обновление фоновое; персональные полки — с классом показа.
+  const g = await ctx.repo.shelf(d.kind, type, ctx.repo.peekShelf(d.kind, type) === undefined ? o : BG);
   const more = ids.list(encodeListKey({ src: d.kind, type: d.type }));
   return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES)), more), stale: false };
 }

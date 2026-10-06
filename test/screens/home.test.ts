@@ -409,6 +409,19 @@ describe("homeScreen: request class (спец. §8.3, §8.5)", () => {
     assert.deepEqual([...new Set(classes(t).slice(shown.length))], ["bg"]);
   });
 
+  it("from a stale L2 the catalog shelves refresh bg, «Продолжить» and «Закладки» fg (спец. §8.4 п. 1)", async () => {
+    const first = await make();
+    await open(first);
+    await persisted(first);
+    const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false, clock: new FakeClock(FAKE_EPOCH + 120 * MIN) });
+    await open(t);
+    await drive(t, () => classes(t).length >= HOME_KEYS.length, "refresh of every home key");
+    const of = (re: RegExp): string[] => [...new Set(t.ctx.log.entries()
+      .filter((e) => e.tag === "api" && re.test(e.msg)).map((e) => e.msg.slice(e.msg.lastIndexOf(" ") + 1)))];
+    assert.deepEqual(of(/^GET \/v1\/items\/(fresh|popular|hot) /), ["bg"]);
+    assert.deepEqual(of(/^GET \/v1\/(history|watching\/serials|bookmarks) /), ["fg"]);
+  });
+
   it("warmHome goes bg", async () => {
     const t = await make();
     warmHome(t.ctx);
