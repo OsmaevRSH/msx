@@ -4,6 +4,7 @@ import { sleep } from "../src/core/clock.ts";
 import type { LogEntry } from "../src/core/log.ts";
 import { ids, isPanelId, parseDataId, parseMessage } from "../src/router/ids.ts";
 import { createTestApp } from "../test/helpers/harness.ts";
+import { FIX } from "./kpmock/fixtures.ts";
 import type { TestApp } from "../test/helpers/harness.ts";
 import {
   RESOLVE_KINDS, actionIssues, actionsOf, addressIssues, answerIssues, bytesOf, contextIssues, kindOf, menuActionIssues,
@@ -49,8 +50,13 @@ const LAST = new Set(["set:logout", "probe:logout"]);
 
 /** Сколько узлов одного вида обходить: краулеру нужна каждая разметка и каждое действие, а не каждый тайтл. */
 const CAPS: Record<string, number> = {
-  item: 8, season: 3, play: 2, playEp: 3, probePlay: 6, extend: 3, searchInput: SEARCH_KEYS.size, pf: 2,
+  item: 8, season: 8, play: 2, playEp: 3, probePlay: 6, extend: 3, searchInput: SEARCH_KEYS.size, pf: 2,
 };
+/**
+ * Длинные сезоны SERIAL_LONG (100 и 200 серий, CNFR-16): их нет в каталоге mock, поэтому обход идёт к ним сразу от
+ * `init`, а дальше — по переходам между частями сезона.
+ */
+const SEEDS = [ids.season(FIX.SERIAL_LONG, 1), ids.season(FIX.SERIAL_LONG, 2)];
 const REQ_CAP = 3;
 const MSG_CAP = 2;
 
@@ -108,6 +114,7 @@ class Crawler {
   async run(): Promise<CrawlReport> {
     this.t.app.ready();
     this.push({ k: "req", id: ids.init(), depth: 0 });
+    for (const id of SEEDS) this.push({ k: "req", id, depth: 1 });
     await this.drain();
     if (this.last.length > 0) {
       // После выхода — меню и экраны без входа; код входа не подтверждается, чтобы обход не вошёл снова.

@@ -4,16 +4,18 @@ import { FIX, GENRES, buildCatalog, catalog, findItem, findUnit } from "../../to
 import type { FxItem, FxUnit } from "../../tools/kpmock/fixtures.ts";
 import { MockState, watchKey } from "../../tools/kpmock/state.ts";
 
-const SPECIAL_IDS = [FIX.SERIAL_BIG, FIX.SERIAL_SMALL, FIX.MOVIE_MULTI, FIX.MOVIE_AUDIO12, FIX.MOVIE_DELETED, FIX.MOVIE_SIMPLE];
+const SPECIAL_IDS = [
+  FIX.SERIAL_BIG, FIX.SERIAL_SMALL, FIX.MOVIE_MULTI, FIX.MOVIE_AUDIO12, FIX.MOVIE_DELETED, FIX.MOVIE_SIMPLE, FIX.SERIAL_LONG,
+];
 
 function unitsOf(it: FxItem): FxUnit[] {
   return [...(it.videos ?? []), ...(it.seasons ?? []).flatMap((s) => s.episodes)];
 }
 
 describe("kpmock fixtures", () => {
-  it("has 500 regular titles (1000–1499) and 6 special ones", () => {
+  it("has 500 regular titles (1000–1499) and 7 special ones", () => {
     const all = catalog();
-    assert.equal(all.length, 506);
+    assert.equal(all.length, 507);
     const regular = all.filter((it) => it.id >= 1000 && it.id <= 1499);
     assert.equal(regular.length, 500);
     assert.deepEqual(all.filter((it) => it.id >= 2000).map((it) => it.id).sort(), [...SPECIAL_IDS].sort());
@@ -90,6 +92,18 @@ describe("kpmock fixtures", () => {
   it("builds SERIAL_SMALL with 2 × 3 episodes of 60 s", () => {
     const it = findItem(FIX.SERIAL_SMALL);
     assert.deepEqual(it?.seasons?.map((s) => s.episodes.map((e) => e.duration)), [[60, 60, 60], [60, 60, 60]]);
+  });
+
+  it("builds SERIAL_LONG (CNFR-16): seasons of 100 and 200 episodes numbered from 1, unlisted, unique mids", () => {
+    const it = findItem(FIX.SERIAL_LONG);
+    assert.equal(it?.unlisted, true);
+    assert.deepEqual(it?.seasons?.map((s) => [s.number, s.episodes.length]), [[1, 100], [2, 200]]);
+    assert.deepEqual(it?.seasons?.map((s) => s.episodes.map((e) => e.number)), [
+      Array.from({ length: 100 }, (_, i) => i + 1), Array.from({ length: 200 }, (_, i) => i + 1),
+    ]);
+    const mids = it?.seasons?.flatMap((s) => s.episodes.map((e) => e.id)) ?? [];
+    assert.equal(new Set(mids).size, 300);
+    assert.ok(mids.every((m) => findUnit(m)?.item.id === FIX.SERIAL_LONG));
   });
 
   it("builds MOVIE_MULTI, MOVIE_DELETED and MOVIE_SIMPLE", () => {

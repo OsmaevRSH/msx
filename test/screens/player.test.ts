@@ -10,6 +10,7 @@ import {
   contextFields,
   contextPlayerProps,
   dynamicProps,
+  idleContextFields,
   playerProps,
   subsTitle,
 } from "../../src/screens/player.ts";
@@ -225,6 +226,14 @@ describe("contextPlayerProps and contextFields (CDG-06, decision Р-18)", () => 
       knextAction: EXAMPLE["button:next:action"], kprevAction: EXAMPLE["button:prev:action"],
       kcomplete: "player:button:next:execute",
     });
+  });
+
+  it("a season tile that plays nothing (a way between parts): the same fields, actions are no-op [] (CNFR-16, Р-36)", async () => {
+    const t = await make();
+    const idle = idleContextFields();
+    assert.deepEqual(Object.keys(idle).sort(), Object.keys(contextFields(t.ctx, MIDDLE)).sort());
+    assert.ok(Object.values(idle).every((v) => typeof v === "string"));
+    assert.deepEqual([idle.knextAction, idle.kprevAction, idle.kcomplete], ["[]", "[]", "[]"]);
   });
 
   it("the last episode gets knextAction [] (no-op) and kcomplete player:eject", async () => {

@@ -149,6 +149,10 @@ export function contextFields(ctx: AppContext, p: PlayerPropsInput): Record<stri
   };
 }
 
+/** Те же поля у элемента сезона, который видео не запускает (переход между частями сезона): действия — пустые `[]`. */
+export const idleContextFields = (): Record<string, string> =>
+  ({ kid: "", kmid: "", ks: "", ke: "", kd: "", kn: "0", knextAction: NOP, kprevAction: NOP, kcomplete: NOP });
+
 /** Свойства, зависящие от конкретного запуска: позиция, метка, субтитры, режим и шаг цепочки fallback. */
 export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, string> {
   const out: Record<string, string> = {

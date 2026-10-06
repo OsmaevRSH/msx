@@ -61,11 +61,11 @@ function csv(q: URLSearchParams, name: string): string[] | undefined {
   return parts.length > 0 ? parts : undefined;
 }
 
-/** Видимые тайтлы (без удалённых) с фильтрами `type` и `genre` (через запятую = ИЛИ). */
+/** Видимые тайтлы (без удалённых и тех, что только по id) с фильтрами `type` и `genre` (через запятую = ИЛИ). */
 function filtered(q: URLSearchParams): FxItem[] {
   const types = csv(q, "type");
   const genres = csv(q, "genre")?.map(Number);
-  return catalog().filter((it) => !it.deleted && (!types || types.includes(it.type)) &&
+  return catalog().filter((it) => !it.deleted && !it.unlisted && (!types || types.includes(it.type)) &&
     (!genres || it.genres.some((g) => genres.includes(g.id))));
 }
 
@@ -147,7 +147,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
     const target = findItem(id);
     if (!target || target.deleted) throw new HttpError(404, NOT_FOUND);
     const similar = catalog()
-      .filter((it) => !it.deleted && it.type === target.type && it.id !== id)
+      .filter((it) => !it.deleted && !it.unlisted && it.type === target.type && it.id !== id)
       .sort((a, b) => Math.abs(a.id - id) - Math.abs(b.id - id) || a.id - b.id)
       .slice(0, SIMILAR_COUNT);
     return { status: 200, json: { status: 200, items: similar.map((it) => listItem(it, ctx.base)) } };

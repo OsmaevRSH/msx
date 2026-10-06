@@ -101,6 +101,15 @@ describe("kpmock catalog, items, media links, CDN", () => {
       assert.deepEqual(found.items, []);
     });
 
+    it("SERIAL_LONG is only reachable by id: not in lists, search or similar", async () => {
+      const all = await json<ListBody>("/v1/items?perpage=1000");
+      assert.ok(!all.items.some((it) => it.id === FIX.SERIAL_LONG));
+      assert.deepEqual((await json<ListBody>("/v1/items/search?q=длинный")).items, []);
+      const similar = await json<ListBody>(`/v1/items/similar?id=${FIX.SERIAL_BIG}`);
+      assert.ok(!similar.items.some((it) => it.id === FIX.SERIAL_LONG));
+      assert.equal((await get(`/v1/items/${FIX.SERIAL_LONG}`)).status, 200);
+    });
+
     it("tolerance: year as a string for every 7th id, imdb_rating for every 5th; posters on the mock", async () => {
       const b = await json<ListBody>("/v1/items?perpage=1000");
       const byId = new Map(b.items.map((it) => [it.id, it]));

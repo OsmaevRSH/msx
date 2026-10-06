@@ -7,6 +7,7 @@ import { commitMsg, panelAction, replaceContent, resolveAction } from "../../src
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
 import { seasonHash, seasonLabel, seasonRefreshSpec, seasonTabLabel } from "../../src/screens/season.ts";
+import { contextIssues } from "../../tools/crawl-rules.ts";
 import { FIX, findItem } from "../../tools/kpmock/fixtures.ts";
 import { watchKey } from "../../tools/kpmock/state.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
@@ -271,6 +272,84 @@ describe("seasonScreen: player properties in the item (playerPropsIn: item, CDG-
     const s = await open(t, BIG, 1);
     assert.equal(s.template?.properties, undefined);
     assert.equal(ep(s, mid(BIG, 1)).kmid, undefined);
+  });
+});
+
+describe("seasonScreen: long seasons in parts (CNFR-16)", () => {
+  const LONG = FIX.SERIAL_LONG;
+  /** Серия k сезона n у SERIAL_LONG: в сезоне 1 — 100 серий, в сезоне 2 — 200 (mid по сквозному номеру фикстуры). */
+  const longMid = (n: number, k: number): number => mid(LONG, n === 1 ? k : 200 + k);
+  const navs = (s: MsxContentRoot): MsxContentItem[] => eps(s).filter((i) => i.id?.startsWith("e_"));
+  const episodes = (s: MsxContentRoot): MsxContentItem[] => eps(s).filter((i) => !i.id?.startsWith("e_"));
+  const nextOf = (s: MsxContentRoot): string | undefined => {
+    const a = navs(s).find((i) => i.id === "e_next")?.action;
+    return a === undefined ? undefined : /request:interaction:([^@]+)@/.exec(a)?.[1];
+  };
+
+  /** Пройти части «… ›» от первой: каждая ≤ 32 КБ, серии сезона по порядку ровно один раз. */
+  async function walk(t: TestApp, n: number, total: number): Promise<MsxContentRoot[]> {
+    const parts: MsxContentRoot[] = [];
+    for (let id: string | undefined = ids.season(LONG, n); id !== undefined; id = nextOf(parts.at(-1)!)) {
+      parts.push((await t.request(id)) as MsxContentRoot);
+      assert.ok(parts.length <= total, "the parts end");
+    }
+    for (const p of parts) assert.ok(bytes(p) <= 32 * 1024, `${p.headline}: ${bytes(p)} B`);
+    assert.deepEqual(parts.flatMap((p) => episodes(p).map((i) => i.id)), Array.from({ length: total }, (_, k) => `e${longMid(n, k + 1)}`));
+    return parts;
+  }
+
+  for (const [flags, name] of [[{}, "defaults"], [{ playerPropsIn: "item" }, "playerPropsIn: item"]] as const) {
+    for (const [n, total] of [[1, 100], [2, 200]] as const) {
+      it(`${total} episodes, ${name}: parts of whole rows ≤ 32 KB, «‹ Серии …» and «Серии … ›» between them`, async () => {
+        const t = await make(flags);
+        const parts = await walk(t, n, total);
+        assert.ok(parts.length >= 3, `${parts.length} parts`);
+        const size = episodes(parts[0]!).length;
+        assert.equal(size % 4, 0, "whole rows of 4");
+        parts.forEach((p, i) => {
+          const from = i * size;
+          const last = Math.min(total, from + size);
+          assert.equal(p.flag, `ep_${LONG}_${n}`);
+          assert.equal(p.headline, `Тестовый сериал «Длинный» · Сезон ${n} из 2 · Серии ${from + 1}–${last}`);
+          assert.deepEqual(navs(p).map((x) => x.id), [...(i > 0 ? ["e_prev"] : []), ...(last < total ? ["e_next"] : [])]);
+          if (i > 0) {
+            const prev = navs(p)[0]!;
+            assert.equal(prev.title, `‹ Серии ${from - size + 1}–${from}`);
+            assert.equal(prev.action, replaceContent(`ep_${LONG}_${n}`, P, ids.season(LONG, n, from - size)));
+            assert.equal(eps(p)[0], prev, "the way back is the first tile");
+          }
+          if (last < total) assert.equal(eps(p).at(-1)?.title, `Серии ${last + 1}–${Math.min(total, last + size)} ›`);
+          assert.deepEqual(episodes(p).filter((e) => e.focus === true).map((e) => e.id), [`e${longMid(n, from + 1)}`]);
+          assert.deepEqual(contextIssues(p), [], "context fields of every tile are strings, the way tiles too");
+        });
+      });
+    }
+  }
+
+  it("without a part the season opens on the part with «Продолжить», focus on that episode", async () => {
+    const t = await make();
+    t.mock.state.watching.set(watchKey(LONG, 1, 50), { time: 600, status: 0, updated: 0 });
+    const s = await open(t, LONG, 1);
+    const size = episodes(s).length;
+    const from = Math.floor(49 / size) * size;
+    assert.ok(from > 0);
+    assert.equal(s.headline, `Тестовый сериал «Длинный» · Сезон 1 из 2 · Серии ${from + 1}–${from + size}`);
+    assert.deepEqual(episodes(s).filter((e) => e.focus === true).map((e) => e.id), [`e${longMid(1, 50)}`]);
+    assert.equal(navs(s)[0]?.action, replaceContent(`ep_${LONG}_1`, P, ids.season(LONG, 1, from - size)));
+  });
+
+  it("a part keeps its place on refresh: the spec targets season:<id>:<n>:<from>", async () => {
+    const t = await make();
+    await t.request(ids.season(LONG, 2, 72));
+    assert.equal(seasonRefreshSpec(t.ctx, LONG, 2, "h", 72).dataId, "season:2007:2:72");
+    assert.equal(t.ctx.current.get(), "season:2007:2:72");
+  });
+
+  it("a short season stays whole: SERIAL_BIG season 1 has no part tiles", async () => {
+    const t = await make({ playerPropsIn: "item" });
+    const s = await open(t, BIG, 1);
+    assert.equal(navs(s).length, 0);
+    assert.equal(eps(s).length, 20);
   });
 });
 

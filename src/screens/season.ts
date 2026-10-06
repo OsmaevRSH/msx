@@ -12,8 +12,9 @@ import { errorScreen } from "./error.ts";
 import {
   freshItem, isSerial, optionsRoot, playerInput, prefetchLinks, scheduleScreenRefresh, watchedRow,
 } from "./item.ts";
+import { MAX_BYTES, bytes } from "./list.ts";
 import type { OptionRow } from "./item.ts";
-import { contextFields, contextPlayerProps } from "./player.ts";
+import { contextFields, contextPlayerProps, idleContextFields } from "./player.ts";
 import { personalHash, trackScreen } from "./refresh.ts";
 import type { RefreshSpec } from "./refresh.ts";
 
@@ -21,7 +22,7 @@ import type { RefreshSpec } from "./refresh.ts";
 
 const T = {
   season: "Сезон", of: "из", parts: "Части", episode: "Серия", part: "Часть", fromStart: "Смотреть с начала", more: "▾",
-  seasons: "Сезоны", pickSeason: "Сезоны…", current: "{ico:check}",
+  seasons: "Сезоны", pickSeason: "Сезоны…", current: "{ico:check}", episodes: "Серии",
 };
 /** V-23: вкладки уходят за верх экрана, когда фокус на серии, — подсказка красной кнопки видна всегда. */
 const SEASONS_HINT = `{ico:msx-red:stop} ${T.seasons}`;
@@ -37,6 +38,8 @@ const TEMPLATE: MsxContentItem = {
   type: "separate", layout: "0,0,4,4", color: "msx-glass", imageFiller: "cover", progress: -1, progressColor: "msx-blue",
   enumerate: false,
 };
+/** Плиток в ряду сетки серий: часть длинного сезона — целые ряды. */
+const ROW = 4;
 
 export const seasonFlag = (id: number, n: number): string => `ep_${id}_${n}`;
 
@@ -113,9 +116,9 @@ export function seasonHash(ctx: AppContext, item: ItemDetail, fetchedAt: number,
   });
 }
 
-export function seasonRefreshSpec(ctx: AppContext, id: number, n: number, hash: string): RefreshSpec {
+export function seasonRefreshSpec(ctx: AppContext, id: number, n: number, hash: string, from?: number): RefreshSpec {
   return {
-    dataId: ids.season(id, n), flag: seasonFlag(id, n), hash,
+    dataId: ids.season(id, n, from), flag: seasonFlag(id, n), hash,
     recompute: async () => {
       const got = await freshItem(ctx, id, "bg");
       return seasonHash(ctx, got.value, got.fetchedAt, n);
@@ -123,8 +126,8 @@ export function seasonRefreshSpec(ctx: AppContext, id: number, n: number, hash: 
   };
 }
 
-export async function seasonScreen(ctx: AppContext, id: number, n: number): Promise<MsxContentRoot> {
-  const dataId = ids.season(id, n);
+export async function seasonScreen(ctx: AppContext, id: number, n: number, from?: number): Promise<MsxContentRoot> {
+  const dataId = ids.season(id, n, from);
   let got: Got<ItemDetail>;
   try {
     got = await ctx.repo.item(id);
@@ -154,13 +157,49 @@ export async function seasonScreen(ctx: AppContext, id: number, n: number): Prom
     root.extension = SEASONS_HINT;
     root.options = optionsRoot(seasonsRow, title);
   }
+  // Переходы между частями не запускают видео, но поля для `{context:…}` у каждого элемента — строки (Р-36).
+  fitParts(ctx, root, id, n, m, from, withProps ? idleContextFields() : {});
 
   const next = m.episodes.find((e) => e.status !== 1);
   if (next !== undefined) prefetchLinks(ctx, next.ref.mid);
-  const spec = seasonRefreshSpec(ctx, id, n, seasonHash(ctx, item, got.fetchedAt, n));
+  const spec = seasonRefreshSpec(ctx, id, n, seasonHash(ctx, item, got.fetchedAt, n), from);
   trackScreen(ctx, spec);
   if (got.stale) scheduleScreenRefresh(ctx, spec);
   return root;
+}
+
+/** «Серии 33–64» по номерам первой и последней серии части [from, to). */
+const range = (m: SeasonModel, from: number, to: number): string =>
+  `${m.serial ? T.episodes : T.parts} ${m.episodes[from]!.ref.video}–${m.episodes[to - 1]!.ref.video}`;
+
+/**
+ * CNFR-16 при любом числе серий: ответ со всеми сериями больше 32 КБ — в нём одна часть сезона, целые ряды, сколько
+ * помещается по самой длинной плитке, и плитки-переходы к соседним частям по краям («‹ Серии 1–24», «Серии 49–72 ›»,
+ * `replace:content` с флагом сезона). Без `from` — часть с серией «Продолжить»; в части без неё фокус на первой серии.
+ */
+function fitParts(
+  ctx: AppContext, root: MsxContentRoot, id: number, n: number, m: SeasonModel, from: number | undefined, blank: Record<string, string>,
+): void {
+  const all = root.items ?? [];
+  if (bytes(root) <= MAX_BYTES) return;
+  const head = root.headline;
+  const at = Math.max(0, m.episodes.findIndex((e) => e.ref.mid === m.focus));
+  const per = Math.max(...all.map(bytes)) + 1;
+  const nav = (a: number, b: number, next: boolean): MsxContentItem => ({
+    ...blank, id: next ? "e_next" : "e_prev", icon: next ? "navigate-next" : "navigate-before",
+    title: next ? `${range(m, a, b)} ›` : `‹ ${range(m, a, b)}`, action: replaceContent(seasonFlag(id, n), ctx.P, ids.season(id, n, a)),
+  });
+  for (let size = Math.max(ROW, Math.floor((MAX_BYTES - bytes({ ...root, items: [] })) / per / ROW) * ROW); ; size -= ROW) {
+    const start = Math.min(from ?? Math.floor(at / size) * size, all.length - 1);
+    const end = Math.min(all.length, start + size);
+    const items = all.slice(start, end);
+    if (!items.some((i) => i.focus === true)) items[0] = { ...items[0], focus: true };
+    if (start > 0) items.unshift(nav(Math.max(0, start - size), start, false));
+    if (end < all.length) items.push(nav(end, Math.min(all.length, end + size), true));
+    root.items = items;
+    root.headline = `${head ?? ""} · ${range(m, start, end)}`;
+    if (size <= ROW || bytes(root) <= MAX_BYTES) return;
+  }
 }
 
 /** Вкладка ведёт `replace:content` с флагом текущего сезона: новый экран придёт со своим флагом (M-01). */

@@ -11,7 +11,8 @@ export type Route =
   | { k: "settings" } | { k: "bookmarks" } | { k: "dev" }
   | { k: "list"; key: string }
   | { k: "item"; id: number }
-  | { k: "season"; id: number; n: number }
+  /** `from` — первая серия части длинного сезона (индекс в сезоне, с 0); без него — часть с «Продолжить» (CNFR-16). */
+  | { k: "season"; id: number; n: number; from?: number }
   | { k: "panel"; type: string; args: string[] }
   | { k: "probe"; page?: string }
   | { k: "play"; id: number; what: "continue" | "start" }
@@ -93,8 +94,10 @@ function route(id: string): Route | undefined {
       return n === undefined ? undefined : { k: "item", id: n };
     }
     case "season": {
-      const [sid, n] = [pos(parts[1]), uint(parts[2])];
-      return parts.length === 3 && sid !== undefined && n !== undefined ? { k: "season", id: sid, n } : undefined;
+      const [sid, n, from] = [pos(parts[1]), uint(parts[2]), uint(parts[3])];
+      if (sid === undefined || n === undefined) return undefined;
+      if (parts.length === 3) return { k: "season", id: sid, n };
+      return parts.length === 4 && from !== undefined ? { k: "season", id: sid, n, from } : undefined;
     }
     case "panel": {
       const type = parts[1];
@@ -163,7 +166,7 @@ export const ids = {
   list: (key: string): string => `list:${key}`,
   search: (): string => "search",
   item: (id: number): string => `item:${id}`,
-  season: (id: number, n: number): string => `season:${id}:${n}`,
+  season: (id: number, n: number, from?: number): string => (from === undefined ? `season:${id}:${n}` : `season:${id}:${n}:${from}`),
   panel: (type: string, ...args: (string | number)[]): string => join(["panel", type, ...args]),
   settings: (): string => "settings",
   bookmarks: (): string => "bookmarks",

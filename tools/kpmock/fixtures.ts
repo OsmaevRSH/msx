@@ -2,7 +2,8 @@
 // Никакой случайности: все «разбросы» — арифметика от id.
 
 export const FIX = {
-  SERIAL_BIG: 2001, SERIAL_SMALL: 2002, MOVIE_MULTI: 2003, MOVIE_AUDIO12: 2004, MOVIE_DELETED: 2005, MOVIE_SIMPLE: 2006, GENRE_ANIM: 23,
+  SERIAL_BIG: 2001, SERIAL_SMALL: 2002, MOVIE_MULTI: 2003, MOVIE_AUDIO12: 2004, MOVIE_DELETED: 2005, MOVIE_SIMPLE: 2006,
+  SERIAL_LONG: 2007, GENRE_ANIM: 23,
 } as const;
 
 export interface Ref { id: number; title: string }
@@ -16,7 +17,9 @@ export interface FxSeason { id: number; number: number; title: string; episodes:
 export interface FxItem { id: number; type: string; subtype: string; title: string; year: number; genres: Ref[];
   countries: Ref[]; quality: number; plot: string; imdb_rating: number; kinopoisk_rating: number;
   rating: number; views: number; created_at: number; updated_at: number; videos?: FxUnit[];
-  seasons?: FxSeason[]; deleted?: boolean }
+  seasons?: FxSeason[]; deleted?: boolean;
+  /** Только по id (карточка, сезоны, ссылки): нет в списках, поиске и похожих — каталог и golden-снимки не меняются. */
+  unlisted?: boolean }
 
 export const TYPES: { id: string; title: string }[] = [
   { id: "movie", title: "Фильмы" }, { id: "serial", title: "Сериалы" }, { id: "3D", title: "3D" },
@@ -224,7 +227,13 @@ function specialItems(): FxItem[] {
   const simple = baseItem(FIX.MOVIE_SIMPLE, "movie", "Тестовый фильм «Простой» / Test Movie Simple");
   simple.videos = [makeUnit(FIX.MOVIE_SIMPLE, 1, { number: 1, snumber: 0, title: "", duration: 5400 })];
 
-  return [big, small, multi, a12, deleted, simple];
+  // Длинные сезоны (CNFR-16): 100 и 200 серий — ответ сезона делится на части (спец. §11 S9).
+  const long = baseItem(FIX.SERIAL_LONG, "serial", "Тестовый сериал «Длинный» / Test Series Long");
+  long.unlisted = true;
+  long.seasons = makeSeasons(FIX.SERIAL_LONG, 2, 200, (mid) => 1320 + (mid % 7) * 30);
+  long.seasons[0].episodes = long.seasons[0].episodes.slice(0, 100);
+
+  return [big, small, multi, a12, deleted, simple, long];
 }
 
 /** Строит каталог заново (без кэша) — для проверки детерминизма. */

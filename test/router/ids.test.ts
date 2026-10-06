@@ -15,6 +15,8 @@ describe("parseDataId: round trip of every route (§0.6.7)", () => {
     [ids.search(), { k: "search" }],
     [ids.item(2001), { k: "item", id: 2001 }],
     [ids.season(2001, 3), { k: "season", id: 2001, n: 3 }],
+    [ids.season(2007, 1, 32), { k: "season", id: 2007, n: 1, from: 32 }],
+    [ids.season(2007, 2, 0), { k: "season", id: 2007, n: 2, from: 0 }],
     [ids.panel("audio", 2004, 2004001, "p"), { k: "panel", type: "audio", args: ["2004", "2004001", "p"] }],
     [ids.panel("loc"), { k: "panel", type: "loc", args: [] }],
     [ids.panel("sort", key), { k: "panel", type: "sort", args: [key] }],
@@ -39,6 +41,7 @@ describe("parseDataId: round trip of every route (§0.6.7)", () => {
   it("builds the exact strings of the grammar", () => {
     assert.equal(ids.item(7), "item:7");
     assert.equal(ids.season(7, 2), "season:7:2");
+    assert.equal(ids.season(7, 2, 64), "season:7:2:64");
     assert.equal(ids.panel("audio", 7, 70, "c"), "panel:audio:7:70:c");
     assert.equal(ids.probe("report:1"), "probe:report:1");
     assert.equal(ids.playContinue(7), "play:7:continue");
@@ -61,7 +64,8 @@ describe("parseDataId: round trip of every route (§0.6.7)", () => {
 
   it("unknown and malformed ids → unknown", () => {
     for (const raw of [
-      "", "nope", "item:", "item:abc", "item:-1", "item:0", "item:1:2", "season:1", "season:1:x", "list:", "panel:",
+      "", "nope", "item:", "item:abc", "item:-1", "item:0", "item:1:2", "season:1", "season:1:x", "season:1:2:x", "season:1:2:-1",
+      "season:1:2:3:4", "list:", "panel:",
       "play:1", "play:1:later", "play:x:continue", "play:1:2:3", "play:1:2:1:4:at", "play:1:2:1:4:atx", "play:1:2:1:4:end",
       "play:probe:zz:1:2:1:1", "play:probe:a1:1:2:1", "home:1", "init:x", "settings:1",
     ]) {
