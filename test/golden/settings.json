@@ -3,7 +3,7 @@
   "flag": "settings",
   "cache": false,
   "reuse": false,
-  "headline": "Настройки KinoPub",
+  "headline": "Просмотр и аккаунт",
   "template": {
     "type": "control",
     "layout": "0,0,12,1"
@@ -12,25 +12,14 @@
     {
       "type": "space",
       "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Воспроизведение"
     },
     {
       "id": "s_quality",
-      "label": "Качество (потолок)",
+      "label": "Максимальное качество",
       "extensionLabel": "1080p",
       "action": "panel:request:interaction:panel:setting:quality@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "s_mode",
-      "label": "Тип потока",
-      "extensionLabel": "Авто",
-      "action": "panel:request:interaction:panel:setting:mode@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "s_loc",
-      "label": "CDN-сервер",
-      "extensionLabel": "По умолчанию",
-      "action": "panel:request:interaction:panel:loc@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_audioLang",
@@ -47,14 +36,8 @@
     {
       "id": "s_authors",
       "label": "Любимые студии",
-      "extensionLabel": "нет",
+      "extensionLabel": "Нет",
       "action": "panel:request:interaction:panel:setting:authors@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "s_ac3",
-      "label": "Разрешить AC3",
-      "extensionLabel": "нет",
-      "action": "panel:request:interaction:panel:setting:ac3@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_subs",
@@ -65,18 +48,13 @@
     {
       "type": "space",
       "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Это устройство KinoPub"
-    },
-    {
-      "id": "s_hevc",
-      "label": "HEVC",
-      "extensionLabel": "выкл",
-      "action": "panel:request:interaction:panel:setting:hevc@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_uhd",
       "label": "4K",
-      "extensionLabel": "выкл",
+      "extensionLabel": "Выкл",
       "action": "panel:request:interaction:panel:setting:uhd@https://example.github.io/msx/app/index.html"
     },
     {
@@ -88,18 +66,50 @@
     {
       "type": "space",
       "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Аккаунт"
     },
     {
       "id": "s_account",
       "label": "Подписка",
-      "extensionLabel": "до 31.01.2026, осталось 30 дн.",
+      "extensionLabel": "До 31.01.2026, осталось 30 дн.",
+      "enable": false
+    },
+    {
+      "id": "s_logout",
+      "label": "Выйти из KinoPub",
+      "extensionLabel": "",
       "action": "panel:request:interaction:panel:setting:account@https://example.github.io/msx/app/index.html"
     },
     {
       "type": "space",
       "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Для опытных"
+    },
+    {
+      "id": "s_mode",
+      "label": "Способ воспроизведения",
+      "extensionLabel": "Авто",
+      "action": "panel:request:interaction:panel:setting:mode@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_loc",
+      "label": "CDN-сервер",
+      "extensionLabel": "По умолчанию",
+      "action": "panel:request:interaction:panel:loc@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_ac3",
+      "label": "Разрешить AC3",
+      "extensionLabel": "Нет",
+      "action": "panel:request:interaction:panel:setting:ac3@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_hevc",
+      "label": "HEVC",
+      "extensionLabel": "Выкл",
+      "action": "panel:request:interaction:panel:setting:hevc@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_bufferInit",
@@ -122,12 +132,13 @@
     {
       "id": "s_cardBackgrounds",
       "label": "Фоны карточек",
-      "extensionLabel": "выкл",
+      "extensionLabel": "Выкл",
       "action": "panel:request:interaction:panel:setting:cardBackgrounds@https://example.github.io/msx/app/index.html"
     },
     {
       "type": "space",
       "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Диагностика"
     },
     {

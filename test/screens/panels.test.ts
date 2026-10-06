@@ -83,6 +83,12 @@ describe("choicePanel", () => {
     assert.deepEqual(rows(s), [{ label: "Один", action: "a1" }, { label: `${CHECK}Два`, action: "a2", focus: true }]);
   });
 
+  it("a layout of the rows: genres go in two columns of 4×1", async () => {
+    const t = await make();
+    const s = choicePanel(t.ctx, "Жанр", [{ label: "Один", action: "a1", current: false }], "0,0,4,1");
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1" });
+  });
+
   it("without rows — one «Назад», a page must have something to focus", async () => {
     const t = await make();
     assert.deepEqual(rows(choicePanel(t.ctx, "Пусто", [])), [{ label: "Нет вариантов", action: "back" }]);
@@ -118,10 +124,11 @@ describe("panelScreen: sort and genre (S6)", () => {
     assertPanelError(await panel(t, "sort", "!!"), "KP-BAD");
   });
 
-  it("genre: «Все жанры» (current) and /v1/genres of the key type; a choice keeps the sort", async () => {
+  it("genre: «Все жанры» (current) and /v1/genres of the key type in two columns; a choice keeps the sort", async () => {
     const t = await make();
     const s = await panel(t, "genre", encodeListKey(MOVIES));
     assert.equal(s.headline, "Жанр");
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1" });
     assert.equal(rows(s).length, 31);
     assert.deepEqual(current(s), [`${CHECK}Все жанры`]);
     assert.equal(row(s, "Драма").action, switchList({ ...MOVIES, genre: "9" }, MOVIES));
@@ -153,17 +160,21 @@ describe("panelScreen: sort and genre (S6)", () => {
 });
 
 describe("panelScreen: audio, quality, subtitles (S10)", () => {
-  it("audio of MOVIE_AUDIO12: 12 rows «type · author (LANG) · CODEC channels», AC3 may not play", async () => {
+  it("audio of MOVIE_AUDIO12: a row per track «type · studio · channels», AC3 rows dimmed while AC3 is not allowed", async () => {
     const t = await make();
-    const s = await panel(t, "audio", A12, M12, "c");
+    let s = await panel(t, "audio", A12, M12, "c");
     assert.equal(s.headline, "Озвучка");
     assert.equal(rows(s).length, 12);
-    assert.deepEqual(current(s), [`${CHECK}Дубляж · Студия Альфа (RUS) · AAC 2.0`]);
-    assert.equal(labels(s)[1], "Дубляж · Студия Альфа (RUS) · AAC 5.1");
-    assert.equal(labels(s)[2], "Дубляж · Студия Альфа (RUS) · AC3 5.1 · может не играть");
-    assert.equal(labels(s)[9], "Оригинал (ENG) · AAC 2.0");
-    assert.equal(labels(s).filter((l) => l?.endsWith("· может не играть")).length, 3);
+    assert.deepEqual(current(s), [`${CHECK}Дубляж · Студия Альфа · стерео`]);
+    assert.equal(labels(s)[1], "Дубляж · Студия Альфа · 5.1");
+    assert.equal(labels(s)[2], "{txt:msx-white-soft:Дубляж · Студия Альфа · 5.1 AC3}");
+    assert.equal(labels(s)[8], "Многоголосый · Студия Эпсилон · Украинский · стерео");
+    assert.equal(labels(s)[9], "Оригинал · Английский · стерео");
+    assert.equal(labels(s).filter((l) => l?.startsWith("{txt:msx-white-soft:")).length, 3);
     assert.equal(rows(s)[3].action, commitMsg(msgs.act("panel", "audio", A12, M12, 4, "c")));
+    t.ctx.prefs.update({ allowAc3: true });
+    s = await panel(t, "audio", A12, M12, "c");
+    assert.equal(labels(s)[2], "Дубляж · Студия Альфа · 5.1 AC3");
   });
 
   it("audio choice before start: kept for the title, the card reloads", async () => {
@@ -174,7 +185,7 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.equal(p.titleAudio[String(A12)], "rus|2|12");
     assert.deepEqual(p.audioAuthors, [12]);
     assert.deepEqual(actions(t), [BACK_RELOAD]);
-    assert.deepEqual(current(await panel(t, "audio", A12, M12, "c")), [`${CHECK}Многоголосый · Студия Бета (RUS) · AAC 2.0`]);
+    assert.deepEqual(current(await panel(t, "audio", A12, M12, "c")), [`${CHECK}Многоголосый · Студия Бета · стерео`]);
   });
 
   it("audio choice in the player: the same mid restarts from the player position", async () => {
@@ -189,15 +200,52 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.match(actions(t)[0], /play:2004:2004001:0:1:at321@/);
   });
 
-  it("in the player without video data — the last position of the tracker session, else 0", async () => {
+  it("in the player without video data — the last checked position of the tracker session", async () => {
     const t = await make();
-    t.ctx.tracker.session = () => ({ mid: M12, lastPos: 77.9 }) as PlaybackSession;
+    t.ctx.tracker.session = () => ({ mid: M12, lastPos: 77.9, peak: 90 }) as PlaybackSession;
     await act(t, "audio", A12, M12, 4, "p");
     assert.match(actions(t)[0], /:at77@/);
+  });
+
+  it("X-2: requestData fails — audio and quality restart from the session position, not from 0", async () => {
+    const t = await make();
+    t.host.responses.set("video", () => {
+      throw new Error("no player data");
+    });
+    // «Продолжить»: проверенной позиции ещё нет, максимум сессии засеян `resume:position`.
+    t.ctx.tracker.session = () => ({ mid: M12, peak: 1287 }) as PlaybackSession;
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.match(actions(t)[0], /^\[cleanup\|player:eject\|video:resolve:.*play:2004:2004001:0:1:at1287@/);
     t.host.clearActions();
-    t.ctx.tracker.session = () => ({ mid: 1, lastPos: 500 }) as PlaybackSession;
-    await act(t, "audio", A12, M12, 7, "p");
-    assert.match(actions(t)[0], /:at0@/);
+    t.ctx.tracker.session = () => ({ mid: M12, lastPos: 640.4, peak: 700 }) as PlaybackSession;
+    await act(t, "quality", A12, M12, 720, "p");
+    assert.match(actions(t)[0], /:at640@/);
+  });
+
+  it("X-2: the player answers 0 while «Продолжить» buffers — the session maximum, not 0", async () => {
+    const t = await make();
+    t.host.responses.set("video", { video: { data: { position: 0 } } });
+    t.ctx.tracker.session = () => ({ mid: M12, peak: 1287 }) as PlaybackSession;
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.match(actions(t)[0], /:at1287@/);
+  });
+
+  it("X-2: no session of this mid — the overlay position of this video", async () => {
+    const t = await make();
+    t.ctx.tracker.session = () => ({ mid: 1, lastPos: 500, peak: 500 }) as PlaybackSession;
+    t.ctx.overlay.set(A12, 0, 1, { time: 912, status: 0 });
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.match(actions(t)[0], /:at912@/);
+  });
+
+  it("X-2: no position at all — no restart from 0: the panel closes with a message, the choice is kept", async () => {
+    const t = await make();
+    t.ctx.tracker.session = () => undefined;
+    t.ctx.overlay.set(A12, 0, 1, { time: 5900, status: 1 });
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.equal(t.ctx.prefs.get().titleAudio[String(A12)], "rus|2|12");
+    assert.deepEqual(actions(t), ["[back|info:Не удалось узнать позицию — выбор сработает при следующем запуске]"]);
+    assert.ok(!actions(t)[0].includes("player:eject"));
   });
 
   it("in the player, the voice that already plays: only close the panel", async () => {
@@ -207,17 +255,17 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.equal(t.ctx.prefs.get().titleAudio[String(A12)], "rus|1|11");
   });
 
-  it("quality: «Авто (ceiling)» and the playable ladder, above the ceiling — gray", async () => {
+  it("quality: «Авто (до …p)» and the playable ladder, above the maximum — dimmed", async () => {
     const t = await make();
     let s = await panel(t, "quality", A12, M12, "c");
     assert.equal(s.headline, "Качество");
     // HEVC выключен: 2160p есть только в HEVC — её нет в лестнице; 1080p (два файла) — одна строка.
-    assert.deepEqual(labels(s), [`${CHECK}Авто (потолок 1080p)`, "1080p", "720p", "480p"]);
+    assert.deepEqual(labels(s), [`${CHECK}Авто (до 1080p)`, "1080p", "720p", "480p"]);
     assert.equal(rows(s)[2].action, commitMsg(msgs.act("panel", "quality", A12, M12, 720, "c")));
     assert.equal(rows(s)[0].action, commitMsg(msgs.act("panel", "quality", A12, M12, 0, "c")));
     t.ctx.prefs.update({ allowHevc: true, maxQuality: 720 });
     s = await panel(t, "quality", A12, M12, "p");
-    assert.deepEqual(labels(s), [`${CHECK}Авто (потолок 720p)`, "{txt:msx-gray:2160p}", "{txt:msx-gray:1080p}", "720p", "480p"]);
+    assert.deepEqual(labels(s), [`${CHECK}Авто (до 720p)`, "{txt:msx-white-soft:2160p}", "{txt:msx-white-soft:1080p}", "720p", "480p"]);
   });
 
   it("quality choice: per title, «Авто» clears it; in the player — a restart only if the file changes", async () => {
@@ -236,11 +284,11 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.deepEqual(actions(t), ["back"]);
   });
 
-  it("subtitles: «Выключены» and languages of media-links, forced in a separate row", async () => {
+  it("subtitles: «Выключены» and languages of media-links in Russian, forced in a separate row", async () => {
     const t = await make();
     const s = await panel(t, "subs", A12, M12, "c");
     assert.equal(s.headline, "Субтитры");
-    assert.deepEqual(labels(s), [`${CHECK}Выключены`, "RUS", "ENG", "ENG · форсированные", "UKR", "FRE"]);
+    assert.deepEqual(labels(s), [`${CHECK}Выключены`, "Русские", "Английские", "Английские · только надписи", "Украинские", "FRE"]);
     assert.equal(rows(s)[0].action, commitMsg(msgs.act("panel", "subs", A12, M12, "off", "c")));
     assert.equal(rows(s)[2].action, commitMsg(msgs.act("panel", "subs", A12, M12, "eng", "c")));
     assert.equal(rows(s)[3].action, commitMsg(msgs.act("panel", "subs", A12, M12, "eng.forced", "c")));
@@ -251,9 +299,9 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     await act(t, "subs", A12, M12, "eng", "c");
     assert.equal(t.ctx.prefs.get().titleSubs[String(A12)], "eng");
     assert.deepEqual(actions(t), [BACK_RELOAD]);
-    assert.deepEqual(current(await panel(t, "subs", A12, M12, "c")), [`${CHECK}ENG`]);
+    assert.deepEqual(current(await panel(t, "subs", A12, M12, "c")), [`${CHECK}Английские`]);
     await act(t, "subs", A12, M12, "eng.forced", "c");
-    assert.deepEqual(current(await panel(t, "subs", A12, M12, "c")), [`${CHECK}ENG · форсированные`]);
+    assert.deepEqual(current(await panel(t, "subs", A12, M12, "c")), [`${CHECK}Английские · только надписи`]);
   });
 
   it("subtitles in the player: no restart — the track URL (with loc) goes to AVPlay", async () => {
@@ -287,14 +335,14 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
 });
 
 describe("panelScreen: bookmarks (S10)", () => {
-  it("folders with a mark where the title is; a marked folder removes, another adds", async () => {
+  it("folders say what OK does: «✓ … — убрать» where the title is, «☆ … — добавить» elsewhere", async () => {
     const t = await make();
     let s = await panel(t, "bookmarks", SIMPLE);
     assert.equal(s.headline, "Закладки");
-    assert.deepEqual(labels(s), [`${CHECK}Избранное`]);
+    assert.deepEqual(labels(s), [`${CHECK}Избранное — убрать`]);
     assert.equal(rows(s)[0].action, commitMsg(msgs.act("panel", "bm", SIMPLE, 1, "remove")));
     s = await panel(t, "bookmarks", A12);
-    assert.deepEqual(labels(s), ["Избранное"]);
+    assert.deepEqual(labels(s), ["☆ Избранное — добавить"]);
     assert.equal(rows(s)[0].action, commitMsg(msgs.act("panel", "bm", A12, 1, "add")));
   });
 
@@ -305,7 +353,7 @@ describe("panelScreen: bookmarks (S10)", () => {
     await act(t, "bm", A12, 1, "add");
     assert.ok(t.mock.state.folders.get(1)?.items.includes(A12));
     assert.deepEqual(actions(t), ["[reload:panel|reload:content]"]);
-    assert.deepEqual(labels(await panel(t, "bookmarks", A12)), [`${CHECK}Избранное`]);
+    assert.deepEqual(labels(await panel(t, "bookmarks", A12)), [`${CHECK}Избранное — убрать`]);
     assert.equal(t.ctx.repo.peekItem(A12)?.value.bookmarks.includes(1), true);
   });
 
@@ -313,7 +361,7 @@ describe("panelScreen: bookmarks (S10)", () => {
     const t = await make();
     await act(t, "bm", SIMPLE, 1, "remove");
     assert.ok(!t.mock.state.folders.get(1)?.items.includes(SIMPLE));
-    assert.deepEqual(labels(await panel(t, "bookmarks", SIMPLE)), ["Избранное"]);
+    assert.deepEqual(labels(await panel(t, "bookmarks", SIMPLE)), ["☆ Избранное — добавить"]);
   });
 
   it("no folders: «Создать папку „MSX“ и добавить» creates the folder and adds the title", async () => {
@@ -329,7 +377,7 @@ describe("panelScreen: bookmarks (S10)", () => {
     assert.equal(folders[0].title, "MSX");
     assert.deepEqual(folders[0].items, [A12]);
     assert.deepEqual(actions(t), ["[reload:panel|reload:content]"]);
-    assert.deepEqual(labels(await panel(t, "bookmarks", A12)), [`${CHECK}MSX`]);
+    assert.deepEqual(labels(await panel(t, "bookmarks", A12)), [`${CHECK}MSX — убрать`]);
   });
 
   it("the answer comes after the user left the card → the title is added, nothing is reloaded (spec §6.3)", async () => {
@@ -364,57 +412,63 @@ describe("panelScreen: seasons, stream mode, CDN, settings", () => {
     assert.equal(rows(from5)[0].action, `[back|replace:content:ep_2001_5:request:interaction:season:2001:1@${P}]`);
   });
 
-  it("stream mode of the title: «Авто», «HLS1», «HLS2»; a manual mode is kept per title", async () => {
+  it("«Способ воспроизведения» of the title: «Авто», «Способ 1 (HLS1)», «Способ 2 (HLS2)»; a manual one is kept per title", async () => {
     const t = await make();
     let s = await panel(t, "mode", A12);
-    assert.equal(s.headline, "Режим потока");
-    assert.deepEqual(labels(s), [`${CHECK}Авто`, "HLS1", "HLS2"]);
+    assert.equal(s.headline, "Способ воспроизведения");
+    assert.deepEqual(labels(s), [`${CHECK}Авто`, "Способ 1 (HLS1)", "Способ 2 (HLS2)"]);
     assert.equal(rows(s)[2].action, commitMsg(msgs.act("panel", "mode", A12, "hls2")));
     await act(t, "mode", A12, "hls2");
     assert.deepEqual(t.ctx.prefs.get().titleMode, { [String(A12)]: "hls2" });
     assert.deepEqual(actions(t), [BACK_RELOAD]);
-    assert.deepEqual(current(await panel(t, "mode", A12)), [`${CHECK}HLS2`]);
+    assert.deepEqual(current(await panel(t, "mode", A12)), [`${CHECK}Способ 2 (HLS2)`]);
     await act(t, "mode", A12, "auto");
     assert.deepEqual(t.ctx.prefs.get().titleMode, {});
-    // Р-28: «Авто» тайтла — это настройка ТВ «Тип потока», если она выбрана вручную.
+    // Р-28: «Авто» тайтла — это способ из настроек ТВ, если он выбран вручную.
     t.ctx.prefs.update({ streamMode: "hls1" });
     s = await panel(t, "mode", A12);
-    assert.equal(labels(s)[0], `${CHECK}Авто (настройка ТВ: HLS1)`);
+    assert.equal(labels(s)[0], `${CHECK}Как в настройках: Способ 1 (HLS1)`);
   });
 
-  it("CDN: «По умолчанию» names the location of the KinoPub device, then the reference list", async () => {
+  it("CDN: «По умолчанию (<country of the KinoPub device>)», then the other countries in Russian", async () => {
     const t = await make();
     const s = await panel(t, "loc");
     assert.equal(s.headline, "CDN-сервер");
-    assert.deepEqual(labels(s), [`${CHECK}По умолчанию · Netherlands`, "Netherlands", "Germany", "Russia"]);
+    assert.deepEqual(labels(s), [`${CHECK}По умолчанию (Нидерланды)`, "Германия", "Россия"]);
     assert.equal(rows(s)[0].action, commitMsg(msgs.act("panel", "loc", "default")));
-    assert.equal(rows(s)[2].action, commitMsg(msgs.act("panel", "loc", "de")));
+    assert.equal(rows(s)[1].action, commitMsg(msgs.act("panel", "loc", "de")));
     await act(t, "loc", "de");
     assert.equal(t.ctx.prefs.get().loc, "de");
     assert.deepEqual(actions(t), [BACK_RELOAD]);
-    assert.deepEqual(current(await panel(t, "loc")), [`${CHECK}Germany`]);
+    assert.deepEqual(current(await panel(t, "loc")), [`${CHECK}Германия`]);
     await act(t, "loc", "default");
     assert.equal(t.ctx.prefs.get().loc, undefined);
+  });
+
+  it("CDN: the device country chosen by hand stays in the list with its mark", async () => {
+    const t = await make();
+    t.ctx.prefs.update({ loc: "nl" });
+    assert.deepEqual(labels(await panel(t, "loc")), ["По умолчанию (Нидерланды)", `${CHECK}Нидерланды`, "Германия", "Россия"]);
   });
 
   it("CDN: the device location comes from the cached device info — opening the panel again does not wait for the API", async () => {
     const t = await make();
     await panel(t, "loc");
     t.mock.setScenario({ delayMs: 5_000 });
-    assert.equal(labels(await panel(t, "loc"))[0], `${CHECK}По умолчанию · Netherlands`);
+    assert.equal(labels(await panel(t, "loc"))[0], `${CHECK}По умолчанию (Нидерланды)`);
     assert.equal(t.mock.calls().filter((c) => c.path === "/v1/device/info").length, 1);
     t.mock.setScenario({ delayMs: 0 });
   });
 
-  it("CDN without device info: plain «По умолчанию»", async () => {
+  it("CDN without device info: plain «По умолчанию» and every country", async () => {
     const t = await make();
     t.mock.setScenario({ rules: [{ path: "^/v1/device/info$", status: 500 }] });
-    assert.equal(labels(await panel(t, "loc"))[0], `${CHECK}По умолчанию`);
+    assert.deepEqual(labels(await panel(t, "loc")), [`${CHECK}По умолчанию`, "Нидерланды", "Германия", "Россия"]);
   });
 
   it("setting:<key> is the settings panel (stage 31); an unknown type is an error inside the panel", async () => {
     const t = await make();
-    assert.equal((await panel(t, "setting", "quality")).headline, "Качество (потолок)");
+    assert.equal((await panel(t, "setting", "quality")).headline, "Максимальное качество");
     assertPanelError(await panel(t, "nope", 1), "KP-BAD");
   });
 });

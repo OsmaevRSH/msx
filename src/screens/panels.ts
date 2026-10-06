@@ -1,5 +1,5 @@
 import type { AppContext } from "../app/context.ts";
-import type { Audio, FileInfo, ItemDetail, MediaUnit, Subtitle } from "../api/models.ts";
+import type { FileInfo, ItemDetail, MediaUnit, Subtitle } from "../api/models.ts";
 import { cacheKeys } from "../cache/repo.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
@@ -7,15 +7,16 @@ import { ruTitle } from "../core/format.ts";
 import { chain, commitMsg, playerMsg, replaceContent, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { type EpRef, findUnit } from "../playback/episodes.ts";
-import { type StreamMode, type SubsChoice, parseSubsValue, subsValue } from "../playback/prefs.ts";
+import { type SubsChoice, parseSubsValue, subsValue } from "../playback/prefs.ts";
 import { pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
 import { qualityOf, withLoc } from "../playback/url.ts";
 import { positionFrom } from "../progress/samples.ts";
 import { type ListKey, decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import { errorScreen, errorText } from "./error.ts";
 import { genresOrStatic } from "./genres-static.ts";
-import { freshItem, subsLabel } from "./item.ts";
+import { freshItem } from "./item.ts";
 import { SORTS } from "./list.ts";
+import { MODE_NAMES, audioName, countryName, dim, folderName, subsName } from "./panels-labels.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
 import { settingPanel } from "./settings.ts";
 
@@ -24,20 +25,22 @@ import { settingPanel } from "./settings.ts";
 // озвучка и качество перезапуском того же `mid` с текущей позиции, субтитры — без перезапуска.
 
 const T = {
-  sort: "Сортировка", genre: "Жанр", allGenres: "Все жанры", audio: "Озвучка", ac3: "может не играть",
-  quality: "Качество", auto: "Авто", ceiling: "потолок", subs: "Субтитры", subsOff: "Выключены",
-  bookmarks: "Закладки", createFolder: "Создать папку „MSX“ и добавить", seasons: "Сезоны", mode: "Режим потока",
-  modeTv: "настройка ТВ", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов", part: "Часть",
+  sort: "Сортировка", genre: "Жанр", allGenres: "Все жанры", audio: "Озвучка", quality: "Качество", auto: "Авто",
+  upTo: "до", subs: "Субтитры", subsOff: "Выключены", bookmarks: "Закладки", createFolder: "Создать папку „MSX“ и добавить",
+  seasons: "Сезоны", mode: "Способ воспроизведения",
+  modeTv: "Как в настройках", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов", part: "Часть",
+  noPos: "Не удалось узнать позицию — выбор сработает при следующем запуске",
 };
 
 const TAG = "panels";
 const CHECK = "{ico:check} ";
-const ROW: MsxContentItem = { type: "button", layout: "0,0,8,1" };
+const ROW = "0,0,8,1";
+/** V-13: 31 жанр — две колонки, 12 на экран. */
+const HALF = "0,0,4,1";
 const BACK_RELOAD = chain(["back", "reload:content"]);
 const MSX_FOLDER = "MSX";
 /** «Обновлённые» — первая в списке и сортировка по умолчанию у ключей без `sort` (list.ts). */
 const DEFAULT_SORT = SORTS[0].id;
-const MODE_LABEL: Record<StreamMode, string> = { hls1: "HLS1", hls2: "HLS2" };
 /** Название локации устройства — подсказка к «По умолчанию»; панель не ждёт его дольше этого. */
 const DEVICE_WAIT_MS = 1500;
 const SUBS_VALUE = /^(off|[a-z]{2,8}(\.forced)?)$/i;
@@ -59,14 +62,14 @@ const sameLang = (a: string, b: string): boolean => a.toLowerCase() === b.toLowe
 const isAvc = (f: FileInfo): boolean => /^(h264|avc)/i.test(f.codec);
 const fileQuality = (f: FileInfo | undefined): number | undefined => (f === undefined ? undefined : qualityOf(f));
 
-export function choicePanel(ctx: AppContext, title: string, rows: Row[]): MsxContentRoot {
+export function choicePanel(ctx: AppContext, title: string, rows: Row[], layout: string = ROW): MsxContentRoot {
   const list = rows.length > 0 ? rows : [{ label: T.none, action: "back", current: false }];
   const first = list.findIndex((r) => r.current);
   const items = list.map((r, i): MsxContentItem => {
     const it: MsxContentItem = { label: r.current ? CHECK + r.label : r.label, action: r.action };
     return i === first ? { ...it, focus: true } : it;
   });
-  return { type: "list", headline: title, cache: false, reuse: false, template: { ...ROW }, items };
+  return { type: "list", headline: title, cache: false, reuse: false, template: { type: "button", layout }, items };
 }
 
 /** `panel:<тип>:<аргументы>`; любая ошибка — экран ошибки внутри панели (сетка 8, «Повторить» — `reload:panel`). */
@@ -117,7 +120,7 @@ async function genrePanel(ctx: AppContext, arg: string | undefined): Promise<Msx
   for (const g of await genresOrStatic(ctx, (k.type ?? "").split(",")[0])) {
     rows.push({ label: g.title, action: switchList(ctx, key, { ...k, genre: String(g.id) }), current: cur === String(g.id) });
   }
-  return choicePanel(ctx, T.genre, rows);
+  return choicePanel(ctx, T.genre, rows, HALF);
 }
 
 // --- S10: озвучка, качество, субтитры ---
@@ -137,24 +140,14 @@ async function titleUnit(ctx: AppContext, id: number, mid: number): Promise<Titl
 
 const panelAct = (name: string, ...args: (string | number)[]): string => commitMsg(msgs.act("panel", name, ...args));
 
-const CHANNELS: Readonly<Record<number, string>> = { 6: "5.1", 8: "7.1" };
-const channels = (n: number): string => CHANNELS[n] ?? (n > 0 ? `${n}.0` : "");
-
-/** «Дубляж · Студия (RUS) · AAC 5.1»; у AC3 — пометка: AVPlay на части ТВ его не играет (Plan B F12). */
-function audioRow(a: Audio): string {
-  const name = [a.typeTitle, a.authorTitle].filter((s) => s !== undefined && s !== "").join(" · ");
-  const lang = a.lang.toUpperCase();
-  const codec = `${a.codec.toUpperCase()} ${channels(a.channels)}`.trim();
-  const out = `${name === "" ? lang : `${name} (${lang})`} · ${codec}`;
-  return a.codec.toLowerCase() === "ac3" ? `${out} · ${T.ac3}` : out;
-}
-
+/** Строка на дорожку: выбор идёт по `index`, а ключ озвучки без кодека (Plan B F12). */
 async function audioPanel(ctx: AppContext, a: UnitArgs): Promise<MsxContentRoot> {
   const { unit } = await titleUnit(ctx, a.id, a.mid);
-  const cur = pickAudio(unit.audios, selectPrefs(ctx.prefs.get(), a.id));
+  const p = ctx.prefs.get();
+  const cur = pickAudio(unit.audios, selectPrefs(p, a.id));
   const audios = unit.audios.slice().sort((x, y) => x.index - y.index);
   return choicePanel(ctx, T.audio, audios.map((x) => ({
-    label: audioRow(x), action: panelAct("audio", a.id, a.mid, x.index, a.where), current: x.index === cur?.index,
+    label: audioName(x, p.allowAc3), action: panelAct("audio", a.id, a.mid, x.index, a.where), current: x.index === cur?.index,
   })));
 }
 
@@ -169,9 +162,9 @@ async function qualityPanel(ctx: AppContext, a: UnitArgs): Promise<MsxContentRoo
   const { unit } = await titleUnit(ctx, a.id, a.mid);
   const p = ctx.prefs.get();
   const chosen = p.titleQuality[String(a.id)];
-  const rows: Row[] = [{ label: `${T.auto} (${T.ceiling} ${p.maxQuality}p)`, action: panelAct("quality", a.id, a.mid, 0, a.where), current: chosen === undefined }];
+  const rows: Row[] = [{ label: `${T.auto} (${T.upTo} ${p.maxQuality}p)`, action: panelAct("quality", a.id, a.mid, 0, a.where), current: chosen === undefined }];
   for (const q of ladder(unit.files, p.allowHevc)) {
-    rows.push({ label: q > p.maxQuality ? `{txt:msx-gray:${q}p}` : `${q}p`, action: panelAct("quality", a.id, a.mid, q, a.where), current: chosen === q });
+    rows.push({ label: q > p.maxQuality ? dim(`${q}p`) : `${q}p`, action: panelAct("quality", a.id, a.mid, q, a.where), current: chosen === q });
   }
   return choicePanel(ctx, T.quality, rows);
 }
@@ -200,7 +193,7 @@ async function subsPanel(ctx: AppContext, a: UnitArgs): Promise<MsxContentRoot> 
   const rows: Row[] = [{ label: T.subsOff, action: panelAct("subs", a.id, a.mid, "off", a.where), current: cur === "off" }];
   for (const c of subsTracks(subs)) {
     rows.push({
-      label: subsLabel(c), action: panelAct("subs", a.id, a.mid, subsValue(c), a.where),
+      label: subsName(c), action: panelAct("subs", a.id, a.mid, subsValue(c), a.where),
       current: cur !== "off" && cur.forced === c.forced && sameLang(cur.lang, c.lang),
     });
   }
@@ -214,33 +207,37 @@ async function bookmarksPanel(ctx: AppContext, id: number | undefined): Promise<
   const [folders, got] = await Promise.all([ctx.repo.bookmarkFolders(), ctx.repo.item(id)]);
   const marked = new Set(got.value.bookmarks);
   const rows = folders.value.map((f) => ({
-    label: f.title, action: panelAct("bm", id, f.id, marked.has(f.id) ? "remove" : "add"), current: marked.has(f.id),
+    label: folderName(f.title, marked.has(f.id)), action: panelAct("bm", id, f.id, marked.has(f.id) ? "remove" : "add"), current: marked.has(f.id),
   }));
   const create = { label: T.createFolder, action: panelAct("bm", id, 0, "create"), current: false };
   return choicePanel(ctx, T.bookmarks, rows.length > 0 ? rows : [create]);
 }
 
-/** Р-28: «Авто» тайтла — это настройка ТВ «Тип потока», если там выбран режим вручную. */
+/** Р-28: «Авто» тайтла — это способ из настроек ТВ, если там он выбран вручную. */
 function modePanel(ctx: AppContext, id: number | undefined): MsxContentRoot {
   if (id === undefined) throw bad("mode");
   const p = ctx.prefs.get();
   const chosen = p.titleMode[String(id)];
-  const auto = p.streamMode === undefined ? T.auto : `${T.auto} (${T.modeTv}: ${MODE_LABEL[p.streamMode]})`;
+  const auto = p.streamMode === undefined ? T.auto : `${T.modeTv}: ${MODE_NAMES[p.streamMode]}`;
   return choicePanel(ctx, T.mode, (["auto", "hls1", "hls2"] as const).map((m) => ({
-    label: m === "auto" ? auto : MODE_LABEL[m], action: panelAct("mode", id, m), current: (chosen ?? "auto") === m,
+    label: m === "auto" ? auto : MODE_NAMES[m], action: panelAct("mode", id, m), current: (chosen ?? "auto") === m,
   })));
 }
 
-/** Plan B §5.14: без выбора ТВ ссылки идут с `loc` устройства KinoPub — её название подсказывает «По умолчанию». */
+/**
+ * Plan B §5.14: без выбора ТВ ссылки идут с `loc` устройства KinoPub — её страна подсказывает «По умолчанию» и
+ * не повторяется в списке (V-35), если её не выбрали вручную.
+ */
 async function locPanel(ctx: AppContext): Promise<MsxContentRoot> {
   const device = Promise.race([deviceLocation(ctx), sleep(ctx.clock, DEVICE_WAIT_MS).then(() => undefined)]);
   const [locs, dev] = await Promise.all([ctx.repo.serverLocations(), device]);
   const cur = ctx.prefs.get().loc;
-  const name = dev === undefined ? undefined : locs.value.find((l) => l.id === dev.id)?.name || dev.label;
-  const rows: Row[] = [{ label: name ? `${T.locDefault} · ${name}` : T.locDefault, action: panelAct("loc", "default"), current: cur === undefined }];
+  const own = dev === undefined ? undefined : locs.value.find((l) => l.id === dev.id);
+  const name = own === undefined ? dev?.label : countryName(own.location, own.name);
+  const rows: Row[] = [{ label: name ? `${T.locDefault} (${name})` : T.locDefault, action: panelAct("loc", "default"), current: cur === undefined }];
   for (const l of locs.value) {
-    if (!LOC_CODE.test(l.location)) continue;
-    rows.push({ label: l.name || l.location, action: panelAct("loc", l.location), current: cur === l.location });
+    if (!LOC_CODE.test(l.location) || (l === own && cur !== l.location)) continue;
+    rows.push({ label: countryName(l.location, l.name), action: panelAct("loc", l.location), current: cur === l.location });
   }
   return choicePanel(ctx, T.loc, rows);
 }
@@ -308,21 +305,34 @@ async function chooseQuality(ctx: AppContext, args: string[]): Promise<void> {
   await applied(ctx, w, tu, playing() !== before);
 }
 
-/** До старта — перерисовать карточку; в плеере — перезапуск с позиции, если меняется то, что играет (спец. §9.1). */
+/**
+ * До старта — перерисовать карточку; в плеере — перезапуск с позиции, если меняется то, что играет (спец. §9.1).
+ * Позиция неизвестна — без перезапуска: с 0 он потерял бы просмотренное (X-2), выбор сработает при следующем запуске.
+ */
 async function applied(ctx: AppContext, w: Where, tu: TitleUnit, changed: boolean): Promise<void> {
   if (w === "c" || !changed) return ctx.host.executeAction(w === "c" ? BACK_RELOAD : "back");
   const { item, ref } = tu;
-  const at = Math.floor(await playerPosition(ctx, ref.mid));
-  const resolve = resolveAction(ctx.P, ids.playEp(item.id, ref.mid, ref.season, ref.video, { at }));
+  const pos = await playerPosition(ctx, item.id, ref);
+  if (pos === undefined) {
+    ctx.log.warn(TAG, "no_position", { mid: ref.mid });
+    return ctx.host.executeAction(chain(["back", `info:${T.noPos}`]));
+  }
+  const resolve = resolveAction(ctx.P, ids.playEp(item.id, ref.mid, ref.season, ref.video, { at: Math.floor(pos) }));
   // `video:` из цепочки берёт метку плеера только из `data` (msx-platform §3.2).
   ctx.host.executeAction(chain(["cleanup", "player:eject", resolve]), { playerLabel: playLabel(item, ref) });
 }
 
-/** Позиция из данных плеера, иначе — последний снимок сессии этого `mid` (Plan B §5.10). */
-async function playerPosition(ctx: AppContext, mid: number): Promise<number> {
+/**
+ * Позиция плеера (Plan B §5.10). Нет её или 0 (плеер ещё грузит «Продолжить») — проверенная позиция или максимум
+ * сессии этого `mid` (при «Продолжить» он засеян `resume:position`); сессии нет — недосмотренная позиция оверлея.
+ */
+async function playerPosition(ctx: AppContext, id: number, ref: EpRef): Promise<number | undefined> {
   const pos = await ctx.host.requestData("video").then((d) => positionFrom(d).position, () => undefined);
+  if (pos !== undefined && pos > 0) return pos;
   const s = ctx.tracker.session();
-  return pos ?? (s?.mid === mid ? s.lastPos : undefined) ?? 0;
+  const o = ctx.overlay.get(id, ref.season, ref.video);
+  const known = s?.mid === ref.mid ? s.lastPos || s.peak : o?.status === 0 ? o.time : undefined;
+  return known || pos;
 }
 
 /** Как метка ответа resolve: «<название> · S1E5», «<название> · Часть 2» или название. */
