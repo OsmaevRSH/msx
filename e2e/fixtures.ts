@@ -163,6 +163,9 @@ export const mock = {
   },
 };
 
+/** Системное «Меню» MSX (Главная, Плеер, Громкость, Настройки): открыто — перехватывает пульт. */
+export const msxMenuDialog = (page: Page): Locator => page.getByText("Громкость", { exact: true });
+
 /** Пункт меню MSX по точной подписи. */
 export const menuItem = (page: Page, label: string): Locator => page.locator("#appMainMenuItems").getByText(label, { exact: true });
 /** Область контента MSX. */
@@ -195,7 +198,7 @@ export async function press(page: Page, id: string, label: string): Promise<void
 }
 
 /**
- * Вход по коду (Plan B E-02): MSX показывает экран входа без нажатий, код на экране — тот, что выдал mock; mock
+ * Вход по коду (Plan B E-02): MSX показывает экран входа без нажатий, код на экране (картинкой) — тот, что выдал mock; mock
  * подтверждает код на втором опросе; плагин сам перерисовывает меню — появляется «Главная». Возвращает код.
  */
 export async function login(page: Page): Promise<string> {
@@ -203,7 +206,8 @@ export async function login(page: Page): Promise<string> {
   await expectContent(page, "Введите код", { timeout: 15_000 });
   const code = await kp(page, (k) => k.ctx.state.login?.state().userCode as string | undefined);
   expect(code, "плагин получил код входа от mock").toMatch(/^[A-Z]{6}$/);
-  await expectContent(page, code as string);
+  // V-01: код нарисован картинкой SVG — `data:`-адрес с кодом внутри, MSX выводит её как <img>.
+  await expect(content(page).locator(`img[src*="${code as string}"]`), "код входа картинкой на экране").toBeVisible();
   await expect
     .poll(() => kp(page, (k) => k.ctx.auth.isLoggedIn() as boolean), { message: "mock подтвердил код, плагин получил токены", timeout: 30_000, intervals: [200] })
     .toBe(true);
@@ -216,5 +220,6 @@ export async function login(page: Page): Promise<string> {
       : "";
     throw new Error(`После входа меню MSX не перерисовано: нет «Главная». Действия плагина с меню: ${JSON.stringify(actions)}.${hint}\n${String(e)}`);
   }
+  await expect(msxMenuDialog(page), "системное «Меню» MSX закрыто: `home` на корне открывает его, `cleanup` закрывает (X-3)").toBeHidden();
   return code as string;
 }

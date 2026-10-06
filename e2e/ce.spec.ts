@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { contentAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids, msgs } from "../src/router/ids.ts";
-import { FIX } from "../tools/kpmock/fixtures.ts";
+import { FIX, findItem } from "../tools/kpmock/fixtures.ts";
 import { P, consoleTail, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, pluginFrame, press, stats } from "./fixtures.ts";
 import type { MockCall } from "./fixtures.ts";
 
@@ -155,10 +155,12 @@ test("CE-02: «Фильмы» — догрузка через live setup и relo
   await page.keyboard.press("ArrowDown");
   await expect(menuSelected(page), "разделитель «Каталог» пропускается").toHaveText("Фильмы");
   await until(page, (tl) => resAfter(tl, ids.list(movies)) !== undefined, 10_000, "MSX загрузил «Фильмы» по выбору в меню");
-  await expectContent(page, /Тестовый фильм \d+/i);
+  // V-10: название плитки в две строки — «Тестовый» и «фильм <id>» — разными элементами.
+  await expectContent(page, /фильм \d+/i);
   const m0 = await mark(page);
   await page.keyboard.press("ArrowRight");
-  await expect(selected(page), "фокус перешёл из меню на первую плитку").toContainText("Тестовый фильм");
+  await expect(selected(page), "фокус перешёл из меню на первую плитку").toContainText("Тестовый");
+  await expect(selected(page)).toContainText(/фильм \d+/);
   await until(page, (x) => x.some(isPf), 3000, "pf первой плитки", m0);
 
   // Ряд за рядом к последнему ряду порции: его live `setup` шлёт extend. Live MSX пересчитывает раз в секунду
@@ -188,14 +190,17 @@ test("CE-02: «Фильмы» — догрузка через live setup и relo
   expect(resAfter(after, ids.list(movies))?.n, "окно ответа выросло до 96 плиток (две порции)").toBe(2 * PORTION);
   expect(after.find(isPf)?.v, "после перерисовки фокус на той же плитке (MSX держит его по id)").toBe(pfBefore?.v);
   const id = Number(pfBefore?.v.slice("pf:".length));
-  await expect(selected(page)).toContainText(`Тестовый фильм ${id}`);
+  await expect(selected(page)).toContainText("Тестовый");
+  await expect(selected(page)).toContainText(`фильм ${id}`);
+  await expect(page.locator(".app-main-content-sub-headline", { hasText: `Тестовый фильм ${id}` }),
+    "полное название плитки в фокусе — в шапке рядом с заголовком (V-10)").toBeVisible();
   expect(tl.filter((e) => e.k === "act" && e.v === "reload:content"), "одна перерисовка на одну догрузку").toHaveLength(1);
 
   const calls = await mock.calls();
   expect(listCalls(calls, "movie", 2), "вторая порция из mock (page=2)").not.toHaveLength(0);
 });
 
-test("CE-03: клавиатура поиска — ввод, стирание, RU/EN, клавиши 1 и 2", async () => {
+test("CE-03: клавиатура поиска — ввод, стирание, раскладка, клавиши 1 и 2", async () => {
   // Back из списка, открытого из меню, возвращает фокус в меню.
   await page.keyboard.press("Backspace");
   await expect(menuSelected(page)).toHaveText("Фильмы");
@@ -225,11 +230,11 @@ test("CE-03: клавиатура поиска — ввод, стирание, R
   await page.keyboard.press("Delete");
   await typed(msgs.searchControl("back"));
   await expectContent(page, "а_");
-  // К «RU/EN»: вправо до управляющей колонки (9 шагов от «м» — «Пробел»), вниз на две кнопки.
+  // К «Раскладка: RU» (V-29): вправо до управляющей колонки (9 шагов от «м» — «Пробел»), вниз на две кнопки.
   for (let n = 0; n < 9; n++) await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
-  await expect(selected(page)).toContainText("RU/EN");
+  await expect(selected(page)).toContainText("Раскладка: RU");
   await page.keyboard.press("Enter");
   await typed(msgs.searchControl("lang"));
   await expect(content(page).getByText("z", { exact: true }), "раскладка EN").toBeVisible();
@@ -268,9 +273,9 @@ test("CE-06: догрузка пришла после ухода в карточ
   await page.keyboard.press("ArrowDown");
   await expect(menuSelected(page)).toHaveText("Сериалы");
   await until(page, (tl) => resAfter(tl, ids.list(serials)) !== undefined, 10_000, "MSX загрузил «Сериалы» по выбору в меню");
-  await expectContent(page, /Тестовый сериал \d+/i);
+  await expectContent(page, /сериал \d+/i);
   await page.keyboard.press("ArrowRight");
-  await expect(selected(page)).toContainText("Тестовый сериал");
+  await expect(selected(page)).toContainText(/сериал \d+/);
 
   // До последнего ряда порции без пауз: вторая порция ещё в пути (mock держит её SLOW_PAGE_MS).
   const from = await mark(page);
@@ -306,7 +311,7 @@ test("CE-06: догрузка пришла после ухода в карточ
   await page.keyboard.press("Backspace");
   const back = await until(page, (x) => resAfter(x, ids.list(serials)) !== undefined, 5000, "Back вернул список «Сериалы»", m);
   expect(resAfter(back, ids.list(serials))?.n, "список при возврате — уже 96 плиток").toBe(2 * PORTION);
-  await expectContent(page, /Тестовый сериал \d+/i);
+  await expectContent(page, /сериал \d+/i);
   await sleep(500);
   // Постеры новых плиток MSX грузит сам (/poster/…): это картинки, не данные списка.
   const api = (await mock.calls()).slice(calls0).filter((c) => c.path.startsWith("/v1/"));
@@ -366,7 +371,10 @@ test("CE-04: WebM в плеере MSX — load, play, тики, pause с marktim
 });
 
 test("CE-05: панель поверх карточки; за весь файл iframe плагина не перезагружался", async () => {
-  await press(page, "b_audio", "Озвучка");
+  // V-15: на кнопке озвучки — студия без подписи «Озвучка:».
+  const studio = findItem(FIX.SERIAL_SMALL)?.seasons?.[0]?.episodes[0]?.audios[0]?.author?.title;
+  expect(studio, "у озвучки SERIAL_SMALL есть студия").toBeDefined();
+  await press(page, "b_audio", studio!);
   const panel = page.locator("#appPanelContent");
   await expect(panel).toBeVisible();
   await expect(panel).not.toContainText(/Content Not Available|Содержимое недоступно/i);

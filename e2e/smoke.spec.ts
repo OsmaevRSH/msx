@@ -3,7 +3,9 @@ import type { Page } from "@playwright/test";
 import { contentAction, panelAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids } from "../src/router/ids.ts";
 import { FIX } from "../tools/kpmock/fixtures.ts";
-import { P, consoleTail, content, diag, exec, expectContent, kp, login, menuItem, mock, newMsxPage, openMsx, press, stats, waitFor } from "./fixtures.ts";
+import {
+  P, consoleTail, content, diag, exec, expectContent, kp, login, menuItem, mock, msxMenuDialog, newMsxPage, openMsx, press, stats, waitFor,
+} from "./fixtures.ts";
 import type { MockCall } from "./fixtures.ts";
 
 // Smoke Phase 0 в настоящей web-версии MSX (этап 27, решение Р-27): одна сессия MSX на весь файл, как у пользователя —
@@ -74,14 +76,15 @@ test("главная и список: полки и плитки из mock", asy
   await exec(page, contentAction(P, ids.home()));
   await expectContent(page, "Продолжить просмотр");
   await expectContent(page, "Новые фильмы");
-  await expectContent(page, "Тестовый фильм «Простой»", { ignoreCase: true });
+  // V-04, V-10: подпись плитки главной в две строки — «Тестовый» и «фильм «Простой»».
+  await expectContent(page, "фильм «Простой»", { ignoreCase: true });
 
   await exec(page, contentAction(P, ids.list(movies)));
   await waitFor(page, (s) => s.requests.at(-1) === ids.list(movies), 10_000, "запрос списка «Фильмы»");
   await expect.poll(async () => called(await mock.calls(), "GET", "/v1/items").length, { message: "список загружен из mock" })
     .toBeGreaterThanOrEqual(1);
   await expect(content(page)).not.toContainText("Продолжить просмотр");
-  await expectContent(page, /Тестовый фильм \d+/i);
+  await expectContent(page, /фильм \d+/i);
 });
 
 test("карточка фильма", async () => {
@@ -149,4 +152,32 @@ test("CE-05: за всю сессию iframe плагина не перезаг�
   expect(s.bootId).toBe(bootId);
   expect(s.readyCount).toBe(1);
   expect(page.frames().filter((f) => f.url() === P)).toHaveLength(1);
+});
+
+test("X-3, V-34, V-39: выход из KinoPub с вложенного экрана — меню гостевое, «Вы вышли из KinoPub», iframe тот же", async () => {
+  // Вложенный экран: карточка открыта действием content: поверх «Для разработчика» — `replace:menu` MSX здесь не выполнит.
+  await exec(page, contentAction(P, ids.item(FIX.MOVIE_SIMPLE)));
+  await expectContent(page, "Тестовый фильм «Простой»");
+  await expect(menuItem(page, "Главная")).toHaveCount(1);
+  // Подтверждение выхода (V-34) — та же панель, что у строки S12 и кнопки «Диагностики»; фокус на «Отмена».
+  await exec(page, panelAction(P, ids.panel("setting", "account")));
+  const panel = page.locator("#appPanelContent");
+  await expect(panel).toContainText("Выйти из KinoPub?");
+  const chosen = panel.locator(".selected");
+  await expect(chosen, "фокус на безопасной «Отмена»").toContainText("Отмена");
+  await page.keyboard.press("ArrowUp");
+  await expect(chosen).toContainText("Выйти");
+  await page.keyboard.press("Enter");
+
+  await expect.poll(() => kp(page, (k) => k.ctx.auth.isLoggedIn() as boolean), { message: "плагин вышел", timeout: 10_000, intervals: [200] })
+    .toBe(false);
+  await expect(page.locator("#appNotificationScene"), "уведомление о выходе").toContainText("Вы вышли из KinoPub", { timeout: 10_000 });
+  await expect(menuItem(page, "Вход"), "меню перерисовано гостевым с вложенного экрана (X-3)").toBeVisible({ timeout: 15_000 });
+  await expect(menuItem(page, "Главная")).toHaveCount(0);
+  await expect(msxMenuDialog(page), "системное «Меню» MSX не открыто").toBeHidden();
+  const s = await stats(page);
+  expect(s.actions.some((a) => a.startsWith("[home|cleanup|lazy:replace:menu:menu:")), "home, cleanup, затем замена меню после анимации").toBe(true);
+  expect(s.bootId, "выход не перезагружает плагин").toBe(bootId);
+  expect(s.readyCount).toBe(1);
+  expect(called(await mock.calls(), "POST", "/v1/device/unlink"), "устройство отвязано в KinoPub").toHaveLength(1);
 });
