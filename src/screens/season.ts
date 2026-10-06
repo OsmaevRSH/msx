@@ -182,7 +182,7 @@ function fitParts(
 ): void {
   const all = root.items ?? [];
   if (bytes(root) <= MAX_BYTES) return;
-  const head = root.headline;
+  const hint = root.extension;
   const at = Math.max(0, m.episodes.findIndex((e) => e.ref.mid === m.focus));
   const per = Math.max(...all.map(bytes)) + 1;
   const nav = (a: number, b: number, next: boolean): MsxContentItem => ({
@@ -197,7 +197,8 @@ function fitParts(
     if (start > 0) items.unshift(nav(Math.max(0, start - size), start, false));
     if (end < all.length) items.push(nav(end, Math.min(all.length, end + size), true));
     root.items = items;
-    root.headline = `${head ?? ""} · ${range(m, start, end)}`;
+    // Номера части — в `extension`: заголовок с названием сериала и сезоном и так длинный.
+    root.extension = hint === undefined ? range(m, start, end) : `${range(m, start, end)} · ${hint}`;
     if (size <= ROW || bytes(root) <= MAX_BYTES) return;
   }
 }

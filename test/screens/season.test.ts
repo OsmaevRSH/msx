@@ -293,7 +293,7 @@ describe("seasonScreen: long seasons in parts (CNFR-16)", () => {
       parts.push((await t.request(id)) as MsxContentRoot);
       assert.ok(parts.length <= total, "the parts end");
     }
-    for (const p of parts) assert.ok(bytes(p) <= 32 * 1024, `${p.headline}: ${bytes(p)} B`);
+    for (const p of parts) assert.ok(bytes(p) <= 32 * 1024, `${p.extension}: ${bytes(p)} B`);
     assert.deepEqual(parts.flatMap((p) => episodes(p).map((i) => i.id)), Array.from({ length: total }, (_, k) => `e${longMid(n, k + 1)}`));
     return parts;
   }
@@ -310,7 +310,8 @@ describe("seasonScreen: long seasons in parts (CNFR-16)", () => {
           const from = i * size;
           const last = Math.min(total, from + size);
           assert.equal(p.flag, `ep_${LONG}_${n}`);
-          assert.equal(p.headline, `Тестовый сериал «Длинный» · Сезон ${n} из 2 · Серии ${from + 1}–${last}`);
+          assert.equal(p.headline, `Тестовый сериал «Длинный» · Сезон ${n} из 2`);
+          assert.equal(p.extension, `Серии ${from + 1}–${last} · {ico:msx-red:stop} Сезоны`);
           assert.deepEqual(navs(p).map((x) => x.id), [...(i > 0 ? ["e_prev"] : []), ...(last < total ? ["e_next"] : [])]);
           if (i > 0) {
             const prev = navs(p)[0]!;
@@ -333,7 +334,7 @@ describe("seasonScreen: long seasons in parts (CNFR-16)", () => {
     const size = episodes(s).length;
     const from = Math.floor(49 / size) * size;
     assert.ok(from > 0);
-    assert.equal(s.headline, `Тестовый сериал «Длинный» · Сезон 1 из 2 · Серии ${from + 1}–${from + size}`);
+    assert.equal(s.extension, `Серии ${from + 1}–${from + size} · {ico:msx-red:stop} Сезоны`);
     assert.deepEqual(episodes(s).filter((e) => e.focus === true).map((e) => e.id), [`e${longMid(1, 50)}`]);
     assert.equal(navs(s)[0]?.action, replaceContent(`ep_${LONG}_1`, P, ids.season(LONG, 1, from - size)));
   });
