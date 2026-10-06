@@ -14,8 +14,13 @@ export interface MockOptions {
 }
 export interface CallRecord { t: number; method: string; path: string; query: string; contentType?: string;
   origin?: string; hasAuthHeader: boolean; status: number }   // status 0 — соединение оборвано
-export interface MockServer { url: string; state: MockState; calls(): CallRecord[]; stats(): { maxInFlight: number };
-  setScenario(p: Partial<Scenario>): void; reset(): void; issueToken(): { access: string; refresh: string }; close(): Promise<void> }
+export interface MockServer { url: string; state: MockState; calls(): CallRecord[]; stats(): { maxInFlight: number; held: number };
+  setScenario(p: Partial<Scenario>): void; reset(): void; issueToken(): { access: string; refresh: string }; close(): Promise<void>;
+  /** Отпустить запросы, которые держит правило `hang`: они получают обычный ответ. Возвращает их число. */
+  release(): number }
+
+/** Запрос, который держит правило `hang`: `go(true)` — ответить как обычно, `go(false)` — бросить. */
+interface Held { go(answer: boolean): void }
 
 type Kind = "api" | "cdn" | "control" | "other";
 
@@ -56,6 +61,14 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
   let maxInFlight = 0;
   let window: number[] = [];
   let url = "";
+  const held = new Set<Held>();
+
+  /** Отпустить (`answer`) или оборвать все удерживаемые запросы. */
+  const letGo = (answer: boolean): number => {
+    const all = [...held];
+    for (const h of all) h.go(answer);
+    return all.length;
+  };
 
   registerAll(router, state, () => url);
   opts.extraRoutes?.(router);
@@ -64,9 +77,11 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     url: "",
     state,
     calls: () => calls.map((c) => ({ ...c })),
-    stats: () => ({ maxInFlight }),
+    stats: () => ({ maxInFlight, held: held.size }),
     setScenario: (p) => { scenario = mergeScenario(scenario, p); },
+    release: () => letGo(true),
     reset: () => {
+      letGo(false);
       state.reset();
       scenario = cloneScenario(baseScenario);
       calls = [];
@@ -115,6 +130,23 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     req.socket.destroy();
   }
 
+  /** Правило `hang`: true — запрос отпущен (`release`), false — клиент сдался или `reset` оборвал соединение. */
+  function hold(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    return new Promise((resolve) => {
+      const h: Held = {
+        go: (answer) => {
+          if (!held.delete(h)) return;
+          res.off("close", gaveUp);
+          if (!answer) req.socket.destroy();
+          resolve(answer);
+        },
+      };
+      const gaveUp = (): void => h.go(false);
+      held.add(h);
+      res.once("close", gaveUp);
+    });
+  }
+
   function notFound(kind: Kind): MockResponse {
     return kind === "api" ? { status: 404, json: { status: 404, error: "Not found" } } : { status: 404, text: "Not found" };
   }
@@ -143,6 +175,8 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
       case "POST /__mock/reset":
         mock.reset();
         return send(200, { status: 200 });
+      case "POST /__mock/release":
+        return send(200, { released: mock.release() });
       case "POST /__mock/token": {
         const pair = mock.issueToken();
         return send(200, { access: pair.access, refresh: pair.refresh, expires_in: scenario.accessTtlSec });
@@ -178,6 +212,7 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     const rule = takeRule(scenario, method, path);
     if (rule) {
       if (rule.delayMs) await sleep(rule.delayMs);
+      if (rule.hang && !(await hold(req, res))) return;
       if (rule.drop) return drop(req, rec);
       if (rule.status !== undefined) {
         return reply(res, rec, kind, { status: rule.status, json: { status: rule.status, error: "mock" } }, { ruleNoCors: rule.noCors === true });

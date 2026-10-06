@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as realSleep } from "node:timers/promises";
 import { DeviceFlow } from "../../src/auth/device-flow.ts";
 import type { LoginState } from "../../src/auth/device-flow.ts";
 import type { StoredPair } from "../../src/auth/tokens.ts";
@@ -152,6 +153,49 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     assert.deepEqual(await r.run(r.flow.start()), { phase: "error", code: "KP-5XX" });
     assert.equal(env.calls("/oauth2/device").length, 1, "OAuth is not retried automatically");
     assert.equal(r.clock.pending(), 0);
+  });
+
+  // Этап 33b: блокировка по SNI или упавший VPN — запрос кода висит; экран входа не ждёт таймаут OAuth (15 с).
+  it("the code request hangs → error KP-NET after 6 s (returned by start(), not announced); OAuth is not repeated", async () => {
+    env.mock().setScenario({ rules: [{ path: "^/oauth2/device$", hang: true }] });
+    const r = flowRig(env);
+    const t0 = r.clock.perf();
+    assert.deepEqual(await r.run(r.flow.start()), { phase: "error", code: "KP-NET" });
+    assert.equal(r.clock.perf() - t0, 6000);
+    await r.clock.advance(60_000);
+    assert.equal(env.calls("/oauth2/device").length, 1, "OAuth is not retried automatically");
+    assert.deepEqual(r.states, [], "the request timing out later at 15 s changes nothing");
+    assert.deepEqual(r.flow.state(), { phase: "error", code: "KP-NET" });
+    assert.equal(r.clock.pending(), 0);
+  });
+
+  it("a code that arrives after the 6 s verdict is taken: announced, then polling as usual (slow but alive network)", async () => {
+    env.mock().setScenario({ rules: [{ path: "^/oauth2/device$", hang: true, times: 1 }] });
+    const r = flowRig(env);
+    assert.deepEqual(await r.run(r.flow.start()), { phase: "error", code: "KP-NET" });
+    env.mock().release();
+    const late = await r.next("code");
+    assert.ok(late.phase === "code" && late.userCode !== "");
+    assert.deepEqual(r.flow.state(), late);
+    await r.next("done");
+    assert.ok(r.auth.isLoggedIn());
+    assert.equal(grants(env, "device_code"), 1);
+  });
+
+  it("a late code is dropped once a new start() took over", async () => {
+    env.mock().setScenario({ rules: [{ path: "^/oauth2/device$", hang: true, times: 1 }] });
+    const r = flowRig(env);
+    assert.equal((await r.run(r.flow.start())).phase, "error");
+    const again = await r.run(r.flow.start());
+    assert.equal(again.phase, "code");
+    env.mock().release();
+    const codes = (): number => r.log.entries().filter((e) => e.tag === "api" && /^POST \/oauth2\/device 200 /.test(e.msg)).length;
+    for (let i = 0; i < 300 && codes() < 2; i++) await realSleep(10);
+    assert.equal(codes(), 2, "the first request got its answer");
+    await realSleep(20);
+    assert.deepEqual(r.flow.state(), again);
+    assert.deepEqual(r.states, []);
+    r.flow.stop();
   });
 
   it("a terminal denial → error KP-AUTH announced, polling stops", async () => {
