@@ -12,13 +12,25 @@
       "data": "request:interaction:home@https://example.github.io/msx/app/index.html"
     },
     {
+      "id": "watching",
+      "icon": "visibility",
+      "label": "Я смотрю",
+      "data": "request:interaction:watching@https://example.github.io/msx/app/index.html"
+    },
+    {
       "id": "search",
       "icon": "search",
       "label": "Поиск",
       "data": "request:interaction:search@https://example.github.io/msx/app/index.html"
     },
     {
-      "id": "sep_catalog",
+      "id": "fresh",
+      "icon": "new-releases",
+      "label": "Новинки",
+      "data": "request:interaction:list:ZnJlc2g@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "sep_movies",
       "type": "separator",
       "label": "Каталог"
     },
@@ -59,7 +71,7 @@
       "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPWNvbmNlcnR8c29ydD0tdXBkYXRlZA@https://example.github.io/msx/app/index.html"
     },
     {
-      "id": "sep_personal",
+      "id": "sep_bookmarks",
       "type": "separator"
     },
     {
@@ -67,6 +79,69 @@
       "icon": "bookmark",
       "label": "Закладки",
       "data": "request:interaction:bookmarks@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "history",
+      "icon": "history",
+      "label": "История",
+      "data": "request:interaction:list:aGlzdG9yeQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "sep_collections",
+      "type": "separator",
+      "label": "Ещё"
+    },
+    {
+      "id": "collections",
+      "icon": "collections-bookmark",
+      "label": "Подборки",
+      "data": "request:interaction:list:Y29sbGVjdGlvbnM@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "popular",
+      "icon": "trending-up",
+      "label": "Популярное",
+      "data": "request:interaction:list:cG9wdWxhcg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "hot",
+      "icon": "whatshot",
+      "label": "Горячее",
+      "data": "request:interaction:list:aG90@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "anime",
+      "icon": "animation",
+      "label": "Аниме",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPW1vdmllLHNlcmlhbHxzb3J0PS11cGRhdGVkfGdlbnJlPTI1@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "standup",
+      "icon": "theater-comedy",
+      "label": "Стендап",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWR8Z2VucmU9MTAx@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s3d",
+      "icon": "3d-rotation",
+      "label": "3D",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPTNkfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "uhd",
+      "icon": "4k",
+      "label": "4K",
+      "data": "request:interaction:list:Y2F0YWxvZ3xzb3J0PS11cGRhdGVkfHF1YWxpdHk9NA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "sport",
+      "icon": "sports-soccer",
+      "label": "Спорт",
+      "data": "request:interaction:tv@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "sep_settings",
+      "type": "separator"
     },
     {
       "id": "settings",

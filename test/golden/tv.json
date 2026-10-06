@@ -1,0 +1,131 @@
+{
+  "type": "list",
+  "flag": "tv",
+  "cache": false,
+  "reuse": false,
+  "preload": "next",
+  "headline": "Спорт",
+  "extension": "Эфир · 6 каналов",
+  "template": {
+    "layout": "0,0,3,2",
+    "color": "msx-glass",
+    "round": true,
+    "imageHeight": 1.3,
+    "imageFiller": "fit",
+    "imageBoundary": true,
+    "badgeColor": "msx-red",
+    "truncation": "titleHeader",
+    "enumerate": false
+  },
+  "items": [
+    {
+      "id": "tv1",
+      "focus": true,
+      "titleHeader": "Тестовый спорт 1",
+      "image": "http://kpmock.invalid/poster/logo/1.svg",
+      "playerLabel": "Тестовый спорт 1",
+      "badge": "Эфир",
+      "action": "video:http://kpmock.invalid/cdn/tv/sport1/playlist.m3u8"
+    },
+    {
+      "id": "tv2",
+      "titleHeader": "Тестовый спорт 2",
+      "image": "http://kpmock.invalid/poster/logo/2.svg",
+      "playerLabel": "Тестовый спорт 2",
+      "badge": "Эфир",
+      "action": "video:http://kpmock.invalid/cdn/tv/sport2/playlist.m3u8"
+    },
+    {
+      "id": "tv3",
+      "titleHeader": "Тестовый спорт 3",
+      "image": "http://kpmock.invalid/poster/logo/3.svg",
+      "playerLabel": "Тестовый спорт 3",
+      "badge": "Эфир",
+      "action": "video:http://kpmock.invalid/cdn/tv/sport3/playlist.m3u8"
+    },
+    {
+      "id": "tv4",
+      "titleHeader": "Тестовый спорт 4",
+      "image": "http://kpmock.invalid/poster/logo/4.svg",
+      "playerLabel": "Тестовый спорт 4",
+      "badge": "Эфир",
+      "action": "video:http://kpmock.invalid/cdn/tv/sport4/playlist.m3u8"
+    },
+    {
+      "id": "tv5",
+      "titleHeader": "Тестовый спорт 5",
+      "image": "http://kpmock.invalid/poster/logo/5.svg",
+      "playerLabel": "Тестовый спорт 5",
+      "badge": "Эфир",
+      "action": "video:http://kpmock.invalid/cdn/tv/sport5/playlist.m3u8"
+    },
+    {
+      "id": "tv6",
+      "titleHeader": "Тестовый спорт 6",
+      "image": "http://kpmock.invalid/poster/logo/6.svg",
+      "playerLabel": "Тестовый спорт 6",
+      "badge": "Эфир",
+      "action": "video:http://kpmock.invalid/cdn/tv/sport6/playlist.m3u8"
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,1,12,4",
+      "offset": "0,0,0,-2",
+      "items": [
+        {
+          "layout": "0,0,3,1",
+          "offset": "0,0,0,1",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:tv1"
+          }
+        },
+        {
+          "layout": "3,0,3,1",
+          "offset": "0,0,0,1",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:tv2"
+          }
+        },
+        {
+          "layout": "6,0,3,1",
+          "offset": "0,0,0,1",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:tv3"
+          }
+        },
+        {
+          "layout": "9,0,3,1",
+          "offset": "0,0,0,1",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:tv4"
+          }
+        },
+        {
+          "layout": "0,5,3,1",
+          "offset": "0,-3,0,1",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:tv5"
+          }
+        },
+        {
+          "layout": "3,5,3,1",
+          "offset": "0,-3,0,1",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:tv6"
+          }
+        }
+      ],
+      "template": {
+        "offset": "0,-1,0,0"
+      }
+    }
+  ]
+}

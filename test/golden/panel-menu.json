@@ -1,0 +1,654 @@
+{
+  "type": "list",
+  "headline": "Пункты меню",
+  "cache": false,
+  "reuse": false,
+  "pages": [
+    {
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,8,1",
+          "text": "OK — показать или скрыть, {ico:arrow-upward} {ico:arrow-downward} — переместить, {ico:vertical-align-top} — в начало"
+        },
+        {
+          "id": "m_home",
+          "type": "button",
+          "layout": "0,1,5,1",
+          "label": "{ico:check-box} Главная",
+          "action": "interaction:commit:message:act:menu:hide:home",
+          "focus": true
+        },
+        {
+          "id": "u_home",
+          "type": "button",
+          "layout": "5,1,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:home"
+        },
+        {
+          "id": "d_home",
+          "type": "button",
+          "layout": "6,1,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:home"
+        },
+        {
+          "id": "t_home",
+          "type": "button",
+          "layout": "7,1,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:home"
+        },
+        {
+          "id": "m_watching",
+          "type": "button",
+          "layout": "0,2,5,1",
+          "label": "{ico:check-box} Я смотрю",
+          "action": "interaction:commit:message:act:menu:hide:watching"
+        },
+        {
+          "id": "u_watching",
+          "type": "button",
+          "layout": "5,2,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:watching"
+        },
+        {
+          "id": "d_watching",
+          "type": "button",
+          "layout": "6,2,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:watching"
+        },
+        {
+          "id": "t_watching",
+          "type": "button",
+          "layout": "7,2,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:watching"
+        },
+        {
+          "id": "m_search",
+          "type": "button",
+          "layout": "0,3,5,1",
+          "label": "{ico:check-box} Поиск",
+          "action": "interaction:commit:message:act:menu:hide:search"
+        },
+        {
+          "id": "u_search",
+          "type": "button",
+          "layout": "5,3,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:search"
+        },
+        {
+          "id": "d_search",
+          "type": "button",
+          "layout": "6,3,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:search"
+        },
+        {
+          "id": "t_search",
+          "type": "button",
+          "layout": "7,3,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:search"
+        },
+        {
+          "id": "m_fresh",
+          "type": "button",
+          "layout": "0,4,5,1",
+          "label": "{ico:check-box} Новинки",
+          "action": "interaction:commit:message:act:menu:hide:fresh"
+        },
+        {
+          "id": "u_fresh",
+          "type": "button",
+          "layout": "5,4,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:fresh"
+        },
+        {
+          "id": "d_fresh",
+          "type": "button",
+          "layout": "6,4,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:fresh"
+        },
+        {
+          "id": "t_fresh",
+          "type": "button",
+          "layout": "7,4,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:fresh"
+        },
+        {
+          "id": "m_movies",
+          "type": "button",
+          "layout": "0,5,5,1",
+          "label": "{ico:check-box} Фильмы",
+          "action": "interaction:commit:message:act:menu:hide:movies"
+        },
+        {
+          "id": "u_movies",
+          "type": "button",
+          "layout": "5,5,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:movies"
+        },
+        {
+          "id": "d_movies",
+          "type": "button",
+          "layout": "6,5,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:movies"
+        },
+        {
+          "id": "t_movies",
+          "type": "button",
+          "layout": "7,5,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:movies"
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "id": "m_serials",
+          "type": "button",
+          "layout": "0,0,5,1",
+          "label": "{ico:check-box} Сериалы",
+          "action": "interaction:commit:message:act:menu:hide:serials"
+        },
+        {
+          "id": "u_serials",
+          "type": "button",
+          "layout": "5,0,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:serials"
+        },
+        {
+          "id": "d_serials",
+          "type": "button",
+          "layout": "6,0,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:serials"
+        },
+        {
+          "id": "t_serials",
+          "type": "button",
+          "layout": "7,0,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:serials"
+        },
+        {
+          "id": "m_cartoons",
+          "type": "button",
+          "layout": "0,1,5,1",
+          "label": "{ico:check-box} Мультфильмы",
+          "action": "interaction:commit:message:act:menu:hide:cartoons"
+        },
+        {
+          "id": "u_cartoons",
+          "type": "button",
+          "layout": "5,1,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:cartoons"
+        },
+        {
+          "id": "d_cartoons",
+          "type": "button",
+          "layout": "6,1,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:cartoons"
+        },
+        {
+          "id": "t_cartoons",
+          "type": "button",
+          "layout": "7,1,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:cartoons"
+        },
+        {
+          "id": "m_docs",
+          "type": "button",
+          "layout": "0,2,5,1",
+          "label": "{ico:check-box} Документальное",
+          "action": "interaction:commit:message:act:menu:hide:docs"
+        },
+        {
+          "id": "u_docs",
+          "type": "button",
+          "layout": "5,2,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:docs"
+        },
+        {
+          "id": "d_docs",
+          "type": "button",
+          "layout": "6,2,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:docs"
+        },
+        {
+          "id": "t_docs",
+          "type": "button",
+          "layout": "7,2,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:docs"
+        },
+        {
+          "id": "m_tvshows",
+          "type": "button",
+          "layout": "0,3,5,1",
+          "label": "{ico:check-box} ТВ-шоу",
+          "action": "interaction:commit:message:act:menu:hide:tvshows"
+        },
+        {
+          "id": "u_tvshows",
+          "type": "button",
+          "layout": "5,3,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:tvshows"
+        },
+        {
+          "id": "d_tvshows",
+          "type": "button",
+          "layout": "6,3,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:tvshows"
+        },
+        {
+          "id": "t_tvshows",
+          "type": "button",
+          "layout": "7,3,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:tvshows"
+        },
+        {
+          "id": "m_concerts",
+          "type": "button",
+          "layout": "0,4,5,1",
+          "label": "{ico:check-box} Концерты",
+          "action": "interaction:commit:message:act:menu:hide:concerts"
+        },
+        {
+          "id": "u_concerts",
+          "type": "button",
+          "layout": "5,4,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:concerts"
+        },
+        {
+          "id": "d_concerts",
+          "type": "button",
+          "layout": "6,4,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:concerts"
+        },
+        {
+          "id": "t_concerts",
+          "type": "button",
+          "layout": "7,4,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:concerts"
+        },
+        {
+          "id": "m_bookmarks",
+          "type": "button",
+          "layout": "0,5,5,1",
+          "label": "{ico:check-box} Закладки",
+          "action": "interaction:commit:message:act:menu:hide:bookmarks"
+        },
+        {
+          "id": "u_bookmarks",
+          "type": "button",
+          "layout": "5,5,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:bookmarks"
+        },
+        {
+          "id": "d_bookmarks",
+          "type": "button",
+          "layout": "6,5,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:bookmarks"
+        },
+        {
+          "id": "t_bookmarks",
+          "type": "button",
+          "layout": "7,5,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:bookmarks"
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "id": "m_history",
+          "type": "button",
+          "layout": "0,0,5,1",
+          "label": "{ico:check-box} История",
+          "action": "interaction:commit:message:act:menu:hide:history"
+        },
+        {
+          "id": "u_history",
+          "type": "button",
+          "layout": "5,0,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:history"
+        },
+        {
+          "id": "d_history",
+          "type": "button",
+          "layout": "6,0,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:history"
+        },
+        {
+          "id": "t_history",
+          "type": "button",
+          "layout": "7,0,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:history"
+        },
+        {
+          "id": "m_collections",
+          "type": "button",
+          "layout": "0,1,5,1",
+          "label": "{ico:check-box} Подборки",
+          "action": "interaction:commit:message:act:menu:hide:collections"
+        },
+        {
+          "id": "u_collections",
+          "type": "button",
+          "layout": "5,1,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:collections"
+        },
+        {
+          "id": "d_collections",
+          "type": "button",
+          "layout": "6,1,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:collections"
+        },
+        {
+          "id": "t_collections",
+          "type": "button",
+          "layout": "7,1,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:collections"
+        },
+        {
+          "id": "m_popular",
+          "type": "button",
+          "layout": "0,2,5,1",
+          "label": "{ico:check-box} Популярное",
+          "action": "interaction:commit:message:act:menu:hide:popular"
+        },
+        {
+          "id": "u_popular",
+          "type": "button",
+          "layout": "5,2,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:popular"
+        },
+        {
+          "id": "d_popular",
+          "type": "button",
+          "layout": "6,2,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:popular"
+        },
+        {
+          "id": "t_popular",
+          "type": "button",
+          "layout": "7,2,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:popular"
+        },
+        {
+          "id": "m_hot",
+          "type": "button",
+          "layout": "0,3,5,1",
+          "label": "{ico:check-box} Горячее",
+          "action": "interaction:commit:message:act:menu:hide:hot"
+        },
+        {
+          "id": "u_hot",
+          "type": "button",
+          "layout": "5,3,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:hot"
+        },
+        {
+          "id": "d_hot",
+          "type": "button",
+          "layout": "6,3,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:hot"
+        },
+        {
+          "id": "t_hot",
+          "type": "button",
+          "layout": "7,3,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:hot"
+        },
+        {
+          "id": "m_anime",
+          "type": "button",
+          "layout": "0,4,5,1",
+          "label": "{ico:check-box} Аниме",
+          "action": "interaction:commit:message:act:menu:hide:anime"
+        },
+        {
+          "id": "u_anime",
+          "type": "button",
+          "layout": "5,4,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:anime"
+        },
+        {
+          "id": "d_anime",
+          "type": "button",
+          "layout": "6,4,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:anime"
+        },
+        {
+          "id": "t_anime",
+          "type": "button",
+          "layout": "7,4,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:anime"
+        },
+        {
+          "id": "m_standup",
+          "type": "button",
+          "layout": "0,5,5,1",
+          "label": "{ico:check-box} Стендап",
+          "action": "interaction:commit:message:act:menu:hide:standup"
+        },
+        {
+          "id": "u_standup",
+          "type": "button",
+          "layout": "5,5,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:standup"
+        },
+        {
+          "id": "d_standup",
+          "type": "button",
+          "layout": "6,5,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:standup"
+        },
+        {
+          "id": "t_standup",
+          "type": "button",
+          "layout": "7,5,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:standup"
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "id": "m_s3d",
+          "type": "button",
+          "layout": "0,0,5,1",
+          "label": "{ico:check-box} 3D",
+          "action": "interaction:commit:message:act:menu:hide:s3d"
+        },
+        {
+          "id": "u_s3d",
+          "type": "button",
+          "layout": "5,0,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:s3d"
+        },
+        {
+          "id": "d_s3d",
+          "type": "button",
+          "layout": "6,0,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:s3d"
+        },
+        {
+          "id": "t_s3d",
+          "type": "button",
+          "layout": "7,0,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:s3d"
+        },
+        {
+          "id": "m_uhd",
+          "type": "button",
+          "layout": "0,1,5,1",
+          "label": "{ico:check-box} 4K",
+          "action": "interaction:commit:message:act:menu:hide:uhd"
+        },
+        {
+          "id": "u_uhd",
+          "type": "button",
+          "layout": "5,1,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:uhd"
+        },
+        {
+          "id": "d_uhd",
+          "type": "button",
+          "layout": "6,1,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:uhd"
+        },
+        {
+          "id": "t_uhd",
+          "type": "button",
+          "layout": "7,1,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:uhd"
+        },
+        {
+          "id": "m_sport",
+          "type": "button",
+          "layout": "0,2,5,1",
+          "label": "{ico:check-box} Спорт",
+          "action": "interaction:commit:message:act:menu:hide:sport"
+        },
+        {
+          "id": "u_sport",
+          "type": "button",
+          "layout": "5,2,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:sport"
+        },
+        {
+          "id": "d_sport",
+          "type": "button",
+          "layout": "6,2,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:sport"
+        },
+        {
+          "id": "t_sport",
+          "type": "button",
+          "layout": "7,2,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:sport"
+        },
+        {
+          "id": "m_settings",
+          "type": "button",
+          "layout": "0,3,5,1",
+          "label": "{ico:lock} Просмотр и аккаунт",
+          "action": "info:«Просмотр и аккаунт» всегда в меню"
+        },
+        {
+          "id": "u_settings",
+          "type": "button",
+          "layout": "5,3,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:settings"
+        },
+        {
+          "id": "d_settings",
+          "type": "button",
+          "layout": "6,3,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:settings"
+        },
+        {
+          "id": "t_settings",
+          "type": "button",
+          "layout": "7,3,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:settings"
+        },
+        {
+          "id": "m_probe",
+          "type": "button",
+          "layout": "0,4,5,1",
+          "label": "{ico:check-box} Диагностика",
+          "action": "interaction:commit:message:act:menu:hide:probe"
+        },
+        {
+          "id": "u_probe",
+          "type": "button",
+          "layout": "5,4,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:menu:up:probe"
+        },
+        {
+          "id": "d_probe",
+          "type": "button",
+          "layout": "6,4,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:menu:down:probe"
+        },
+        {
+          "id": "t_probe",
+          "type": "button",
+          "layout": "7,4,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:menu:top:probe"
+        },
+        {
+          "id": "m_reset",
+          "type": "button",
+          "layout": "0,5,8,1",
+          "icon": "restore",
+          "label": "Сбросить по умолчанию",
+          "action": "interaction:commit:message:act:menu:reset"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,532 @@
+{
+  "type": "list",
+  "flag": "list_d983130d",
+  "cache": false,
+  "reuse": false,
+  "preload": "next",
+  "headline": "Подборки · Новые",
+  "extension": "{ico:msx-red:stop} Новые · 60 подборок",
+  "options": {
+    "headline": "Сортировка",
+    "template": {
+      "type": "control",
+      "layout": "0,0,8,1"
+    },
+    "items": [
+      {
+        "id": "o_sort",
+        "icon": "sort",
+        "label": "Сортировка: Новые",
+        "action": "[back|panel:request:interaction:panel:sort:Y29sbGVjdGlvbnM@https://example.github.io/msx/app/index.html]"
+      }
+    ]
+  },
+  "template": {
+    "color": "msx-glass",
+    "imageHeight": 2.75,
+    "imageFiller": "cover",
+    "imageBoundary": true,
+    "round": true,
+    "truncation": "titleHeader",
+    "layout": "0,0,2,4",
+    "enumerate": false,
+    "selection": {
+      "headline": "{context:kt}"
+    }
+  },
+  "items": [
+    {
+      "id": "c1",
+      "kt": "Тестовая подборка «Семейные» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Семейные» 1",
+      "titleFooter": "12 шт.",
+      "image": "http://kpmock.invalid/poster/medium/1.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0x@https://example.github.io/msx/app/index.html",
+      "focus": true
+    },
+    {
+      "id": "c2",
+      "kt": "Тестовая подборка «Про космос» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про космос» 1",
+      "titleFooter": "19 шт.",
+      "image": "http://kpmock.invalid/poster/medium/2.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0y@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c3",
+      "kt": "Тестовая подборка «Детективы» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Детективы» 1",
+      "titleFooter": "26 шт.",
+      "image": "http://kpmock.invalid/poster/medium/3.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0z@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c4",
+      "kt": "Тестовая подборка «Комедии» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Комедии» 1",
+      "titleFooter": "33 шт.",
+      "image": "http://kpmock.invalid/poster/medium/4.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c5",
+      "kt": "Тестовая подборка «Исторические» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Исторические» 1",
+      "titleFooter": "40 шт.",
+      "image": "http://kpmock.invalid/poster/medium/5.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD01@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c6",
+      "kt": "Тестовая подборка «Про спорт» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про спорт» 1",
+      "titleFooter": "47 шт.",
+      "image": "http://kpmock.invalid/poster/medium/6.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD02@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c7",
+      "kt": "Тестовая подборка «Новогодние» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Новогодние» 1",
+      "titleFooter": "54 шт.",
+      "image": "http://kpmock.invalid/poster/medium/7.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD03@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c8",
+      "kt": "Тестовая подборка «Экранизации» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Экранизации» 1",
+      "titleFooter": "61 шт.",
+      "image": "http://kpmock.invalid/poster/medium/8.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD04@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c9",
+      "kt": "Тестовая подборка «Про любовь» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про любовь» 1",
+      "titleFooter": "8 шт.",
+      "image": "http://kpmock.invalid/poster/medium/9.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD05@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c10",
+      "kt": "Тестовая подборка «Фантастика» 1",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Фантастика» 1",
+      "titleFooter": "15 шт.",
+      "image": "http://kpmock.invalid/poster/medium/10.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xMA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c11",
+      "kt": "Тестовая подборка «Семейные» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Семейные» 2",
+      "titleFooter": "22 шт.",
+      "image": "http://kpmock.invalid/poster/medium/11.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xMQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c12",
+      "kt": "Тестовая подборка «Про космос» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про космос» 2",
+      "titleFooter": "29 шт.",
+      "image": "http://kpmock.invalid/poster/medium/12.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xMg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c13",
+      "kt": "Тестовая подборка «Детективы» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Детективы» 2",
+      "titleFooter": "36 шт.",
+      "image": "http://kpmock.invalid/poster/medium/13.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xMw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c14",
+      "kt": "Тестовая подборка «Комедии» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Комедии» 2",
+      "titleFooter": "43 шт.",
+      "image": "http://kpmock.invalid/poster/medium/14.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xNA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c15",
+      "kt": "Тестовая подборка «Исторические» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Исторические» 2",
+      "titleFooter": "50 шт.",
+      "image": "http://kpmock.invalid/poster/medium/15.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xNQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c16",
+      "kt": "Тестовая подборка «Про спорт» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про спорт» 2",
+      "titleFooter": "57 шт.",
+      "image": "http://kpmock.invalid/poster/medium/16.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xNg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c17",
+      "kt": "Тестовая подборка «Новогодние» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Новогодние» 2",
+      "titleFooter": "64 шт.",
+      "image": "http://kpmock.invalid/poster/medium/17.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xNw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c18",
+      "kt": "Тестовая подборка «Экранизации» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Экранизации» 2",
+      "titleFooter": "11 шт.",
+      "image": "http://kpmock.invalid/poster/medium/18.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xOA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c19",
+      "kt": "Тестовая подборка «Про любовь» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про любовь» 2",
+      "titleFooter": "18 шт.",
+      "image": "http://kpmock.invalid/poster/medium/19.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0xOQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c20",
+      "kt": "Тестовая подборка «Фантастика» 2",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Фантастика» 2",
+      "titleFooter": "25 шт.",
+      "image": "http://kpmock.invalid/poster/medium/20.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yMA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c21",
+      "kt": "Тестовая подборка «Семейные» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Семейные» 3",
+      "titleFooter": "32 шт.",
+      "image": "http://kpmock.invalid/poster/medium/21.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yMQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c22",
+      "kt": "Тестовая подборка «Про космос» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про космос» 3",
+      "titleFooter": "39 шт.",
+      "image": "http://kpmock.invalid/poster/medium/22.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yMg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c23",
+      "kt": "Тестовая подборка «Детективы» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Детективы» 3",
+      "titleFooter": "46 шт.",
+      "image": "http://kpmock.invalid/poster/medium/23.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yMw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c24",
+      "kt": "Тестовая подборка «Комедии» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Комедии» 3",
+      "titleFooter": "53 шт.",
+      "image": "http://kpmock.invalid/poster/medium/24.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yNA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c25",
+      "kt": "Тестовая подборка «Исторические» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Исторические» 3",
+      "titleFooter": "60 шт.",
+      "image": "http://kpmock.invalid/poster/medium/25.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yNQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c26",
+      "kt": "Тестовая подборка «Про спорт» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про спорт» 3",
+      "titleFooter": "7 шт.",
+      "image": "http://kpmock.invalid/poster/medium/26.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yNg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c27",
+      "kt": "Тестовая подборка «Новогодние» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Новогодние» 3",
+      "titleFooter": "14 шт.",
+      "image": "http://kpmock.invalid/poster/medium/27.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yNw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c28",
+      "kt": "Тестовая подборка «Экранизации» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Экранизации» 3",
+      "titleFooter": "21 шт.",
+      "image": "http://kpmock.invalid/poster/medium/28.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yOA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c29",
+      "kt": "Тестовая подборка «Про любовь» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про любовь» 3",
+      "titleFooter": "28 шт.",
+      "image": "http://kpmock.invalid/poster/medium/29.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0yOQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c30",
+      "kt": "Тестовая подборка «Фантастика» 3",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Фантастика» 3",
+      "titleFooter": "35 шт.",
+      "image": "http://kpmock.invalid/poster/medium/30.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zMA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c31",
+      "kt": "Тестовая подборка «Семейные» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Семейные» 4",
+      "titleFooter": "42 шт.",
+      "image": "http://kpmock.invalid/poster/medium/31.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zMQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c32",
+      "kt": "Тестовая подборка «Про космос» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про космос» 4",
+      "titleFooter": "49 шт.",
+      "image": "http://kpmock.invalid/poster/medium/32.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zMg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c33",
+      "kt": "Тестовая подборка «Детективы» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Детективы» 4",
+      "titleFooter": "56 шт.",
+      "image": "http://kpmock.invalid/poster/medium/33.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zMw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c34",
+      "kt": "Тестовая подборка «Комедии» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Комедии» 4",
+      "titleFooter": "63 шт.",
+      "image": "http://kpmock.invalid/poster/medium/34.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zNA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c35",
+      "kt": "Тестовая подборка «Исторические» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Исторические» 4",
+      "titleFooter": "10 шт.",
+      "image": "http://kpmock.invalid/poster/medium/35.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zNQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c36",
+      "kt": "Тестовая подборка «Про спорт» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про спорт» 4",
+      "titleFooter": "17 шт.",
+      "image": "http://kpmock.invalid/poster/medium/36.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zNg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c37",
+      "kt": "Тестовая подборка «Новогодние» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Новогодние» 4",
+      "titleFooter": "24 шт.",
+      "image": "http://kpmock.invalid/poster/medium/37.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zNw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c38",
+      "kt": "Тестовая подборка «Экранизации» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Экранизации» 4",
+      "titleFooter": "31 шт.",
+      "image": "http://kpmock.invalid/poster/medium/38.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zOA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c39",
+      "kt": "Тестовая подборка «Про любовь» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про любовь» 4",
+      "titleFooter": "38 шт.",
+      "image": "http://kpmock.invalid/poster/medium/39.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD0zOQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c40",
+      "kt": "Тестовая подборка «Фантастика» 4",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Фантастика» 4",
+      "titleFooter": "45 шт.",
+      "image": "http://kpmock.invalid/poster/medium/40.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00MA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c41",
+      "kt": "Тестовая подборка «Семейные» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Семейные» 5",
+      "titleFooter": "52 шт.",
+      "image": "http://kpmock.invalid/poster/medium/41.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00MQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c42",
+      "kt": "Тестовая подборка «Про космос» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про космос» 5",
+      "titleFooter": "59 шт.",
+      "image": "http://kpmock.invalid/poster/medium/42.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00Mg@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c43",
+      "kt": "Тестовая подборка «Детективы» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Детективы» 5",
+      "titleFooter": "6 шт.",
+      "image": "http://kpmock.invalid/poster/medium/43.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00Mw@https://example.github.io/msx/app/index.html",
+      "break": "context:end"
+    },
+    {
+      "id": "c44",
+      "kt": "Тестовая подборка «Комедии» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Комедии» 5",
+      "titleFooter": "13 шт.",
+      "image": "http://kpmock.invalid/poster/medium/44.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00NA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c45",
+      "kt": "Тестовая подборка «Исторические» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Исторические» 5",
+      "titleFooter": "20 шт.",
+      "image": "http://kpmock.invalid/poster/medium/45.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00NQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c46",
+      "kt": "Тестовая подборка «Про спорт» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Про спорт» 5",
+      "titleFooter": "27 шт.",
+      "image": "http://kpmock.invalid/poster/medium/46.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00Ng@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c47",
+      "kt": "Тестовая подборка «Новогодние» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Новогодние» 5",
+      "titleFooter": "34 шт.",
+      "image": "http://kpmock.invalid/poster/medium/47.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00Nw@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "c48",
+      "kt": "Тестовая подборка «Экранизации» 5",
+      "titleHeader": "{col:msx-white}Тестовая{br}подборка «Экранизации» 5",
+      "titleFooter": "41 шт.",
+      "image": "http://kpmock.invalid/poster/medium/48.svg",
+      "action": "content:request:interaction:list:Y29sbGVjdGlvbnxpZD00OA@https://example.github.io/msx/app/index.html",
+      "live": {
+        "type": "setup",
+        "action": "interaction:commit:message:extend:Y29sbGVjdGlvbnM:down:48"
+      }
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,1,12,5",
+      "items": [
+        {
+          "layout": "0,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:c1"
+          }
+        },
+        {
+          "layout": "2,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:c2"
+          }
+        },
+        {
+          "layout": "4,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:c3"
+          }
+        },
+        {
+          "layout": "6,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:c4"
+          }
+        },
+        {
+          "layout": "8,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:c5"
+          }
+        },
+        {
+          "layout": "10,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:c6"
+          }
+        }
+      ],
+      "offset": "0,0,0,-1",
+      "template": {
+        "offset": "0,-1,0,0"
+      }
+    },
+    {
+      "position": "context:end",
+      "area": "0,0,12,4",
+      "offset": "0,0,0,-1",
+      "items": [
+        {
+          "layout": "0,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:c43"
+          }
+        },
+        {
+          "layout": "2,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:c44"
+          }
+        },
+        {
+          "layout": "4,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:c45"
+          }
+        },
+        {
+          "layout": "6,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:c46"
+          }
+        },
+        {
+          "layout": "8,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:c47"
+          }
+        },
+        {
+          "layout": "10,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:c48"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "type": "list",
+  "flag": "watching",
+  "cache": false,
+  "reuse": false,
+  "preload": "next",
+  "headline": "Я смотрю",
+  "extension": "2 сериала · 1 фильм",
+  "template": {
+    "color": "msx-glass",
+    "imageHeight": 2.75,
+    "imageFiller": "cover",
+    "imageBoundary": true,
+    "round": true,
+    "truncation": "titleHeader",
+    "layout": "0,0,2,4",
+    "enumerate": false,
+    "selection": {
+      "headline": "{context:kt}",
+      "action": "interaction:commit:message:pf:{context:kid}"
+    }
+  },
+  "items": [
+    {
+      "id": "i2001",
+      "kid": "2001",
+      "kt": "Тестовый сериал «Большой»",
+      "titleHeader": "{col:msx-white}Тестовый{br}сериал «Большой»",
+      "image": "http://kpmock.invalid/poster/medium/2001.svg",
+      "action": "content:request:interaction:item:2001@https://example.github.io/msx/app/index.html",
+      "progress": 0.02,
+      "progressColor": "msx-blue",
+      "badge": "+2",
+      "focus": true
+    },
+    {
+      "id": "i2002",
+      "kid": "2002",
+      "kt": "Тестовый сериал «Короткий»",
+      "titleHeader": "{col:msx-white}Тестовый{br}сериал «Короткий»",
+      "image": "http://kpmock.invalid/poster/medium/2002.svg",
+      "action": "content:request:interaction:item:2002@https://example.github.io/msx/app/index.html",
+      "progress": 0.17,
+      "progressColor": "msx-blue"
+    },
+    {
+      "id": "i2006",
+      "kid": "2006",
+      "kt": "Тестовый фильм «Простой»",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм «Простой»",
+      "image": "http://kpmock.invalid/poster/medium/2006.svg",
+      "action": "content:request:interaction:item:2006@https://example.github.io/msx/app/index.html",
+      "progress": 0.22,
+      "progressColor": "msx-blue",
+      "stamp": "1 ч 10 м"
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,1,12,4",
+      "offset": "0,0,0,-2",
+      "items": [
+        {
+          "layout": "0,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i2001"
+          }
+        },
+        {
+          "layout": "2,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i2002"
+          }
+        },
+        {
+          "layout": "4,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i2006"
+          }
+        },
+        {
+          "layout": "0,5,2,1",
+          "offset": "0,-5,0,0",
+          "selection": {
+            "action": "focus:i2001"
+          }
+        },
+        {
+          "layout": "2,5,2,1",
+          "offset": "0,-5,0,0",
+          "selection": {
+            "action": "focus:i2002"
+          }
+        },
+        {
+          "layout": "4,5,2,1",
+          "offset": "0,-5,0,0",
+          "selection": {
+            "action": "focus:i2006"
+          }
+        }
+      ],
+      "template": {
+        "offset": "0,-1,0,0"
+      }
+    }
+  ]
+}

@@ -104,6 +104,14 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("probe", ids.probe());
   });
 
+  it("v1.11: «Я смотрю», «Спорт», «Подборки», «История», the «Пункты меню» panel", LIMIT, async () => {
+    await snap("watching", ids.watching());
+    await snap("tv", ids.tv());
+    await snap("list-collections", ids.list(encodeListKey({ src: "collections" })));
+    await snap("list-history", ids.list(encodeListKey({ src: "history" })));
+    await snap("panel-menu", ids.panel("menu"));
+  });
+
   it("error KP-NET: the network is down — «KinoPub не отвечает» after 6 s, before the retries end (V-40)", LIMIT, async () => {
     const t = await make({ loggedIn: true });
     t.mock.setScenario({ rules: [{ path: ".*", drop: true }] });

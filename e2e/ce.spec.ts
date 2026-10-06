@@ -151,8 +151,8 @@ test("CE-02: «Фильмы» — догрузка через live setup и relo
   // «Вход выполнен» (info:) перехватил бы первую клавишу.
   await noNotification(page);
   await expect(menuSelected(page)).toHaveText("Главная");
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
+  // v1.11: «Главная», «Я смотрю», «Поиск», «Новинки», затем «Каталог».
+  for (let n = 0; n < 4; n++) await page.keyboard.press("ArrowDown");
   await expect(menuSelected(page), "разделитель «Каталог» пропускается").toHaveText("Фильмы");
   await until(page, (tl) => resAfter(tl, ids.list(movies)) !== undefined, 10_000, "MSX загрузил «Фильмы» по выбору в меню");
   // V-10: название плитки в две строки — «Тестовый» и «фильм <id>» — разными элементами.
@@ -204,6 +204,8 @@ test("CE-03: клавиатура поиска — ввод, стирание, �
   // Back из списка, открытого из меню, возвращает фокус в меню.
   await page.keyboard.press("Backspace");
   await expect(menuSelected(page)).toHaveText("Фильмы");
+  await page.keyboard.press("ArrowUp");
+  await expect(menuSelected(page), "разделитель пропускается вверх").toHaveText("Новинки");
   await page.keyboard.press("ArrowUp");
   await expect(menuSelected(page)).toHaveText("Поиск");
   await until(page, (tl) => resAfter(tl, ids.search()) !== undefined, 10_000, "MSX загрузил «Поиск» по выбору в меню");
@@ -269,8 +271,7 @@ test("CE-06: догрузка пришла после ухода в карточ
   ] });
   await page.keyboard.press("Backspace");
   await expect(menuSelected(page)).toHaveText("Поиск");
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
+  for (let n = 0; n < 3; n++) await page.keyboard.press("ArrowDown");
   await expect(menuSelected(page)).toHaveText("Сериалы");
   await until(page, (tl) => resAfter(tl, ids.list(serials)) !== undefined, 10_000, "MSX загрузил «Сериалы» по выбору в меню");
   await expectContent(page, /сериал \d+/i);

@@ -92,6 +92,18 @@
       "type": "space",
       "layout": "0,0,12,1",
       "offset": "0,0.5,0,-0.5",
+      "headline": "Меню"
+    },
+    {
+      "id": "s_menu",
+      "label": "Пункты меню",
+      "extensionLabel": "По умолчанию",
+      "action": "panel:request:interaction:panel:menu@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Для опытных"
     },
     {

@@ -48,9 +48,12 @@ export async function tvScreen(ctx: AppContext): Promise<MsxContentRoot> {
     id: `tv${c.id}`, ...(i === 0 ? { focus: true } : {}), titleHeader: c.title, image: c.logo, playerLabel: c.title,
     badge: T.live, action: `video:${c.stream}`,
   }));
+  // Свойства плеера от плитки (Extended Properties MSX): у эфира нет позиции — полоса прогресса скрыта, «Назад» закрывает
+  // плеер, а не оставляет эфир играть под экраном (проверено в web MSX 0.1.167).
   root.template = {
     layout: `0,0,${GRID.w},${GRID.h}`, color: "msx-glass", round: true, imageHeight: LOGO_H, imageFiller: "fit", imageBoundary: true,
     badgeColor: "msx-red", truncation: "titleHeader", enumerate: false,
+    properties: { "control:type": "extended", "progress:display": "false", "trigger:back": "player:eject" },
   };
   const framed = gridEdges(items, GRID, { top: "shift", bottom: true });
   root.items = framed.items;

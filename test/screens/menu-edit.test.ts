@@ -5,7 +5,7 @@ import type { MsxContentItem, MsxContentRoot, MsxMenuRoot } from "../../src/msx/
 import { ids, msgs } from "../../src/router/ids.ts";
 import { menuPanel, menuSummary, onMenuAct } from "../../src/screens/menu-edit.ts";
 import { SECTIONS, menuStore, refreshMenu } from "../../src/screens/menu.ts";
-import { bytesOf } from "../../tools/crawl-rules.ts";
+import { answerIssues, bytesOf } from "../../tools/crawl-rules.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -29,32 +29,43 @@ async function make(): Promise<TestApp> {
 }
 
 const panel = async (t: TestApp): Promise<MsxContentRoot> => (await t.request(ids.panel("menu"))) as MsxContentRoot;
-const byId = (p: MsxContentRoot, id: string): MsxContentItem | undefined => p.items?.find((i) => i.id === id);
-const focused = (p: MsxContentRoot): string | undefined => p.items?.find((i) => i.focus === true)?.id;
+const all = (p: MsxContentRoot): MsxContentItem[] => (p.pages ?? []).flatMap((pg) => pg.items);
+const byId = (p: MsxContentRoot, id: string): MsxContentItem | undefined => all(p).find((i) => i.id === id);
+const focused = (p: MsxContentRoot): string | undefined => all(p).find((i) => i.focus === true)?.id;
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 const msg = (op: string, id?: string): string => `interaction:commit:message:${id === undefined ? msgs.act("menu", op) : msgs.act("menu", op, id)}`;
 const labels = async (t: TestApp): Promise<string[]> => ((await t.request(ids.init())) as MsxMenuRoot).menu.map((i) => i.label ?? "");
 
 describe("menu panel «Пункты меню»", () => {
-  it("a hint, a row per section (name 5, ▲ ▼ ⤒ 1 each) in the menu order, «Сбросить» last; focus on the first name", async () => {
+  it("pages of 6 rows: a hint, a row per section (name 5, ▲ ▼ ⤒ 1 each) in the menu order, «Сбросить» last; focus on the first name", async () => {
     const t = await make();
     const p = await panel(t);
     assert.equal(p.headline, "Пункты меню");
     assert.equal(p.type, "list");
-    assert.deepEqual(p.template, { type: "button", layout: "0,0,8,1" });
-    const items = p.items ?? [];
-    assert.equal(items[0]?.type, "space");
-    assert.equal(items.length, 1 + 4 * DEFAULT.length + 1);
+    // Шаблонным элементам MSX даёт `layout` шаблона — строкам из четырёх кнопок нужны страницы с явными `layout`.
+    assert.equal(p.template, undefined);
+    assert.equal(p.items, undefined);
+    assert.deepEqual(answerIssues(ids.panel("menu"), p), []);
+    const rows = (p.pages ?? []).flatMap((pg) => {
+      const ys = [...new Set(pg.items.map((i) => Number(i.layout?.split(",")[1])))];
+      assert.ok(ys.every((y) => y >= 0 && y < 6), "rows 0…5 of a page");
+      return ys.map((y) => pg.items.filter((i) => Number(i.layout?.split(",")[1]) === y));
+    });
+    assert.equal(rows.length, 1 + DEFAULT.length + 1);
+    assert.equal(rows[0]?.[0]?.type, "space");
     DEFAULT.forEach((id, i) => {
-      const row = items.slice(1 + 4 * i, 5 + 4 * i);
+      const row = rows[i + 1] ?? [];
+      const y = Number(row[0]?.layout?.split(",")[1]);
       assert.deepEqual(row.map((x) => x.id), [`m_${id}`, `u_${id}`, `d_${id}`, `t_${id}`]);
-      assert.deepEqual(row.map((x) => x.layout), ["0,0,5,1", "0,0,1,1", "0,0,1,1", "0,0,1,1"]);
+      assert.deepEqual(row.map((x) => x.layout), [`0,${y},5,1`, `5,${y},1,1`, `6,${y},1,1`, `7,${y},1,1`]);
+      assert.ok(row.every((x) => x.type === "button"));
       assert.deepEqual(row.slice(1).map((x) => x.icon), ["arrow-upward", "arrow-downward", "vertical-align-top"]);
       assert.deepEqual(row.slice(1).map((x) => x.action), [msg("up", id), msg("down", id), msg("top", id)]);
     });
-    assert.equal(items.at(-1)?.id, "m_reset");
-    assert.equal(items.at(-1)?.action, msg("reset"));
+    assert.equal(rows.at(-1)?.[0]?.id, "m_reset");
+    assert.equal(rows.at(-1)?.[0]?.action, msg("reset"));
     assert.equal(focused(p), "m_home");
+    assert.equal(all(p).filter((i) => i.focus === true).length, 1);
     assert.equal(byId(p, "m_watching")?.label, "{ico:check-box} Я смотрю");
     assert.equal(byId(p, "m_watching")?.action, msg("hide", "watching"));
     // Панель ≤ 16 КБ (CNFR-16).
@@ -142,8 +153,8 @@ describe("menu panel «Пункты меню»", () => {
     const t = await make();
     t.ctx.store.set("cfg", "menu", { order: [1, "zzz", "probe", "home"], hidden: "home" });
     const p = await panel(t);
-    assert.equal(p.items?.filter((i) => i.id?.startsWith("m_") && i.id !== "m_reset").length, DEFAULT.length);
-    assert.equal(p.items?.[1]?.id, "m_probe", "the stored order is kept for known ids");
+    assert.equal(all(p).filter((i) => i.id?.startsWith("m_") && i.id !== "m_reset").length, DEFAULT.length);
+    assert.equal(all(p)[1]?.id, "m_probe", "the stored order is kept for known ids");
     assert.equal(focused(p), "m_probe");
     assert.equal((await labels(t)).filter((l) => l === "Главная").length, 1);
   });
