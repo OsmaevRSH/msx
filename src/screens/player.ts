@@ -1,5 +1,6 @@
 import type { AppContext } from "../app/context.ts";
 import type { Audio, Subtitle } from "../api/models.ts";
+import { langName, subsLabel } from "../core/lang.ts";
 import { chain, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxResolveResponse } from "../msx/types.ts";
 import type { EpRef } from "../playback/episodes.ts";
@@ -25,24 +26,13 @@ const BUFFER_TIMEOUT_SEC = "10";
 /** Режим и шаг fallback пользователю ничего не говорят (V-27): они только в журнале resolve и в проверках «Диагностики». */
 const MODE_LABEL = { hls1: "HLS1", hls2: "HLS2" } as const;
 const RETRY_TOAST = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
-/** Язык дорожки по-русски: озвучка — «Русский», субтитры — «Русские»; прочие коды — заглавными (V-20). */
-const LANGS: Readonly<Record<string, readonly [audio: string, subs: string]>> = {
-  rus: ["Русский", "Русские"], eng: ["Английский", "Английские"], ukr: ["Украинский", "Украинские"],
-};
-const SUBS_FORCED = "только надписи";
 const SUBS_OFF = "Выключены";
-
-const langName = (lang: string, k: 0 | 1): string => LANGS[lang.toLowerCase()]?.[k] ?? lang.toUpperCase();
 
 /** Студия озвучки, иначе её тип («Оригинал»), иначе язык — на кнопке карточки и в `label:extension`. */
 export const audioTitle = (a: Audio): string => a.authorTitle ?? a.typeTitle ?? langName(a.lang, 0);
 
 /** «Английские», «Английские · только надписи», «Выключены». */
-export function subsTitle(c: SubsChoice | "off"): string {
-  if (c === "off") return SUBS_OFF;
-  const name = langName(c.lang, 1);
-  return c.forced ? `${name} · ${SUBS_FORCED}` : name;
-}
+export const subsTitle = (c: SubsChoice | "off"): string => (c === "off" ? SUBS_OFF : subsLabel(c));
 
 /** Действия, которые зависят от серии: у карточки — готовые строки, у шаблона сезона — `{context:…}`. */
 interface EpisodeActions { item: string; mid: string; prev?: string; next?: string; complete: string }
