@@ -33,7 +33,8 @@ export async function bookmarksScreen(ctx: AppContext): Promise<MsxContentRoot> 
     action: contentAction(ctx.P, ids.list(encodeListKey({ src: "folder", folder: f.id }))),
   }));
   if (items.length > 0) {
-    root.template = { layout: "0,0,4,2", color: "msx-glass" };
+    // Счётчик MSX «(1/1)» ничего не добавляет к плиткам папок (V-11).
+    root.template = { layout: "0,0,4,2", color: "msx-glass", enumerate: false };
     root.items = items;
     return root;
   }
