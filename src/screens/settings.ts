@@ -74,6 +74,9 @@ const optsOf = (ctx: AppContext, d: Def): Opt[] | Promise<Opt[]> => (typeof d.op
 const setMsg = (key: string, v?: string): string => commitMsg(v === undefined ? msgs.act("set", key) : msgs.act("set", key, v));
 const current = (p: Prefs, d: Def, dev: DeviceInfo | undefined): Val => (d.field ? p[d.field] as Val : dev?.settings[d.dev!]);
 
+/** Устройство KinoPub из кэша `device/info` (Plan B §7.2): повторное открытие экрана и панелей не ждёт API. */
+const device = async (ctx: AppContext): Promise<DeviceInfo> => (await ctx.repo.deviceInfo()).value;
+
 /** Экран и панели не ждут сеть дольше `WAIT_MS`; сбой части — прочерк в её строках. */
 function soft<V>(ctx: AppContext, p: Promise<V>): Promise<V | undefined> {
   const failed = (e: unknown): undefined => void ctx.log.debug(TAG, "part_failed", { err: toKpError(e).code });
@@ -83,7 +86,7 @@ function soft<V>(ctx: AppContext, p: Promise<V>): Promise<V | undefined> {
 export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
   const keys = Object.keys(DEFS);
   const [dev, user, lists] = await Promise.all([
-    soft(ctx, ctx.api.deviceInfo()), soft(ctx, ctx.repo.user()), Promise.all(keys.map((k) => optsOf(ctx, DEFS[k]!))),
+    soft(ctx, device(ctx)), soft(ctx, ctx.repo.user()), Promise.all(keys.map((k) => optsOf(ctx, DEFS[k]!))),
   ]);
   const p = ctx.prefs.get();
   const s = user?.value.subscription;
@@ -124,15 +127,21 @@ export async function settingPanel(ctx: AppContext, key: string): Promise<MsxCon
   }
   const d = defOf(key);
   if (d === undefined) throw new KpError("KP-BAD", "bad setting", undefined, key);
-  const [opts, dev] = await Promise.all([optsOf(ctx, d), d.dev ? soft(ctx, ctx.api.deviceInfo()) : undefined]);
+  const [opts, dev] = await Promise.all([optsOf(ctx, d), d.dev ? soft(ctx, device(ctx)) : undefined]);
   const cur = current(ctx.prefs.get(), d, dev);
   return choicePanel(ctx, d.label, opts.map((o) => ({ label: o.label, action: setMsg(key, enc(o.v)), current: o.v === cur })));
 }
 
-/** POST настроек своего устройства и сверка повторным чтением (Plan B §6.2.1). */
+/**
+ * POST настроек своего устройства и сверка свежим чтением (Plan B §6.2.1): оно же обновляет кэш устройства, ссылки на
+ * поток устаревают (Plan B §7.3). Чтение не удалось — ошибка сети, а не сверка с прежним значением из кэша.
+ */
 async function saveDevice(ctx: AppContext, s: Partial<DeviceSettings>): Promise<void> {
-  await ctx.api.deviceSettingsSave((await ctx.api.deviceInfo()).id, s);
-  const now = (await ctx.api.deviceInfo()).settings;
+  await ctx.api.deviceSettingsSave((await device(ctx)).id, s);
+  ctx.repo.invalidateAfterDevice();
+  const got = await ctx.repo.deviceInfo({ fresh: true });
+  if (got.offline !== undefined) throw new KpError(got.offline, "device-reread-failed");
+  const now = got.value.settings;
   const keys = (Object.keys(s) as (keyof DeviceSettings)[]).filter((k) => now[k] !== s[k]);
   if (keys.length > 0) throw new KpError("KP-BAD", T.mismatch, undefined, keys.join(","));
 }

@@ -349,6 +349,14 @@ describe("device, oauth, user, bookmarks (research §4, §5)", () => {
     });
   });
 
+  it("device server location: the selected entry of the list setting (research §5.2)", () => {
+    const loc = (value: unknown): unknown => parseDeviceInfo({ device: { id: 1, settings: { serverLocation: { type: "list", value } } } }).location;
+    assert.deepEqual(loc([{ id: 1, label: "Netherlands", selected: 0 }, { id: "2", label: "Germany", selected: "1" }]), { id: 2, label: "Germany" });
+    assert.equal(loc([{ id: 1, label: "Netherlands", selected: 0 }]), undefined);
+    assert.equal(loc("nl"), undefined);
+    assert.deepEqual(loc([{ id: 3, selected: 1 }]), { id: 3, label: "" });
+  });
+
   it("user and bookmark folder", () => {
     assert.deepEqual(parseUser({ status: 200, user: { username: "u", reg_date: 1, subscription: { active: true, end_time: "1800000000", days: 30 } } }),
       { username: "u", subscription: { active: true, endTime: 1800000000, days: 30 } });

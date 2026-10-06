@@ -1,7 +1,7 @@
 import type { KpApi } from "../api/client.ts";
 import type {
-  BookmarkFolder, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, MediaUnit, Page, Season,
-  SerialWatching, ServerLocation, User,
+  BookmarkFolder, DeviceInfo, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, MediaUnit, Page,
+  Season, SerialWatching, ServerLocation, User,
 } from "../api/models.ts";
 import { Priority } from "../api/transport.ts";
 import type { ReqClass } from "../api/transport.ts";
@@ -36,6 +36,8 @@ const pol = (ttlMs: number, staleMaxMs: number, persist: boolean): Policy => ({ 
 // TTL и stale-max — Plan B §7.2 (спец. §8.2). L2 — только то, что нужно холодному старту (спец. §8.1).
 const REFS = pol(24 * HOUR, WEEK, true);
 const USER = pol(HOUR, WEEK, true);
+// Настройки устройства KinoPub: в L2 их нет — на холодном старте их ждёт только экран настроек.
+const DEVICE = pol(HOUR, WEEK, false);
 const LIST = pol(10 * MIN, WEEK, true);
 // Содержимое папки закладок — 120 с (Plan B §7.2), не 10 мин каталога.
 const FOLDER = pol(2 * MIN, WEEK, true);
@@ -74,6 +76,7 @@ export const cacheKeys = {
   locations: (): string => key("refs", "loc"),
   voiceovers: (): string => key("refs", "vo"),
   user: (): string => key("user"),
+  device: (): string => key("device"),
   /** Префикс всех страниц одного источника. */
   listSource: (src: ListSource): string => key("list", b64urlEncode(sourceJson(src))),
   list: (src: ListSource, page: number): string => key("list", b64urlEncode(sourceJson(src)), page),
@@ -158,6 +161,14 @@ export class Repo {
 
   genres(type: string): Promise<Got<Genre[]>> {
     return this.cache.get(cacheKeys.genres(type), REFS, () => this.api.genres(type));
+  }
+
+  /**
+   * `device/info` (Plan B §7.2): 1 ч, затем SWR. `fresh` — в обход кэша, ответ заменяет закэшированный (сверка после
+   * POST настроек, Plan B §6.2.1); при сбое сети — прежнее значение с `offline`, как у `SwrCache.get`.
+   */
+  deviceInfo(opts?: { fresh?: boolean }): Promise<Got<DeviceInfo>> {
+    return this.cache.get(cacheKeys.device(), DEVICE, () => this.api.deviceInfo(), opts?.fresh === true ? { force: true } : undefined);
   }
 
   serverLocations(): Promise<Got<ServerLocation[]>> {
@@ -258,6 +269,16 @@ export class Repo {
     this.cache.markStale(cacheKeys.history());
     this.cache.markStale(cacheKeys.serials());
     this.cache.markStale(cacheKeys.movies());
+  }
+
+  /** Выход из KinoPub: устройство отвязано, следующий вход создаст другое — с другим id и настройками. */
+  forgetDevice(): void {
+    this.cache.delete(cacheKeys.device());
+  }
+
+  /** Plan B §7.3: настройки устройства меняют набор `files[]` — ссылки на поток устарели (stale-max 0: не отдаются). */
+  invalidateAfterDevice(): void {
+    this.cache.markStale(key("links"));
   }
 
   invalidateAfterBookmark(itemId: number, folderId: number): void {

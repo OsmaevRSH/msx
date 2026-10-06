@@ -278,7 +278,11 @@ export function parseDeviceInfo(x: unknown): DeviceInfo {
     const v = s[k];
     settings[k] = bool01(isObj(v) ? v.value : v);
   }
-  return { id: num(d.id), title: str(d.title), hardware: str(d.hardware), software: str(d.software), settings };
+  const out: DeviceInfo = { id: num(d.id), title: str(d.title), hardware: str(d.hardware), software: str(d.software), settings };
+  // Списочная настройка — массив вариантов с флагом `selected`.
+  const sel = objs(obj(s.serverLocation).value).find((x) => num(x.selected) === 1);
+  if (sel !== undefined) out.location = { id: num(sel.id), label: str(sel.label) };
+  return out;
 }
 
 const DEFAULT_VERIFICATION_URI = "https://kino.watch/device";

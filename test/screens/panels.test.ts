@@ -397,6 +397,15 @@ describe("panelScreen: seasons, stream mode, CDN, settings", () => {
     assert.equal(t.ctx.prefs.get().loc, undefined);
   });
 
+  it("CDN: the device location comes from the cached device info — opening the panel again does not wait for the API", async () => {
+    const t = await make();
+    await panel(t, "loc");
+    t.mock.setScenario({ delayMs: 5_000 });
+    assert.equal(labels(await panel(t, "loc"))[0], `${CHECK}По умолчанию · Netherlands`);
+    assert.equal(t.mock.calls().filter((c) => c.path === "/v1/device/info").length, 1);
+    t.mock.setScenario({ delayMs: 0 });
+  });
+
   it("CDN without device info: plain «По умолчанию»", async () => {
     const t = await make();
     t.mock.setScenario({ rules: [{ path: "^/v1/device/info$", status: 500 }] });

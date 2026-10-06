@@ -158,6 +158,8 @@ export interface DeviceInfo {
   hardware: string;
   software: string;
   settings: DeviceSettings;
+  /** Выбранный CDN-сервер устройства (`settings.serverLocation`, research kinopub-api §5.2). */
+  location?: { id: number; label: string };
 }
 
 export interface ServerLocation {

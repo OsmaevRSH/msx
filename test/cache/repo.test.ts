@@ -144,6 +144,7 @@ describe("Repo", () => {
       { name: "movies", path: "/v1/watching/movies", ttl: MIN, l2: true, call: (x) => x.watchingMovies() },
       { name: "bm", path: "/v1/bookmarks", ttl: 5 * MIN, l2: true, call: (x) => x.bookmarkFolders() },
       { name: "folder", path: "/v1/bookmarks/1", ttl: 2 * MIN, l2: true, call: (x) => x.listPage(FOLDER1, 1) },
+      { name: "device", path: "/v1/device/info", ttl: HOUR, l2: false, call: (x) => x.deviceInfo() },
     ];
     for (const c of cases) {
       const { mem, l2, repo } = setup(r);
@@ -403,6 +404,42 @@ describe("Repo", () => {
     assert.equal(marked(cacheKeys.list(FOLDER1, 1)), true);
     assert.equal(marked(cacheKeys.list(folder12, 1)), false);
     assert.equal(marked(cacheKeys.list(CATALOG, 1)), false);
+  });
+
+  it("deviceInfo (Plan B §7.2–7.3): fresh — the network, its answer replaces the cached one; device settings make links stale; logout forgets it", async () => {
+    const r = env.rig();
+    const { cache, repo } = setup(r);
+    const first = await r.run(repo.deviceInfo());
+    assert.equal(first.source, "net");
+    assert.equal((await repo.deviceInfo()).source, "l1");
+    assert.equal(count("/v1/device/info"), 1);
+    const dev = [...env.mock().state.devices.values()][0];
+    assert.ok(dev);
+    dev.title = "Переименован";
+    const fresh = await r.run(repo.deviceInfo({ fresh: true }));
+    assert.deepEqual([fresh.source, fresh.value.title, count("/v1/device/info")], ["net", "Переименован", 2]);
+    assert.equal((await repo.deviceInfo()).value.title, "Переименован");
+    assert.equal(count("/v1/device/info"), 2);
+
+    // Сеть недоступна: свежий ответ не подменяется прежним молча — у него пометка `offline`.
+    env.mock().setScenario({ rules: [{ path: "^/v1/device/info$", status: 502 }] });
+    assert.equal((await r.run(repo.deviceInfo({ fresh: true }))).offline, "KP-5XX");
+    env.mock().setScenario({ rules: [] });
+
+    const mid = FIX.MOVIE_SIMPLE * 1000 + 1;
+    await r.run(repo.links(mid, { cls: "fg" }));
+    await r.run(repo.item(FIX.MOVIE_SIMPLE));
+    repo.invalidateAfterDevice();
+    assert.equal(cache.peek(cacheKeys.links(mid))?.stale, true);
+    assert.equal(repo.peekItem(FIX.MOVIE_SIMPLE)?.stale, false);
+    await r.run(repo.links(mid, { cls: "fg" }));
+    assert.equal(count("/v1/items/media-links"), 2);
+
+    // Выход: устройство отвязано — следующее чтение идёт в API.
+    const reads = count("/v1/device/info");
+    repo.forgetDevice();
+    assert.equal((await r.run(repo.deviceInfo())).source, "net");
+    assert.equal(count("/v1/device/info"), reads + 1);
   });
 
   it("cacheKeys: canonical source JSON in base64url; no key is a prefix of another entity's key", () => {

@@ -157,6 +157,17 @@ describe("settingPanel", () => {
     const s = await panel(t, "nope");
     assert.match(String(s.pages?.[0]?.items[0]?.text), /KP-BAD/);
   });
+
+  it("device info is cached (Plan B §7.2, crawler): the screen and the 4K/HEVC panels again — no device/info request", async () => {
+    const t = await make();
+    const reads = (): number => t.mock.calls().filter((c) => c.path === "/v1/device/info").length;
+    await screen(t);
+    assert.equal(reads(), 1);
+    await screen(t);
+    await panel(t, "hevc");
+    await panel(t, "uhd");
+    assert.equal(reads(), 1);
+  });
 });
 
 describe("onSettingsAct", () => {
@@ -189,6 +200,24 @@ describe("onSettingsAct", () => {
     assert.ok(calls.slice(post + 1).some((c) => c.method === "GET" && c.path === "/v1/device/info"), "not re-read");
     assert.deepEqual(actions(t), [BACK_RELOAD]);
     assert.equal(ext(await screen(t), "hevc"), "вкл");
+  });
+
+  it("a save after the screen was opened: the re-read goes to the API, the reloaded screen shows it from the cache", async () => {
+    const t = await make();
+    assert.equal(ext(await screen(t), "uhd"), "выкл");
+    await act(t, "uhd", 1);
+    const reads = t.mock.calls().filter((c) => c.path === "/v1/device/info").length;
+    assert.equal(ext(await screen(t), "uhd"), "вкл");
+    assert.equal(t.mock.calls().filter((c) => c.path === "/v1/device/info").length, reads);
+  });
+
+  it("the re-read fails → the error, not a mismatch against the cached value", async () => {
+    const t = await make();
+    await screen(t);
+    t.mock.setScenario({ rules: [{ path: "^/v1/device/info$", status: 502 }] });
+    await act(t, "hevc", 1);
+    assert.equal(device(t).supportHevc, 1);
+    assert.deepEqual(actions(t), ["[back|reload:content|info:KinoPub не отвечает]"]);
   });
 
   it("4K off → support4k = 0", async () => {
@@ -266,5 +295,17 @@ describe("onSettingsAct", () => {
     assert.equal(t.ctx.auth.isLoggedIn(), false);
     assert.ok(actions(t).includes(`replace:menu:menu:request:interaction:init@${TEST_P}`), JSON.stringify(actions(t)));
     assert.ok(t.mock.state.tokens.has(other.access), "another TV's token survived");
+  });
+
+  it("logout forgets the cached device: after a new login the screen and a save use the new KinoPub device", async () => {
+    const t = await make();
+    assert.equal(ext(await screen(t), "device"), "kpmock TV");
+    await act(t, "logout");
+    await t.run(t.ctx.auth.completeLogin({ ...t.mock.issueToken(), expiresIn: 3600 }, "Новый ТВ"));
+    assert.equal(ext(await screen(t), "device"), "Новый ТВ");
+    const id = [...t.mock.state.devices.keys()].at(-1);
+    await act(t, "hevc", 1);
+    assert.deepEqual(actions(t).at(-1), BACK_RELOAD);
+    assert.ok(t.mock.calls().some((c) => c.method === "POST" && c.path === `/v1/device/${id}/settings`));
   });
 });

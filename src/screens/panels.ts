@@ -245,16 +245,10 @@ async function locPanel(ctx: AppContext): Promise<MsxContentRoot> {
   return choicePanel(ctx, T.loc, rows);
 }
 
-/** `serverLocation` устройства — список с `selected` (research kinopub-api §5.2); сбой не мешает панели. */
+/** CDN-сервер устройства KinoPub — из кэша `device/info` (Plan B §7.2); сбой не мешает панели. */
 async function deviceLocation(ctx: AppContext): Promise<{ id: number; label: string } | undefined> {
-  type O = Record<string, unknown>;
-  const o = (v: unknown): O => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as O) : {});
   try {
-    const root = o(await ctx.api.raw("/v1/device/info"));
-    const dev = root.device === undefined ? root : o(root.device);
-    const list = o(o(dev.settings).serverLocation).value;
-    const sel = (Array.isArray(list) ? list : []).map(o).find((x) => Number(x.selected) === 1);
-    return sel === undefined ? undefined : { id: Number(sel.id), label: typeof sel.label === "string" ? sel.label : "" };
+    return (await ctx.repo.deviceInfo()).value.location;
   } catch (e) {
     ctx.log.debug(TAG, "device_location_failed", { err: toKpError(e).code });
     return undefined;
