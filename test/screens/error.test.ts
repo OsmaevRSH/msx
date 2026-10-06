@@ -13,10 +13,11 @@ const ctx = { P: TEST_P } as AppContext;
 const RETRY = "[invalidate:content|reload:content]";
 const PROBE = `content:request:interaction:probe@${TEST_P}`;
 const LOGIN = `content:request:interaction:login@${TEST_P}`;
+const SEARCH = `content:request:interaction:search@${TEST_P}`;
 
 const TEXTS: [KpErrorCode, string][] = [
   ["KP-NET", "Нет связи с KinoPub. Проверьте VPN"],
-  ["KP-429", "KinoPub перегружен, повторите через минуту"],
+  ["KP-429", "KinoPub сейчас не отвечает. Повторите через минуту"],
   ["KP-5XX", "KinoPub не отвечает"],
   ["KP-404", "Тайтл недоступен или удалён из каталога"],
   ["KP-AUTH", "Сессия KinoPub завершена, войдите снова"],
@@ -70,6 +71,23 @@ describe("errorScreen (S14)", () => {
     ]);
   });
 
+  // V-41: повтор не вернёт удалённый тайтл, а «Диагностика» тут ни при чём.
+  it("KP-404 of a title (card, season): «Назад» first, then «Поиск»; no «Повторить» and no «Диагностика»", () => {
+    for (const dataId of ["item:2006", "season:2001:3"]) {
+      const s = errorScreen(ctx, new KpError("KP-404", "not-found", 404), dataId);
+      assert.match(items(s)[0]?.text ?? "", /^Тайтл недоступен или удалён из каталога\{br\}Код: KP-404$/);
+      assert.deepEqual(buttons(s), [
+        { layout: "0,5,6,1", label: "Назад", action: "back" },
+        { layout: "6,5,6,1", label: "Поиск", action: SEARCH },
+      ], dataId);
+    }
+  });
+
+  it("KP-404 elsewhere (a list, bookmarks, a panel) keeps «Повторить»", () => {
+    assert.equal(buttons(errorScreen(ctx, new KpError("KP-404", "x", 404), "bookmarks"))[0]?.action, RETRY);
+    assert.equal(buttons(errorScreen(ctx, new KpError("KP-404", "x", 404), "panel:audio:2006:2006001:c"))[0]?.action, "reload:panel");
+  });
+
   it("works without retryDataId (unknown route)", () => {
     const s = errorScreen(ctx, new KpError("KP-BAD", "unknown route"));
     assert.match(items(s)[0]?.text ?? "", /Код: KP-BAD$/);
@@ -87,9 +105,9 @@ describe("errorScreen (S14)", () => {
 
   it("every page has a focusable item and every action addresses the plugin or MSX itself", () => {
     for (const [code] of TEXTS) {
-      const s = errorScreen(ctx, new KpError(code, "x"), "home");
+      const s = errorScreen(ctx, new KpError(code, "x"), "item:5");
       for (const p of s.pages ?? []) assert.ok(p.items.some((i) => i.type !== "space"), code);
-      for (const b of buttons(s)) assert.ok(b.action === RETRY || b.action?.endsWith(`@${TEST_P}`), String(b.action));
+      for (const b of buttons(s)) assert.ok([RETRY, "back"].includes(b.action ?? "") || b.action?.endsWith(`@${TEST_P}`), String(b.action));
     }
   });
 });

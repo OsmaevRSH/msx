@@ -48,7 +48,7 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     t.mock.setScenario({ noCorsErrors: true, rules: [{ path: "^/v1/items$", status: 429 }] });
     const list = (await t.request(ids.list(SERIALS))) as MsxContentRoot;
     assert.equal(errorCode(list), "KP-429");
-    assert.match(pageItems(list)[0]?.text ?? "", /^KinoPub перегружен, повторите через минуту/);
+    assert.match(pageItems(list)[0]?.text ?? "", /^KinoPub сейчас не отвечает\. Повторите через минуту/);
     assertNoCorsVerdict([list]);
     assert.deepEqual(apiCalls(t, "/v1/items").map((c) => c.status), [429, 429, 429], "auto retries 3 s, 6 s");
     assert.deepEqual(probes(t), [PROBE]);
