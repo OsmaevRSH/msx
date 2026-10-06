@@ -1,7 +1,7 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { fmtDate } from "../../src/core/format.ts";
-import { commitMsg, contentAction, panelAction } from "../../src/msx/actions.ts";
+import { chain, commitMsg, contentAction, panelAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
 import { onSettingsAct } from "../../src/screens/settings.ts";
@@ -43,35 +43,63 @@ const deviceId = (t: TestApp): number => [...t.mock.state.devices.keys()][0] as 
 const device = (t: TestApp): Record<string, number> => t.mock.state.devices.get(deviceId(t))?.settings ?? {};
 
 describe("settingsScreen (S12)", () => {
-  it("12×6 list of 12×1 control rows with group headers, flag «settings», not cached", async () => {
+  it("«Просмотр и аккаунт»: 12×6 list of 12×1 control rows with group headers, flag «settings», not cached", async () => {
     const t = await make();
     const s = await screen(t);
     assert.equal(s.type, "list");
     assert.equal(s.flag, "settings");
+    assert.equal(s.headline, "Просмотр и аккаунт");
     assert.equal(s.cache, false);
     assert.equal(s.compress, undefined);
     assert.deepEqual(s.template, { type: "control", layout: "0,0,12,1" });
     const groups = (s.items ?? []).filter((i) => i.type === "space");
     assert.deepEqual(groups.map((g) => g.headline), ["Воспроизведение", "Это устройство KinoPub", "Аккаунт", "Для опытных", "Диагностика"]);
-    for (const g of groups) assert.equal(g.layout, "0,0,12,1");
+    // V-33: заголовок в нижней половине своей строки — вплотную к группе, без пустой полосы под ним.
+    for (const g of groups) assert.deepEqual([g.layout, g.offset], ["0,0,12,1", "0,0.5,0,-0.5"]);
+  });
+
+  it("V-33: technical rows are in «Для опытных»; «Выйти из KinoPub» is a row of «Аккаунт»", async () => {
+    const t = await make();
+    const s = await screen(t);
+    const byGroup: string[][] = [];
+    for (const i of s.items ?? []) {
+      if (i.type === "space") byGroup.push([]);
+      else byGroup.at(-1)?.push(String(i.id).slice(2));
+    }
+    assert.deepEqual(byGroup, [
+      ["quality", "audioLang", "audioType", "authors", "subs"],
+      ["uhd", "device"],
+      ["account", "logout"],
+      ["mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
+      ["probe"],
+    ]);
+    assert.deepEqual(labels(s).filter((l) => l !== undefined), [
+      "Максимальное качество", "Язык озвучки", "Тип озвучки", "Любимые студии", "Субтитры по умолчанию",
+      "4K", "Название", "Подписка", "Выйти из KinoPub",
+      "Способ воспроизведения", "CDN-сервер", "Разрешить AC3", "HEVC", "Буфер старта", "Буфер продолжения", "Размер постеров", "Фоны карточек",
+      "Проверки и журнал",
+    ]);
   });
 
   it("every row of the S12 table shows the current value: defaults, 4K and HEVC off", async () => {
     const t = await make();
     const s = await screen(t);
+    // V-33: значения с заглавной буквы.
     const want: Record<string, string> = {
-      quality: "1080p", mode: "Авто", loc: "По умолчанию", audioLang: "Русский", audioType: "Любой", authors: "нет",
-      ac3: "нет", subs: "Выключены", hevc: "выкл", uhd: "выкл", device: "kpmock TV",
-      bufferInit: "4 с", bufferResume: "6 с", posterSize: "Средние", cardBackgrounds: "выкл",
+      quality: "1080p", mode: "Авто", loc: "По умолчанию", audioLang: "Русский", audioType: "Любой", authors: "Нет",
+      ac3: "Нет", subs: "Выключены", hevc: "Выкл", uhd: "Выкл", device: "kpmock TV",
+      bufferInit: "4 с", bufferResume: "6 с", posterSize: "Средние", cardBackgrounds: "Выкл",
     };
     for (const [k, v] of Object.entries(want)) assert.equal(ext(s, k), v, k);
   });
 
-  it("rows open their panels; CDN — the S10 location panel; «Диагностика» — the probe; the device name is display only", async () => {
+  it("rows open their panels; CDN — the S10 location panel; «Диагностика» — the probe; the device name and the subscription are display only", async () => {
     const t = await make();
     const s = await screen(t);
     assert.equal(row(s, "quality").action, panelAction(P, ids.panel("setting", "quality")));
-    assert.equal(row(s, "account").action, panelAction(P, ids.panel("setting", "account")));
+    assert.equal(row(s, "logout").action, panelAction(P, ids.panel("setting", "account")));
+    assert.equal(row(s, "account").enable, false);
+    assert.equal(row(s, "account").action, undefined);
     assert.equal(row(s, "loc").action, panelAction(P, ids.panel("loc")));
     assert.equal(row(s, "probe").action, contentAction(P, ids.probe()));
     assert.equal(row(s, "device").enable, false);
@@ -82,20 +110,20 @@ describe("settingsScreen (S12)", () => {
     const t = await make();
     const u = await t.run(t.ctx.api.user());
     const s = await screen(t);
-    assert.equal(ext(s, "account"), `до ${fmtDate(u.subscription.endTime)}, осталось 30 дн.`);
+    assert.equal(ext(s, "account"), `До ${fmtDate(u.subscription.endTime)}, осталось 30 дн.`);
   });
 
-  it("stored choices are shown: 720p, HLS2, CDN name, voice type, studios count, subtitles", async () => {
+  it("stored choices are shown: 720p, «Способ 2», CDN country in Russian, voice type, studios count, subtitles", async () => {
     const t = await make();
     t.ctx.prefs.update({ maxQuality: 720, streamMode: "hls2", loc: "de", audioType: 2, audioAuthors: [11, 12], subsLang: "eng", allowAc3: true });
     const s = await screen(t);
     assert.equal(ext(s, "quality"), "720p");
-    assert.equal(ext(s, "mode"), "HLS2");
-    assert.equal(ext(s, "loc"), "Germany");
+    assert.equal(ext(s, "mode"), "Способ 2 (HLS2)");
+    assert.equal(ext(s, "loc"), "Германия");
     assert.equal(ext(s, "audioType"), "Многоголосый");
     assert.equal(ext(s, "authors"), "2");
-    assert.equal(ext(s, "subs"), "ENG");
-    assert.equal(ext(s, "ac3"), "да");
+    assert.equal(ext(s, "subs"), "Английские");
+    assert.equal(ext(s, "ac3"), "Да");
   });
 
   it("device info unavailable — the screen still opens, device rows show a dash", async () => {
@@ -110,18 +138,19 @@ describe("settingsScreen (S12)", () => {
 });
 
 describe("settingPanel", () => {
-  it("quality: four ceilings, the current one checked, a choice commits act:set:quality:<q>", async () => {
+  it("«Максимальное качество»: four values, the current one checked, a choice commits act:set:quality:<q>", async () => {
     const t = await make();
     const s = await panel(t, "quality");
-    assert.equal(s.headline, "Качество (потолок)");
+    assert.equal(s.headline, "Максимальное качество");
     assert.deepEqual(labels(s), ["2160p", `${CHECK}1080p`, "720p", "480p"]);
     assert.equal(s.items?.[2]?.action, commitMsg(msgs.act("set", "quality", 720)));
   });
 
-  it("stream mode: Авто, HLS1, HLS2", async () => {
+  it("«Способ воспроизведения»: Авто, Способ 1 (HLS1), Способ 2 (HLS2)", async () => {
     const t = await make();
     const s = await panel(t, "mode");
-    assert.deepEqual(labels(s), [`${CHECK}Авто`, "HLS1", "HLS2"]);
+    assert.equal(s.headline, "Способ воспроизведения");
+    assert.deepEqual(labels(s), [`${CHECK}Авто`, "Способ 1 (HLS1)", "Способ 2 (HLS2)"]);
     assert.equal(s.items?.[0]?.action, commitMsg(msgs.act("set", "mode", "auto")));
   });
 
@@ -139,17 +168,28 @@ describe("settingPanel", () => {
     assert.deepEqual(labels(s), ["Сбросить любимые студии (3)"]);
   });
 
-  it("account: «Выйти из KinoPub» commits act:set:logout", async () => {
+  it("V-36: no favourite studios — how one is added, without a pointless reset", async () => {
+    const t = await make();
+    const s = await panel(t, "authors");
+    assert.deepEqual(s.items?.map((i) => [i.label, i.action]), [["Студия добавляется, когда вы выбираете озвучку на карточке", "back"]]);
+  });
+
+  it("V-34: account is a logout confirmation «Выйти из KinoPub?»; focus on «Отмена», «Выйти» closes it and logs out", async () => {
     const t = await make();
     const s = await panel(t, "account");
-    assert.deepEqual(s.items?.map((i) => [i.label, i.action]), [["Выйти из KinoPub", commitMsg(msgs.act("set", "logout"))]]);
+    assert.equal(s.headline, "Выйти из KinoPub?");
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,8,1" });
+    assert.deepEqual(s.items, [
+      { label: "Выйти", action: chain(["back", commitMsg(msgs.act("set", "logout"))]) },
+      { label: "Отмена", action: "back", focus: true },
+    ]);
   });
 
   it("HEVC panel marks the device value", async () => {
     const t = await make();
     t.mock.state.devices.get(deviceId(t))!.settings.supportHevc = 1;
     const s = await panel(t, "hevc");
-    assert.deepEqual(labels(s), [`${CHECK}вкл`, "выкл"]);
+    assert.deepEqual(labels(s), [`${CHECK}Вкл`, "Выкл"]);
   });
 
   it("unknown key — error inside the panel", async () => {
@@ -199,15 +239,15 @@ describe("onSettingsAct", () => {
     assert.ok(calls[post]?.contentType?.startsWith(FORM), String(calls[post]?.contentType));
     assert.ok(calls.slice(post + 1).some((c) => c.method === "GET" && c.path === "/v1/device/info"), "not re-read");
     assert.deepEqual(actions(t), [BACK_RELOAD]);
-    assert.equal(ext(await screen(t), "hevc"), "вкл");
+    assert.equal(ext(await screen(t), "hevc"), "Вкл");
   });
 
   it("a save after the screen was opened: the re-read goes to the API, the reloaded screen shows it from the cache", async () => {
     const t = await make();
-    assert.equal(ext(await screen(t), "uhd"), "выкл");
+    assert.equal(ext(await screen(t), "uhd"), "Выкл");
     await act(t, "uhd", 1);
     const reads = t.mock.calls().filter((c) => c.path === "/v1/device/info").length;
-    assert.equal(ext(await screen(t), "uhd"), "вкл");
+    assert.equal(ext(await screen(t), "uhd"), "Вкл");
     assert.equal(t.mock.calls().filter((c) => c.path === "/v1/device/info").length, reads);
   });
 

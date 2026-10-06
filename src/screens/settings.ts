@@ -9,6 +9,7 @@ import type { Prefs } from "../playback/prefs.ts";
 import { ids, msgs } from "../router/ids.ts";
 import { errorText } from "./error.ts";
 import { choicePanel } from "./panels.ts";
+import { MODE_NAMES, countryName } from "./panels-labels.ts";
 
 // S12 (спец. §11; Plan B S12): строка — текущее значение в `extensionLabel`, выбор — панелью `panel:setting:<ключ>`.
 // 4K и HEVC — настройки своего устройства KinoPub у каждого ТВ (CD-04, Plan B §6.2.1): POST формой и сверка чтением.
@@ -19,18 +20,21 @@ const DASH = "—";
 const SEC = " с";
 
 const T = {
-  headline: "Настройки KinoPub", play: "Воспроизведение", device: "Это устройство KinoPub", account: "Аккаунт",
+  headline: "Просмотр и аккаунт", play: "Воспроизведение", device: "Это устройство KinoPub", account: "Аккаунт",
   expert: "Для опытных", diag: "Диагностика", probe: "Проверки и журнал", name: "Название", sub: "Подписка",
-  until: "до", left: "осталось", days: "дн.", inactive: "не активна", authors: "Любимые студии",
-  reset: "Сбросить любимые студии", none: "нет", logout: "Выйти из KinoPub", mismatch: "device-settings-mismatch",
+  until: "До", left: "осталось", days: "дн.", inactive: "Не активна", authors: "Любимые студии",
+  reset: "Сбросить любимые студии", noAuthors: "Студия добавляется, когда вы выбираете озвучку на карточке", none: "Нет",
+  logout: "Выйти из KinoPub", confirm: "Выйти из KinoPub?", yes: "Выйти", cancel: "Отмена", mismatch: "device-settings-mismatch",
 };
+/** V-33: заголовок группы — в нижней половине своей строки, вплотную к её пунктам (проверено в web MSX). */
+const GROUP_OFFSET = "0,0.5,0,-0.5";
 
 type Val = string | number | boolean | undefined;
 interface Opt { v: Val; label: string }
 interface Def { label: string; field?: keyof Prefs; dev?: keyof DeviceSettings; opts: Opt[] | ((ctx: AppContext) => Promise<Opt[]>) }
 
 const opt = (v: Val, label: string): Opt => ({ v, label });
-const ON_OFF = [opt(1, "вкл"), opt(0, "выкл")];
+const ON_OFF = [opt(1, "Вкл"), opt(0, "Выкл")];
 const nums = (vs: number[], unit: string): Opt[] => vs.map((v) => opt(v, `${v}${unit}`));
 /** «Авто», «Любой», «По умолчанию» — снятое поле `prefs`; в сообщении — `auto`. */
 const enc = (v: Val): string => (v === undefined ? "auto" : String(v));
@@ -40,32 +44,33 @@ const refs = (head: string, load: (ctx: AppContext) => Promise<Opt[]>) => async 
   [opt(undefined, head), ...((await soft(ctx, load(ctx))) ?? [])];
 
 const DEFS: Record<string, Def> = {
-  quality: { label: "Качество (потолок)", field: "maxQuality", opts: nums([2160, 1080, 720, 480], "p") },
-  mode: { label: "Тип потока", field: "streamMode", opts: [opt(undefined, "Авто"), opt("hls1", "HLS1"), opt("hls2", "HLS2")] },
+  quality: { label: "Максимальное качество", field: "maxQuality", opts: nums([2160, 1080, 720, 480], "p") },
+  mode: { label: "Способ воспроизведения", field: "streamMode", opts: [opt(undefined, "Авто"), opt("hls1", MODE_NAMES.hls1), opt("hls2", MODE_NAMES.hls2)] },
   loc: {
     label: "CDN-сервер", field: "loc",
-    opts: refs("По умолчанию", async (ctx) => (await ctx.repo.serverLocations()).value.map((l) => opt(l.location, l.name || l.location))),
+    opts: refs("По умолчанию", async (ctx) => (await ctx.repo.serverLocations()).value.map((l) => opt(l.location, countryName(l.location, l.name)))),
   },
   audioLang: { label: "Язык озвучки", field: "audioLang", opts: [opt("rus", "Русский"), opt("ukr", "Украинский"), opt("eng", "Английский")] },
   audioType: {
     label: "Тип озвучки", field: "audioType",
     opts: refs("Любой", async (ctx) => (await ctx.repo.voiceoverTypes()).value.map((x) => opt(x.id, x.title))),
   },
-  ac3: { label: "Разрешить AC3", field: "allowAc3", opts: [opt(true, "да"), opt(false, "нет")] },
-  subs: { label: "Субтитры по умолчанию", field: "subsLang", opts: [opt("off", "Выключены"), opt("rus", "RUS"), opt("eng", "ENG")] },
+  ac3: { label: "Разрешить AC3", field: "allowAc3", opts: [opt(true, "Да"), opt(false, "Нет")] },
+  subs: { label: "Субтитры по умолчанию", field: "subsLang", opts: [opt("off", "Выключены"), opt("rus", "Русские"), opt("eng", "Английские")] },
   hevc: { label: "HEVC", dev: "supportHevc", opts: ON_OFF },
   uhd: { label: "4K", dev: "support4k", opts: ON_OFF },
   bufferInit: { label: "Буфер старта", field: "bufferInit", opts: nums([2, 4, 6, 8], SEC) },
   bufferResume: { label: "Буфер продолжения", field: "bufferResume", opts: nums([4, 6, 8, 10], SEC) },
   posterSize: { label: "Размер постеров", field: "posterSize", opts: [opt("small", "Маленькие"), opt("medium", "Средние")] },
-  cardBackgrounds: { label: "Фоны карточек", field: "cardBackgrounds", opts: [opt(true, "вкл"), opt(false, "выкл")] },
+  cardBackgrounds: { label: "Фоны карточек", field: "cardBackgrounds", opts: [opt(true, "Вкл"), opt(false, "Выкл")] },
 };
 
+/** V-33: способ воспроизведения, CDN, AC3 и HEVC — технические, они в «Для опытных». */
 const GROUPS: [string, ...string[]][] = [
-  [T.play, "quality", "mode", "loc", "audioLang", "audioType", "authors", "ac3", "subs"],
-  [T.device, "hevc", "uhd", "device"],
-  [T.account, "account"],
-  [T.expert, "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
+  [T.play, "quality", "audioLang", "audioType", "authors", "subs"],
+  [T.device, "uhd", "device"],
+  [T.account, "account", "logout"],
+  [T.expert, "mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
   [T.diag, "probe"],
 ];
 
@@ -95,7 +100,7 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
     items.push({ id: `s_${key}`, label, extensionLabel: ext, ...(action === undefined ? { enable: false } : { action }) });
   };
   for (const [head, ...rows] of GROUPS) {
-    items.push({ type: "space", layout: "0,0,12,1", headline: head });
+    items.push({ type: "space", layout: "0,0,12,1", offset: GROUP_OFFSET, headline: head });
     for (const key of rows) {
       const i = keys.indexOf(key);
       const d = DEFS[key];
@@ -108,8 +113,9 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
       } else if (key === "device") {
         add(key, T.name, dev?.title || DASH);
       } else if (key === "account") {
-        const ext = s === undefined ? DASH : s.active ? `${T.until} ${fmtDate(s.endTime)}, ${T.left} ${Math.floor(s.days)} ${T.days}` : T.inactive;
-        add(key, T.sub, ext, panelAction(ctx.P, ids.panel("setting", key)));
+        add(key, T.sub, s === undefined ? DASH : s.active ? `${T.until} ${fmtDate(s.endTime)}, ${T.left} ${Math.floor(s.days)} ${T.days}` : T.inactive);
+      } else if (key === "logout") {
+        add(key, T.logout, "", panelAction(ctx.P, ids.panel("setting", "account")));
       } else {
         add(key, T.probe, "", contentAction(ctx.P, ids.probe()));
       }
@@ -118,12 +124,20 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
   return { type: "list", flag: "settings", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items };
 }
 
-/** Панель `panel:setting:<key>` (её вызывает `panelScreen`); CDN-сервер — панель `panel:loc` (S10). */
+/**
+ * Панель `panel:setting:<key>` (её вызывает `panelScreen`); CDN-сервер — панель `panel:loc` (S10). `account` —
+ * подтверждение выхода (V-34; её открывает и «Диагностика»): фокус на «Отмена», «Выйти» сначала закрывает панель.
+ */
 export async function settingPanel(ctx: AppContext, key: string): Promise<MsxContentRoot> {
-  if (key === "account") return choicePanel(ctx, T.account, [{ label: T.logout, action: setMsg("logout"), current: false }]);
+  if (key === "account") {
+    const p = choicePanel(ctx, T.confirm, [{ label: T.yes, action: chain(["back", setMsg("logout")]), current: false }]);
+    return { ...p, items: [...(p.items ?? []), { label: T.cancel, action: "back", focus: true }] };
+  }
   if (key === "authors") {
-    const label = `${T.reset} (${ctx.prefs.get().audioAuthors.length})`;
-    return choicePanel(ctx, T.authors, [{ label, action: setMsg(key, "reset"), current: false }]);
+    // V-36: сбрасывать нечего — строка объясняет, откуда берутся любимые студии.
+    const n = ctx.prefs.get().audioAuthors.length;
+    const row = n > 0 ? { label: `${T.reset} (${n})`, action: setMsg(key, "reset") } : { label: T.noAuthors, action: "back" };
+    return choicePanel(ctx, T.authors, [{ ...row, current: false }]);
   }
   const d = defOf(key);
   if (d === undefined) throw new KpError("KP-BAD", "bad setting", undefined, key);

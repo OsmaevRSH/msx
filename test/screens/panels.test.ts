@@ -431,7 +431,7 @@ describe("panelScreen: seasons, stream mode, CDN, settings", () => {
 
   it("setting:<key> is the settings panel (stage 31); an unknown type is an error inside the panel", async () => {
     const t = await make();
-    assert.equal((await panel(t, "setting", "quality")).headline, "Качество (потолок)");
+    assert.equal((await panel(t, "setting", "quality")).headline, "Максимальное качество");
     assertPanelError(await panel(t, "nope", 1), "KP-BAD");
   });
 });
