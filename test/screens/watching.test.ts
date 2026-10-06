@@ -6,6 +6,7 @@ import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids } from "../../src/router/ids.ts";
 import { refreshAfterPlayback } from "../../src/screens/refresh.ts";
 import { MAX_BYTES, WINDOW, bytes, onExtend } from "../../src/screens/list.ts";
+import type { ListEntry } from "../../src/screens/list.ts";
 import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
 import { watchKey } from "../../tools/kpmock/state.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
@@ -144,7 +145,7 @@ describe("watchingScreen «Я смотрю» (S15)", () => {
     await onExtend(t.ctx, `watching:down:${first}`);
     assert.deepEqual(actions(t), ["reload:content"]);
     const next = await screen(t);
-    const st = t.ctx.state.lists.get("watching") as { from: number; to: number } & { items: unknown[] };
+    const st = t.ctx.state.lists.get("watching") as ListEntry & { from: number };
     assert.ok(st.from > 0, "the window moved down");
     assert.ok(tiles(next).length <= WINDOW && bytes(next) <= MAX_BYTES);
     assert.equal(tiles(next)[0]?.live?.action, `${EXTEND}watching:up:${st.from}`);
