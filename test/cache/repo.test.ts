@@ -288,6 +288,23 @@ describe("Repo", () => {
     assert.equal(r.t.reqs.find((x) => x.path === "/v1/items/1")?.timeoutMs, 15_000);
   });
 
+  it("request class: cls from the home loads (shelf, history, serials, movies, folders, user) reaches the transport", async () => {
+    const r = env.rig();
+    const { repo } = setup(r);
+    const cls = (path: string): string[] => r.t.reqs.filter((x) => x.path === path).map((x) => x.cls);
+    const bg = { cls: "bg" } as const;
+    await r.run(repo.shelf("fresh", "movie", bg));
+    await r.run(repo.history(bg));
+    await r.run(repo.serials(bg));
+    await r.run(repo.watchingMovies(bg));
+    await r.run(repo.bookmarkFolders(bg));
+    await r.run(repo.user(bg));
+    await r.run(repo.shelf("hot", "serial"));
+    const paths = ["/v1/items/fresh", "/v1/history", "/v1/watching/serials", "/v1/watching/movies", "/v1/bookmarks", "/v1/user"];
+    assert.deepEqual(paths.map(cls), paths.map(() => ["bg"]));
+    assert.deepEqual(cls("/v1/items/hot"), ["fg"]);
+  });
+
   it("compact card in kp.l2.*: no stream urls, no subtitles, plot ≤ 600; L1 keeps the full card; cold start hydrates", async () => {
     const r = env.rig();
     const { mem, l2, repo } = setup(r);

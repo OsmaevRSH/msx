@@ -127,8 +127,8 @@ export class KpApi {
 
   // --- Пользователь и справочники ---
 
-  async user(): Promise<User> {
-    return parseUser(await this.call({ path: "/v1/user" }));
+  async user(cls?: Cls): Promise<User> {
+    return parseUser(await this.call({ path: "/v1/user", cls }));
   }
 
   async genres(type: string): Promise<Genre[]> {
@@ -197,22 +197,22 @@ export class KpApi {
     return parseToggle(await this.call({ path: "/v1/watching/toggle", query, retry: "none", timeoutMs: PROGRESS_MS, cls }));
   }
 
-  async history(page: number, perpage: number): Promise<HistoryEntry[]> {
-    return parseHistory(await this.call({ path: "/v1/history", query: { page, perpage: Math.min(perpage, HISTORY_MAX_PERPAGE) } }));
+  async history(page: number, perpage: number, cls?: Cls): Promise<HistoryEntry[]> {
+    return parseHistory(await this.call({ path: "/v1/history", query: { page, perpage: Math.min(perpage, HISTORY_MAX_PERPAGE) }, cls }));
   }
 
-  async watchingSerials(): Promise<SerialWatching[]> {
-    return parseItems(await this.call({ path: "/v1/watching/serials" }), parseSerialWatching);
+  async watchingSerials(cls?: Cls): Promise<SerialWatching[]> {
+    return parseItems(await this.call({ path: "/v1/watching/serials", cls }), parseSerialWatching);
   }
 
-  async watchingMovies(): Promise<ItemSummary[]> {
-    return parseItemList(await this.call({ path: "/v1/watching/movies" }));
+  async watchingMovies(cls?: Cls): Promise<ItemSummary[]> {
+    return parseItemList(await this.call({ path: "/v1/watching/movies", cls }));
   }
 
   // --- Закладки (research kinopub-api §8.2) ---
 
-  async bookmarkFolders(): Promise<BookmarkFolder[]> {
-    return parseItems(await this.call({ path: "/v1/bookmarks" }), parseBookmarkFolder);
+  async bookmarkFolders(cls?: Cls): Promise<BookmarkFolder[]> {
+    return parseItems(await this.call({ path: "/v1/bookmarks", cls }), parseBookmarkFolder);
   }
 
   async bookmarkFolder(id: number, page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {

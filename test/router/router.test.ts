@@ -284,6 +284,21 @@ describe("App.ready", () => {
     assert.equal(logged(t, "handler_failed").length, 0);
   });
 
+  it("with login: a queued marktime goes out before the home warm-up, and the warm-up is bg (one bg slot, спец. §8.5)", async () => {
+    const t = await make({ loggedIn: true });
+    t.ctx.outbox.putMarktime(2001, 1, 5, 700);
+    t.app.ready();
+    const paths = (): string[] => t.mock.calls().map((c) => c.path);
+    t.clock.ioGraceMs = 2000;
+    await t.run((async () => {
+      while (!paths().includes("/v1/history")) await new Promise((r) => setTimeout(r, 5));
+    })());
+    assert.ok(paths().indexOf("/v1/watching/marktime") >= 0);
+    assert.ok(paths().indexOf("/v1/watching/marktime") < paths().indexOf("/v1/history"), paths().join());
+    const warm = t.ctx.log.entries().find((e) => e.tag === "api" && e.msg.startsWith("GET /v1/history "));
+    assert.match(warm?.msg ?? "", / bg$/);
+  });
+
   it("with login starts background work without waiting for it", async () => {
     const t = await make({ loggedIn: true });
     t.app.ready();

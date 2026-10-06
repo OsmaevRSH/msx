@@ -145,8 +145,10 @@ export class Repo {
     this.log = deps.log;
   }
 
-  user(): Promise<Got<User>> {
-    return this.cache.get(cacheKeys.user(), USER, () => this.api.user());
+  /** `opts.cls` здесь и у полок главной — класс запроса для лимитера: прогрев и фоновые сверки идут `bg` (спец. §8.5). */
+  user(opts?: { cls?: ReqClass }): Promise<Got<User>> {
+    const k = cacheKeys.user();
+    return this.cache.get(k, USER, this.loader(k, opts?.cls, (c) => this.api.user(c)));
   }
 
   /** Только L1/L2, без сети (resolve проверяет подписку, не дожидаясь API). */
@@ -175,9 +177,10 @@ export class Repo {
     return this.cache.get(k, page === 1 ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)));
   }
 
-  shelf(kind: "fresh" | "popular" | "hot", type: string): Promise<Got<ItemSummary[]>> {
-    return this.cache.get(cacheKeys.shelf(kind, type), SHELF, async () =>
-      (await this.api.shelf(kind, { type: opt(type), page: 1, perpage: SHELF_SIZE })).items);
+  shelf(kind: "fresh" | "popular" | "hot", type: string, opts?: { cls?: ReqClass }): Promise<Got<ItemSummary[]>> {
+    const k = cacheKeys.shelf(kind, type);
+    return this.cache.get(k, SHELF, this.loader(k, opts?.cls, async (c) =>
+      (await this.api.shelf(kind, { type: opt(type), page: 1, perpage: SHELF_SIZE }, c)).items));
   }
 
   search(q: string, page: number): Promise<Got<Page<ItemSummary>>> {
@@ -204,20 +207,24 @@ export class Repo {
     return cur === undefined ? undefined : this.asGot(cur);
   }
 
-  history(): Promise<Got<HistoryEntry[]>> {
-    return this.cache.get(cacheKeys.history(), PERSONAL, () => this.api.history(1, HISTORY_PER_PAGE));
+  history(opts?: { cls?: ReqClass }): Promise<Got<HistoryEntry[]>> {
+    const k = cacheKeys.history();
+    return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.history(1, HISTORY_PER_PAGE, c)));
   }
 
-  serials(): Promise<Got<SerialWatching[]>> {
-    return this.cache.get(cacheKeys.serials(), PERSONAL, () => this.api.watchingSerials());
+  serials(opts?: { cls?: ReqClass }): Promise<Got<SerialWatching[]>> {
+    const k = cacheKeys.serials();
+    return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.watchingSerials(c)));
   }
 
-  watchingMovies(): Promise<Got<ItemSummary[]>> {
-    return this.cache.get(cacheKeys.movies(), PERSONAL, () => this.api.watchingMovies());
+  watchingMovies(opts?: { cls?: ReqClass }): Promise<Got<ItemSummary[]>> {
+    const k = cacheKeys.movies();
+    return this.cache.get(k, PERSONAL, this.loader(k, opts?.cls, (c) => this.api.watchingMovies(c)));
   }
 
-  bookmarkFolders(): Promise<Got<BookmarkFolder[]>> {
-    return this.cache.get(cacheKeys.bookmarks(), BOOKMARKS, () => this.api.bookmarkFolders());
+  bookmarkFolders(opts?: { cls?: ReqClass }): Promise<Got<BookmarkFolder[]>> {
+    const k = cacheKeys.bookmarks();
+    return this.cache.get(k, BOOKMARKS, this.loader(k, opts?.cls, (c) => this.api.bookmarkFolders(c)));
   }
 
   /** Только L1, 600 с; префетч и resolve одного `mid` делят один запрос. `fresh` — в обход кэша (шаг 2 fallback). */

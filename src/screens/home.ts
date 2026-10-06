@@ -1,5 +1,6 @@
 import type { AppContext } from "../app/context.ts";
 import type { ItemSummary } from "../api/models.ts";
+import type { ReqClass } from "../api/transport.ts";
 import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
@@ -17,7 +18,8 @@ import { posterTiles } from "./tiles.ts";
 // Главная S4 (спец. §8.4, §11; Plan B S4, D-34, D-40). Всё, что есть в кэше, отдаётся сразу, персональное — с оверлеем
 // прогресса ТВ; KinoPub ждём только при пустом кэше и не дольше 1,5 с (CNFR-05). Не успевшие полки и устаревшие
 // персональные данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его
-// персональная часть или набор полок (спец. §6.3).
+// персональная часть или набор полок (спец. §6.3). Показ, которого ждёт пользователь, — передний план; прогрев и фоновые
+// сверки — `bg`, чтобы не отнимать слоты у действий пользователя (спец. §8.3, §8.5).
 
 const FLAG = "home";
 const DEADLINE_MS = 1500;
@@ -40,6 +42,9 @@ const T = {
 };
 
 type Kind = "continue" | "bookmarks" | "fresh" | "popular" | "hot";
+type ReqOpts = { cls: ReqClass };
+const FG: ReqOpts = { cls: "fg" };
+const BG: ReqOpts = { cls: "bg" };
 interface Def { id: string; title: string; kind: Kind; type?: string }
 
 /** Plan B S4: порядок — и на экране, и в очереди запросов холодной сборки (спец. §8.4 п. 2). */
@@ -86,12 +91,12 @@ function titles(ctx: AppContext, d: Def, items: ItemSummary[]): MsxContentItem[]
 
 const ok = <V>(r: PromiseSettledResult<Got<V>>): Got<V> | undefined => (r.status === "fulfilled" ? r.value : undefined);
 
-async function continueShelf(ctx: AppContext, d: Def): Promise<Shelf> {
-  const [h, s] = await Promise.allSettled([ctx.repo.history(), ctx.repo.serials()]);
+async function continueShelf(ctx: AppContext, d: Def, o: ReqOpts): Promise<Shelf> {
+  const [h, s] = await Promise.allSettled([ctx.repo.history(o), ctx.repo.serials(o)]);
   if (h.status === "rejected" && s.status === "rejected") throw h.reason;
   const hist = ok(h)?.value ?? [];
   // Фильмы в просмотре нужны, только если история пуста (Plan B §8.3.1 п. 4).
-  const m = hist.length === 0 ? await ctx.repo.watchingMovies().catch(noop) : undefined;
+  const m = hist.length === 0 ? await ctx.repo.watchingMovies(o).catch(noop) : undefined;
   const items = buildContinue(hist, ok(s)?.value ?? [], m?.value ?? [], ctx.overlay.get).slice(0, CONTINUE_TILES);
   const size = ctx.prefs.get().posterSize;
   const tiles = items.map((c) => {
@@ -109,10 +114,10 @@ async function continueShelf(ctx: AppContext, d: Def): Promise<Shelf> {
   };
 }
 
-async function loadShelf(ctx: AppContext, d: Def): Promise<Shelf> {
-  if (d.kind === "continue") return continueShelf(ctx, d);
+async function loadShelf(ctx: AppContext, d: Def, o: ReqOpts): Promise<Shelf> {
+  if (d.kind === "continue") return continueShelf(ctx, d, o);
   if (d.kind === "bookmarks") {
-    const g = await ctx.repo.bookmarkFolders();
+    const g = await ctx.repo.bookmarkFolders(o);
     const folders = g.value.slice(0, TILES);
     const tiles = folders.map((f): MsxContentItem => ({
       id: `${d.id}${f.id}`, icon: "bookmark", title: f.title, titleFooter: `${f.count} ${T.pcs}`,
@@ -120,15 +125,15 @@ async function loadShelf(ctx: AppContext, d: Def): Promise<Shelf> {
     }));
     return { def: d, tiles: withMore(ctx, d, tiles, ids.bookmarks()), personal: folders.map((f) => [f.id, f.count]), stale: g.stale };
   }
-  const g = await ctx.repo.shelf(d.kind, d.type ?? "");
+  const g = await ctx.repo.shelf(d.kind, d.type ?? "", o);
   const more = ids.list(encodeListKey({ src: d.kind, type: d.type }));
   return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES)), more), stale: false };
 }
 
 /** Загрузки всех полок по порядку; `user` — последним, для строки о подписке (только из кэша). */
-function start(ctx: AppContext): Promise<Shelf>[] {
-  const loads = DEFS.map((d) => loadShelf(ctx, d));
-  ctx.repo.user().catch(noop);
+function start(ctx: AppContext, o: ReqOpts): Promise<Shelf>[] {
+  const loads = DEFS.map((d) => loadShelf(ctx, d, o));
+  ctx.repo.user(o).catch(noop);
   return loads;
 }
 
@@ -163,8 +168,9 @@ function within(clock: Clock, ps: Promise<unknown>[], ms: number): Promise<void>
   });
 }
 
+/** Фоновая сверка: загрузки показа, ещё не завершённые, она не понижает — single-flight кэша отдаёт их же. */
 async function settle(ctx: AppContext): Promise<Snap> {
-  const loads = start(ctx);
+  const loads = start(ctx, BG);
   const snap = watch(loads);
   await Promise.allSettled(loads);
   return snap();
@@ -237,7 +243,7 @@ async function recompute(ctx: AppContext): Promise<string> {
 }
 
 export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
-  const loads = start(ctx);
+  const loads = start(ctx, FG);
   const snap = watch(loads);
   await within(ctx.clock, loads, DEADLINE_MS);
   const s = snap();
@@ -258,5 +264,5 @@ export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
 
 /** После `ready` (спец. §6.1, §8.3): полки обновляются через SWR, чтобы L2 был тёплым к открытию главной. */
 export function warmHome(ctx: AppContext): void {
-  void Promise.allSettled(start(ctx));
+  void Promise.allSettled(start(ctx, BG));
 }

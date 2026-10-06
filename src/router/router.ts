@@ -97,11 +97,15 @@ export class App implements PluginApp {
     this.spawn("info", () => this.loadInfo());
     if (ctx.auth.isLoggedIn()) {
       this.spawn("auth", () => ctx.auth.onReady());
-      this.spawn("outbox", () => {
+      this.spawn("outbox", async () => {
         ctx.outbox.start();
-        return ctx.outbox.flush();
+        try {
+          await ctx.outbox.flush();
+        } finally {
+          // В фоновой полосе лимитера один слот (спец. §8.5): прогрев главной встаёт в очередь после отметок outbox.
+          warmHome(ctx);
+        }
       });
-      this.spawn("warm", () => warmHome(ctx));
     }
     this.spawn("probe", () => probeOnReady(ctx));
   }

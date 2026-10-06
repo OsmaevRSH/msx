@@ -381,6 +381,32 @@ describe("homeScreen: cold start (CNFR-05, спец. §8.4 п. 2)", () => {
   });
 });
 
+describe("homeScreen: request class (спец. §8.3, §8.5)", () => {
+  /** Класс запросов к API по журналу транспорта: `GET /v1/… 200 12ms bg`. */
+  const classes = (t: TestApp): string[] =>
+    t.ctx.log.entries().filter((e) => e.tag === "api" && e.msg.startsWith("GET /v1/")).map((e) => e.msg.slice(e.msg.lastIndexOf(" ") + 1));
+
+  it("the home the user waits for goes fg; its background recheck goes bg", async () => {
+    const t = await make();
+    await open(t);
+    await persisted(t);
+    const shown = classes(t);
+    assert.ok(shown.length >= HOME_KEYS.length, shown.join());
+    assert.deepEqual([...new Set(shown)], ["fg"]);
+    refreshAfterPlayback(t.ctx, FIX.MOVIE_SIMPLE);
+    await until(() => refreshed(t, cacheKeys.history()) && refreshed(t, cacheKeys.serials()), "recheck loads");
+    assert.deepEqual([...new Set(classes(t).slice(shown.length))], ["bg"]);
+  });
+
+  it("warmHome goes bg", async () => {
+    const t = await make();
+    warmHome(t.ctx);
+    await persisted(t);
+    assert.ok(classes(t).length >= HOME_KEYS.length);
+    assert.deepEqual([...new Set(classes(t))], ["bg"]);
+  });
+});
+
 describe("warmHome and the history fallback", () => {
   it("loads every shelf into L2: the next app answers home without KinoPub", async () => {
     const first = await make();
