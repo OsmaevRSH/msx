@@ -1056,8 +1056,8 @@ Plan B включается, если:
 
 | Уровень | Итог на M2 |
 |---|---|
-| Unit, contract, golden (`npm test`) | 1563 теста, 0 todo; стабильно при повторах |
-| Краулер (`npm run crawl`) | 277 узлов и 1860 действий + проход `playerPropsIn: item` 120 узлов и 1890 действий, 0 сбоев |
+| Unit, contract, golden (`npm test`) | 1569 тестов, 0 todo; стабильно при повторах |
+| Краулер (`npm run crawl`) | 277–284 узла (от прогона к прогону) и ~1870 действий + проход `playerPropsIn: item` 120 узлов и 1890 действий, 0 сбоев |
 | E2E (`npm run e2e`) | 26 тестов в web MSX (Chromium): smoke, CE-01…CE-07, E-02…E-14 и E-09b; WebM вместо HLS (Р-9) |
 | Бюджет (`npm run size`) | `app.js` 250 610 Б / 81 345 Б gzip (запас 575 Б gzip), `probe.js` 35 104 Б / 13 887 Б gzip |
 
