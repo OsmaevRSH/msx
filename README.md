@@ -137,6 +137,7 @@ https://msx.benzac.de/?start=menu:request:interaction:init@https://osmaevrsh.git
 | Снимки позиции (`heartbeat`) | `ticks` | CDG-07: тики не приходят → `timer`; без позиции и в нём → `percent` |
 | Источник событий (`events`) | `handleEvent` | CDG-07: события плеера не доходят до плагина → `triggers` |
 | Автопереход (`autonext`) | `button` | CDG-11: следующая серия не стартует → `resolve` |
+| Смена озвучки в плеере (`restart`) | `inplace` | новая озвучка или качество не запускаются в открытом плеере → `eject` (плеер закроется и откроется снова) |
 | Префетч по фокусу (`focusPrefetch`) | `on` | CDG-12: рывки при навигации → `off` |
 | POST-тела (`postBody`) | `form` | CDG-03: тело POST не принимается → `query` |
 | Хост API (`apiBase`, `apiFallbackBase`) | `api.service-kp.com`, `api.srvkp.com` | только если KinoPub сменит адрес API |
