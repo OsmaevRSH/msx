@@ -5,6 +5,7 @@ import { commitMsg, contentAction, panelAction } from "../../src/msx/actions.ts"
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
 import { onSettingsAct } from "../../src/screens/settings.ts";
+import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -253,10 +254,15 @@ describe("onSettingsAct", () => {
   it("logout → device unlink on the server, kp.auth.* is empty, reload:menu (CAC-24: other TVs keep their devices)", async () => {
     const t = await make();
     const other = t.mock.issueToken();
+    t.ctx.prefs.update({ maxQuality: 720 });
+    t.ctx.outbox.putMarktime(FIX.SERIAL_SMALL, 1, 2, 300);
+    const keys = (): (string | null)[] => Array.from({ length: t.storage.length }, (_, i) => t.storage.key(i));
+    const kept = keys().filter((k) => k?.startsWith("kp.cfg.") || k?.startsWith("kp.out."));
+    assert.ok(kept.length >= 2, kept.join());
     await act(t, "logout");
     assert.ok(t.mock.calls().some((c) => c.method === "POST" && c.path === "/v1/device/unlink"));
-    const keys = Array.from({ length: t.storage.length }, (_, i) => t.storage.key(i));
-    assert.deepEqual(keys.filter((k) => k?.startsWith("kp.auth.")), []);
+    assert.deepEqual(keys().filter((k) => k?.startsWith("kp.auth.")), []);
+    assert.deepEqual(kept.filter((k) => !keys().includes(k)), [], "logout removes only kp.auth.* (спец. §7.3)");
     assert.equal(t.ctx.auth.isLoggedIn(), false);
     assert.ok(actions(t).includes("reload:menu"), JSON.stringify(actions(t)));
     assert.ok(t.mock.state.tokens.has(other.access), "another TV's token survived");
