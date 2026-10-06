@@ -22,90 +22,6 @@
         "text": "Найдено: 505"
       },
       {
-        "layout": "0,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k0_1"
-        }
-      },
-      {
-        "layout": "1,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k1_1"
-        }
-      },
-      {
-        "layout": "2,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k2_1"
-        }
-      },
-      {
-        "layout": "3,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k3_1"
-        }
-      },
-      {
-        "layout": "4,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k4_1"
-        }
-      },
-      {
-        "layout": "5,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k5_1"
-        }
-      },
-      {
-        "layout": "6,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k6_1"
-        }
-      },
-      {
-        "layout": "7,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k7_1"
-        }
-      },
-      {
-        "layout": "8,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k8_1"
-        }
-      },
-      {
-        "layout": "9,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k9_1"
-        }
-      },
-      {
-        "layout": "10,0,1,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k10_1"
-        }
-      },
-      {
-        "layout": "12,0,4,1",
-        "offset": "0,1,0,-1",
-        "selection": {
-          "action": "focus:k_back"
-        }
-      },
-      {
         "id": "k0_1",
         "type": "button",
         "layout": "0,1,1,1",
@@ -422,6 +338,90 @@
         "layout": "12,4,4,1",
         "label": "{ico:language} Раскладка: RU",
         "action": "interaction:commit:message:search:control:lang"
+      },
+      {
+        "layout": "0,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k0_1"
+        }
+      },
+      {
+        "layout": "1,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k1_1"
+        }
+      },
+      {
+        "layout": "2,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k2_1"
+        }
+      },
+      {
+        "layout": "3,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k3_1"
+        }
+      },
+      {
+        "layout": "4,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k4_1"
+        }
+      },
+      {
+        "layout": "5,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k5_1"
+        }
+      },
+      {
+        "layout": "6,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k6_1"
+        }
+      },
+      {
+        "layout": "7,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k7_1"
+        }
+      },
+      {
+        "layout": "8,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k8_1"
+        }
+      },
+      {
+        "layout": "9,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k9_1"
+        }
+      },
+      {
+        "layout": "10,0,1,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k10_1"
+        }
+      },
+      {
+        "layout": "12,0,4,1",
+        "offset": "0,1,0,-1",
+        "selection": {
+          "action": "focus:k_back"
+        }
       },
       {
         "type": "space",
