@@ -6,8 +6,9 @@ import { MIN_POSITION } from "../src/progress/rules.ts";
 import { FIX, findItem } from "../tools/kpmock/fixtures.ts";
 import { P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press, stats } from "./fixtures.ts";
 import {
-  ITEM_PATH, acts, answer, answered, attachDiagnostics, callCount, callsSince, closePlayer, evs, installTimeline, isPf, kpWith, mark, msxPos, open,
-  otherTvMarktime, panel, playing, refreshes, resAfter, seek, selected, sleep, switchAudio, timeline, until, watchCalls,
+  ITEM_PATH, acts, answer, answered, attachDiagnostics, callCount, callsSince, closePlayer, evs, focusPlayerButton, installTimeline, isPf, kpWith, mark,
+  msxPos, open, otherTvMarktime, panel, playing, refreshes, resAfter, seek, selected, sleep, switchAudio, timeline, until, videoPaused, videoTime,
+  watchCalls,
 } from "./flows-kit.ts";
 import type { Tl } from "./flows-kit.ts";
 
@@ -430,6 +431,53 @@ test("E-15: три смены озвучки подряд в плеере — б
   await kp(page, (k) => {
     k.ctx.build.heartbeatTicks = 10;
   });
+});
+
+// v1.11, отзыв с ТВ «перемотка с большим шагом»: свои ◀◀/▶▶ и ⏪/⏩ у MSX — ±10 с, у видео длиннее часа ±30 с, у роликов
+// до минуты ±5 с. Теперь кнопки плеера и клавиши пульта перематывают на «Шаг перемотки» из настроек (спец. §9.4).
+test("E-16: «Шаг перемотки» 30 с в настройках — ⏩/⏪ пульта и кнопки ▶▶/◀◀ плеера перематывают на 30 с (у MSX для ролика 60 с — 5 с)", async () => {
+  await open(page, ids.settings());
+  await noNotification(page);
+  await exec(page, panelAction(P, ids.panel("setting", "seek")));
+  await expect(panel(page)).toContainText("Шаг перемотки");
+  const sel = panel(page).locator(".selected");
+  await expect(sel, "фокус на текущем шаге").toContainText("10 с");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(sel).toContainText("30 с");
+  await page.keyboard.press("Enter");
+  await expect(panel(page)).toBeHidden();
+  await expectContent(page, /Шаг перемотки\s*30 с/);
+  expect(await kp(page, (k) => k.ctx.prefs.get().seekStep as number)).toBe(30);
+
+  const play = ids.playEp(SMALL, S1E1, 1, 1, { start: true });
+  const from = await mark(page);
+  await exec(page, resolveAction(P, play));
+  await answered(page, play, from);
+  expect((await answer(page, play)).properties, "кнопки ◀◀/▶▶ и клавиши ⏪/⏩ — на шаг из настроек").toMatchObject({
+    "button:rewind:action": "player:seek:-30", "button:rewind:key": "delete", "button:rewind:icon": "replay-30",
+    "button:forward:action": "player:seek:+30", "button:forward:key": "insert", "button:forward:icon": "forward-30",
+  });
+  await playing(page, S1E1, from);
+  await exec(page, "player:pause");
+  await expect.poll(() => videoPaused(page), { message: "пауза", timeout: 5000 }).toBe(true);
+  const at = Math.round(await videoTime(page));
+  const pos = (want: number, what: string): Promise<void> =>
+    expect.poll(() => videoTime(page), { message: what, timeout: 5000, intervals: [100] }).toBeCloseTo(want, 0);
+  // ⏩ и ⏪ пульта в web MSX — «+» и «−» цифрового блока.
+  await page.keyboard.press("NumpadAdd");
+  await pos(at + 30, "⏩: +30 с");
+  await page.keyboard.press("NumpadSubtract");
+  await pos(at, "⏪: −30 с");
+  await focusPlayerButton(page, "forward-30");
+  await page.keyboard.press("Enter");
+  await pos(at + 30, "▶▶: +30 с");
+  await focusPlayerButton(page, "replay-30");
+  await page.keyboard.press("Enter");
+  await pos(at, "◀◀: −30 с");
+  expect(await videoPaused(page), "перемотка не снимает паузу").toBe(true);
+  await closePlayer(page);
+  await kp(page, (k) => k.ctx.prefs.update({ seekStep: 10 }));
 });
 
 test("E-11: 429 без CORS на список — через 6 с KP-NET с «Повторить», поздний 429 его не меняет; сбой снят — «Повторить» открывает список", async () => {

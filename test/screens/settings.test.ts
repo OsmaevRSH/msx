@@ -67,14 +67,14 @@ describe("settingsScreen (S12)", () => {
       else byGroup.at(-1)?.push(String(i.id).slice(2));
     }
     assert.deepEqual(byGroup, [
-      ["quality", "audioLang", "audioType", "authors", "subs"],
+      ["quality", "audioLang", "audioType", "authors", "subs", "seek"],
       ["uhd", "device"],
       ["account", "logout"],
       ["mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
       ["probe"],
     ]);
     assert.deepEqual(labels(s).filter((l) => l !== undefined), [
-      "Максимальное качество", "Язык озвучки", "Тип озвучки", "Любимые студии", "Субтитры по умолчанию",
+      "Максимальное качество", "Язык озвучки", "Тип озвучки", "Любимые студии", "Субтитры по умолчанию", "Шаг перемотки",
       "4K", "Название", "Подписка", "Выйти из KinoPub",
       "Способ воспроизведения", "CDN-сервер", "Разрешить AC3", "HEVC", "Буфер старта", "Буфер продолжения", "Размер постеров", "Фоны карточек",
       "Проверки и журнал",
@@ -88,7 +88,7 @@ describe("settingsScreen (S12)", () => {
     const want: Record<string, string> = {
       quality: "1080p", mode: "Авто", loc: "По умолчанию", audioLang: "Русский", audioType: "Любой", authors: "Нет",
       ac3: "Нет", subs: "Выключены", hevc: "Выкл", uhd: "Выкл", device: "kpmock TV",
-      bufferInit: "4 с", bufferResume: "6 с", posterSize: "Средние", cardBackgrounds: "Выкл",
+      bufferInit: "4 с", bufferResume: "6 с", posterSize: "Средние", cardBackgrounds: "Выкл", seek: "10 с",
     };
     for (const [k, v] of Object.entries(want)) assert.equal(ext(s, k), v, k);
   });
@@ -144,6 +144,14 @@ describe("settingPanel", () => {
     assert.equal(s.headline, "Максимальное качество");
     assert.deepEqual(labels(s), ["2160p", `${CHECK}1080p`, "720p", "480p"]);
     assert.equal(s.items?.[2]?.action, commitMsg(msgs.act("set", "quality", 720)));
+  });
+
+  it("«Шаг перемотки»: 5, 10, 15, 30 с, 10 с checked; a choice commits act:set:seek:<s>", async () => {
+    const t = await make();
+    const s = await panel(t, "seek");
+    assert.equal(s.headline, "Шаг перемотки");
+    assert.deepEqual(labels(s), ["5 с", `${CHECK}10 с`, "15 с", "30 с"]);
+    assert.equal(s.items?.[3]?.action, commitMsg(msgs.act("set", "seek", 30)));
   });
 
   it("«Способ воспроизведения»: Авто, Способ 1 (HLS1), Способ 2 (HLS2)", async () => {
@@ -308,6 +316,19 @@ describe("onSettingsAct", () => {
     assert.equal(t.ctx.prefs.get().streamMode, undefined);
     assert.equal(t.ctx.prefs.get().audioType, undefined);
     assert.ok(actions(t).every((a) => a === BACK_RELOAD));
+  });
+
+  it("seek step 30 → prefs.seekStep, the row shows «30 с», the next resolve seeks ◀◀/▶▶ by 30 s", async () => {
+    const t = await make();
+    await act(t, "seek", 30);
+    assert.equal(t.ctx.prefs.get().seekStep, 30);
+    assert.deepEqual(actions(t), [BACK_RELOAD]);
+    assert.equal(ext(await screen(t), "seek"), "30 с");
+    const res = (await t.request(ids.playContinue(FIX.SERIAL_BIG))) as { properties: Record<string, string> };
+    assert.equal(res.properties["button:forward:action"], "player:seek:+30");
+    assert.equal(res.properties["button:rewind:action"], "player:seek:-30");
+    await act(t, "seek", 7);
+    assert.equal(t.ctx.prefs.get().seekStep, 30, "not one of the steps — ignored");
   });
 
   it("invalid value or key is ignored", async () => {

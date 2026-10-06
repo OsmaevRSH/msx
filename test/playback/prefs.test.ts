@@ -33,6 +33,7 @@ describe("DEFAULT_PREFS", () => {
       bufferResume: 6,
       posterSize: "medium",
       cardBackgrounds: false,
+      seekStep: 10,
     });
   });
 
@@ -108,6 +109,19 @@ describe("PrefsStore", () => {
       mem.setItem("kp.cfg.prefs", raw);
       assert.deepEqual(prefs.get(), DEFAULT_PREFS, raw);
     }
+  });
+
+  it("seek step: 5, 10, 15 or 30 s; 10 is the default and is not stored, other values are ignored", () => {
+    const { mem, prefs } = setup();
+    prefs.update({ seekStep: 30 });
+    assert.equal(new PrefsStore(new KvStore(mem)).get().seekStep, 30);
+    assert.deepEqual(stored(mem), { seekStep: 30 });
+    prefs.update({ seekStep: 7 as Prefs["seekStep"] });
+    assert.equal(prefs.get().seekStep, 30);
+    prefs.update({ seekStep: 10 });
+    assert.equal(mem.getItem("kp.cfg.prefs"), null);
+    mem.setItem("kp.cfg.prefs", JSON.stringify({ seekStep: "15" }));
+    assert.equal(prefs.get().seekStep, 10);
   });
 
   it("returns a fresh deep copy from get", () => {

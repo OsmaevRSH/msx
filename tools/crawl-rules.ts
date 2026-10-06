@@ -184,7 +184,7 @@ export function splitChain(a: string): string[] {
 const FORMS: readonly RegExp[] = [
   /^back$/, /^home$/, /^cleanup$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/, /^focus:[A-Za-z0-9_]+$/,
   /^interaction:commit:message:[^|]+$/, /^(?:shot:)?interaction:commit:video$/,
-  /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+)$/,
+  /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+|seek:[+-]\d+)$/,
 ];
 /** Запрос к плагину: только с префиксом действия, голый `request:interaction:…` — это `data` пункта меню. */
 const REQUEST_ACTION = /^(?:content:|panel:|video:resolve:|replace:(?:content|menu):[A-Za-z0-9_]+:)request:interaction:([^@]*)@.+$/;

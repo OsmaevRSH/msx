@@ -126,6 +126,35 @@ export async function videoTime(p: Page): Promise<number> {
   return p.locator("video").evaluate((v: HTMLVideoElement) => v.currentTime);
 }
 
+export async function videoPaused(p: Page): Promise<boolean> {
+  return p.locator("video").evaluate((v: HTMLVideoElement) => v.paused);
+}
+
+/**
+ * Фокус на кнопке панели плеера MSX по её значку (`tvx-icon-<icon>`). Скрытую панель открывает OK — фокус тогда на ⏯,
+ * видео не ставится на паузу и не продолжается; дальше — стрелки по видимым кнопкам.
+ */
+export async function focusPlayerButton(p: Page, icon: string): Promise<void> {
+  const where = (): Promise<{ shown: boolean; sel: number; at: number }> => p.evaluate((ico) => {
+    const vis = (e: Element | null): boolean => {
+      const s = e === null ? undefined : getComputedStyle(e);
+      return s !== undefined && s.display !== "none" && s.visibility !== "hidden" && Number(s.opacity) > 0.05;
+    };
+    const items = [...document.querySelectorAll("#appPlayerItems .app-player-item")].filter(vis);
+    return {
+      shown: vis(document.querySelector("#appPlayerScene")) && vis(document.querySelector("#appPlayer")),
+      sel: items.findIndex((e) => e.classList.contains("selected")),
+      at: items.findIndex((e) => e.querySelector(`.tvx-icon-${ico}`) !== null),
+    };
+  }, icon);
+  if (!(await where()).shown) await p.keyboard.press("Enter");
+  await expect.poll(async () => (await where()).shown, { message: "панель плеера открыта", timeout: 3000 }).toBe(true);
+  const w = await where();
+  expect(w.at, `кнопка со значком ${icon} на панели плеера`).toBeGreaterThanOrEqual(0);
+  for (let n = 0; n < Math.abs(w.at - w.sel); n++) await p.keyboard.press(w.at > w.sel ? "ArrowRight" : "ArrowLeft");
+  await expect.poll(async () => (await where()).sel, { message: `фокус на кнопке ${icon}`, timeout: 3000 }).toBe(w.at);
+}
+
 /** Позиция плеера так, как её видит MSX (`requestData("video")`): она отстаёт от `<video>` до полсекунды. */
 export async function msxPos(p: Page): Promise<number> {
   return kp(p, async (k) => Number((await k.ctx.host.requestData("video"))?.video?.data?.position ?? -1));

@@ -31,6 +31,13 @@ const BUFFER_TIMEOUT_SEC = "10";
 const MODE_LABEL = { hls1: "HLS1", hls2: "HLS2" } as const;
 const RETRY_TOAST = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
 const SUBS_OFF = "Выключены";
+/**
+ * §9.4: ◀◀/▶▶ и ⏪/⏩ пульта (у MSX это клавиши `delete`/`insert`) — `player:seek` на шаг из настроек. Свои у MSX —
+ * ±10 с, а у видео длиннее часа ±30 с; стрелки двигают маркер на 2 % длительности, это не настраивается.
+ */
+const SEEK = [["rewind", "-", "replay", "delete"], ["forward", "+", "forward", "insert"]] as const;
+/** Значки MSX с цифрой шага: `replay-10`, `forward-30`; для 15 с такого нет — обычные ⏪/⏩. */
+const SEEK_ICONS: readonly number[] = [5, 10, 30];
 
 /** Студия озвучки, иначе её тип («Оригинал»), иначе язык — на кнопке карточки и в `label:extension`. */
 export const audioTitle = (a: Audio): string => a.authorTitle ?? a.typeTitle ?? langName(a.lang, 0);
@@ -72,6 +79,12 @@ function controls(ctx: AppContext, a: EpisodeActions, ticks: number): Record<str
     "button:restart:icon": "hd",
     "button:restart:action": panel("quality"),
   };
+  const s = prefs.seekStep;
+  for (const [b, sign, icon, key] of SEEK) {
+    out[`button:${b}:icon`] = SEEK_ICONS.includes(s) ? `${icon}-${s}` : "default";
+    out[`button:${b}:action`] = `player:seek:${sign}${s}`;
+    out[`button:${b}:key`] = key;
+  }
   if (a.prev !== undefined) {
     out["button:prev:icon"] = "default";
     out["button:prev:action"] = a.prev;

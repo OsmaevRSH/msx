@@ -57,6 +57,12 @@ const EXAMPLE: Record<string, string> = {
   "button:speed:action": `panel:request:interaction:panel:subs:8632:82469:p@${P}`,
   "button:restart:icon": "hd",
   "button:restart:action": `panel:request:interaction:panel:quality:8632:82469:p@${P}`,
+  "button:rewind:icon": "replay-10",
+  "button:rewind:action": "player:seek:-10",
+  "button:rewind:key": "delete",
+  "button:forward:icon": "forward-10",
+  "button:forward:action": "player:seek:+10",
+  "button:forward:key": "insert",
   "button:prev:icon": "default",
   "button:prev:action": `video:resolve:request:interaction:play:8632:82468:1:1@${P}`,
   "button:prev:key": "channel_down",
@@ -189,6 +195,25 @@ describe("playerProps", () => {
     const t = await make();
     assert.equal(playerProps(t.ctx, { ...MIDDLE, probe: "ticks" })["kp:p"], "ticks");
     assert.equal(playerProps(t.ctx, MIDDLE)["kp:p"], undefined);
+  });
+
+  it("seek step from TV settings (v1.11): ◀◀/▶▶ and the ⏪/⏩ keys seek by it instead of MSX's 10/30 s", async () => {
+    const t = await make();
+    const seekProps = (): string[] => keys(playerProps(t.ctx, MIDDLE), /^button:(rewind|forward):/).map((k) => `${k}=${playerProps(t.ctx, MIDDLE)[k]}`);
+    t.ctx.prefs.update({ seekStep: 30 });
+    assert.deepEqual(seekProps(), [
+      "button:rewind:icon=replay-30", "button:rewind:action=player:seek:-30", "button:rewind:key=delete",
+      "button:forward:icon=forward-30", "button:forward:action=player:seek:+30", "button:forward:key=insert",
+    ]);
+    t.ctx.prefs.update({ seekStep: 5 });
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:icon"], "forward-5");
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:rewind:action"], "player:seek:-5");
+    // Значка с цифрой 15 у MSX нет — обычные ⏪/⏩.
+    t.ctx.prefs.update({ seekStep: 15 });
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:rewind:icon"], "default");
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:icon"], "default");
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:action"], "player:seek:+15");
+    assert.equal(contextPlayerProps(t.ctx)["button:forward:action"], "player:seek:+15", "the season template carries the same step");
   });
 
   it("buffer sizes come from TV settings", async () => {

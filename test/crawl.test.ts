@@ -41,7 +41,7 @@ describe("crawl rules", () => {
       `replace:content:list_1a2b3c4d:${req("list:x")}`, `replace:menu:menu:${req("init")}`,
       "interaction:commit:message:act:item:refresh:1", "interaction:commit:video", "shot:interaction:commit:video",
       "[interaction:commit:video|player:eject]", "player:button:next:execute", "player:ticking:restart",
-      "player:commit:message:subs:off",
+      "player:commit:message:subs:off", "player:seek:-10", "player:seek:+30",
       // X-3: меню после входа и выхода — `home`, `cleanup`, затем `replace:menu` после анимации.
       `[home|cleanup|lazy:replace:menu:menu:${req("init")}|info:Готово]`,
       // Страж края (src/msx/edges.ts): фокус обратно на плитку — внутреннее действие MSX.
