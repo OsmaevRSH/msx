@@ -153,20 +153,23 @@ export function splitChain(a: string): string[] {
 
 /** Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник). */
 const FORMS: readonly RegExp[] = [
-  /^back$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/,
+  /^back$/, /^home$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/,
   /^interaction:commit:message:[^|]+$/, /^(?:shot:)?interaction:commit:video$/,
   /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+)$/,
 ];
 /** Запрос к плагину: только с префиксом действия, голый `request:interaction:…` — это `data` пункта меню. */
 const REQUEST_ACTION = /^(?:content:|panel:|video:resolve:|replace:(?:content|menu):[A-Za-z0-9_]+:)request:interaction:([^@]*)@.+$/;
 
-/** Грамматика действия MSX; адрес `@P` проверяет `addressIssues`, перерисовку меню — `menuActionIssues`. */
+/**
+ * Грамматика действия MSX; адрес `@P` проверяет `addressIssues`, перерисовку меню — `menuActionIssues`. `lazy:<действие>`
+ * — то же действие после анимаций (X-3: `replace:menu` после `home`).
+ */
 export function actionIssues(action: string): string[] {
   if (action === "") return [": empty action"];
   const chained = action.startsWith("[");
   if (chained && !action.endsWith("]")) return [`${action}: unclosed chain`];
   const out = new Set<string>();
-  for (const m of splitChain(action)) {
+  for (const m of splitChain(action).map((a) => a.replace(/^lazy:/, ""))) {
     if (m === "") out.add(`${action}: empty member`);
     else if (chained && /[[\]]/.test(m)) out.add(`${action}: nested chain`);
     else if (REQUEST_ACTION.test(m)) {

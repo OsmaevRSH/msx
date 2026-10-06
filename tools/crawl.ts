@@ -80,7 +80,7 @@ function capKey(n: Node): string {
 
 const capOf = (n: Node, key: string): number => CAPS[key] ?? CAPS[key.split(":")[0] ?? ""] ?? (n.k === "msg" ? MSG_CAP : REQ_CAP);
 
-const REQUEST = /^(content:|panel:|video:resolve:|replace:(content|menu):([A-Za-z0-9_]+):)request:interaction:([^@]*)@/;
+const REQUEST = /^(?:lazy:)?(content:|panel:|video:resolve:|replace:(content|menu):([A-Za-z0-9_]+):)request:interaction:([^@]*)@/;
 
 class Crawler {
   private t: TestApp;

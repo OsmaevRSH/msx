@@ -31,7 +31,7 @@ import { Outbox } from "../progress/outbox.ts";
 import { Overlay } from "../progress/overlay.ts";
 import { ProgressTracker } from "../progress/tracker.ts";
 import { App } from "../router/router.ts";
-import { loggedOutActions } from "../screens/menu.ts";
+import { loggedOutAction } from "../screens/menu.ts";
 import { OVERLAY_KEY, persistState } from "./context.ts";
 import type { AppContext, AppState } from "./context.ts";
 
@@ -112,7 +112,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
     ctx.state.login?.stop();
     ctx.state.login = undefined;
     repo.forgetDevice();
-    for (const a of loggedOutActions(ctx.P, reason)) ctx.host.executeAction(a);
+    ctx.host.executeAction(loggedOutAction(ctx.P, reason));
   };
   ctx.tracker.addListener((e) => onTrackerEvent(ctx, e));
 

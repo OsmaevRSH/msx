@@ -22,7 +22,8 @@ async function make(o: Omit<TestAppOptions, "mock"> = {}): Promise<TestApp> {
 }
 
 const REFRESH_MENU = `replace:menu:menu:request:interaction:init@${TEST_P}`;
-const DONE = `[info:Вход выполнен|${REFRESH_MENU}]`;
+/** X-3: вход мог завершиться на вложенном экране — сначала `home`, замена меню — после анимации. */
+const DONE = `[home|lazy:${REFRESH_MENU}|info:Вход выполнен]`;
 const RETRY = "[invalidate:content|reload:content]";
 const CODE_TTL_MS = 600_000;   // expires_in у kpmock
 
@@ -207,7 +208,7 @@ describe("loginScreen (S2)", () => {
     assert.equal(t.mock.calls().length, 0);
     assert.equal(t.ctx.state.login, undefined);
     assert.ok(texts(s).some((x) => x.includes("Вход выполнен")));
-    assert.ok(buttons(s).some((b) => b.action === REFRESH_MENU));
+    assert.ok(buttons(s).some((b) => b.action === DONE));
   });
 });
 

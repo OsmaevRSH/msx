@@ -254,10 +254,10 @@ describe("App.handleData and handleEvent", () => {
     assert.equal(typeof JSON.parse(t.storage.getItem("kp.out.overlay") ?? "null"), "string");
   });
 
-  it("onLoggedOut → replace:menu", async () => {
+  it("onLoggedOut → home, then replace:menu after the animations (X-3)", async () => {
     const t = await make({ loggedIn: true });
     await t.run(t.ctx.auth.logout());
-    assert.ok(t.host.actions.some((a) => a.action === `replace:menu:menu:request:interaction:init@${TEST_P}`));
+    assert.ok(t.host.actions.some((a) => a.action.startsWith(`[home|lazy:replace:menu:menu:request:interaction:init@${TEST_P}|`)));
     assert.equal(t.ctx.auth.isLoggedIn(), false);
   });
 });
