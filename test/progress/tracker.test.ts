@@ -45,17 +45,18 @@ describe("ProgressTracker: session and start (CC-09)", () => {
     assert.equal(marktimes(t).length, 0);
   });
 
-  it("a snapshot opens a session when there is none or the mid differs; a position > 0 counts as started", async () => {
+  it("after video:load without kp:* a snapshot opens the session, a position > 0 counts as started; another mid does not switch it (этап 33c)", async () => {
     const t = await make();
     const ev = recordEvents(t);
+    load(t, {});
     snapshot(t, 45);
     assert.equal(t.ctx.tracker.session()?.mid, EP.mid);
     assert.equal(kinds(ev, "started").length, 1);
     snapshot(t, 50, kpProps({ ...EP, mid: EP.mid + 1, video: 6 }));
-    assert.equal(t.ctx.tracker.session()?.video, 6);
-    assert.equal(kinds(ev, "load").length, 2);
+    assert.equal(t.ctx.tracker.session()?.video, 5);
+    assert.equal(kinds(ev, "load").length, 1);
     const raw = kinds(ev, "raw") as Extract<TrackerEvent, { kind: "raw" }>[];
-    assert.deepEqual(raw.map((e) => [e.source, e.position]), [["handleData", 45], ["handleData", 50]]);
+    assert.deepEqual(raw.map((e) => [e.source, e.position]), [["handleEvent", 0], ["handleData", 45], ["handleData", 50]]);
   });
 });
 

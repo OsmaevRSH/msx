@@ -23,9 +23,16 @@ describe("sessionFromProps", () => {
       hasNext: true,
       loadedAt: NOW,
       started: false,
+      peak: 0,
       watchedDone: false,
       ended: false,
     });
+  });
+
+  it("resume:position («Продолжить») starts the session maximum; none or junk — 0 (этап 33c)", () => {
+    assert.equal(sessionFromProps({ ...PROPS, "resume:position": "1287" }, NOW)?.peak, 1287);
+    assert.equal(sessionFromProps({ ...PROPS, "resume:position": "none" }, NOW)?.peak, 0);
+    assert.equal(sessionFromProps({ ...PROPS, "resume:position": "-5" }, NOW)?.peak, 0);
   });
 
   it("without kp:i there is no session", () => {
