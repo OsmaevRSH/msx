@@ -1,0 +1,89 @@
+{
+  "headline": "KinoPub",
+  "extension": "{ico:msx-white:access-time} {now:time:hh:mm}",
+  "dictionary": "http://msx.benzac.de/dic/ru.json",
+  "flag": "menu",
+  "cache": true,
+  "menu": [
+    {
+      "id": "home",
+      "icon": "home",
+      "label": "Главная",
+      "data": "request:interaction:home@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "search",
+      "icon": "search",
+      "label": "Поиск",
+      "data": "request:interaction:search@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "sep_catalog",
+      "type": "separator",
+      "label": "Каталог"
+    },
+    {
+      "id": "movies",
+      "icon": "movie",
+      "label": "Фильмы",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "serials",
+      "icon": "tv",
+      "label": "Сериалы",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPXNlcmlhbHxzb3J0PS11cGRhdGVk@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "cartoons",
+      "icon": "child-care",
+      "label": "Мультфильмы",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPW1vdmllLHNlcmlhbHxzb3J0PS11cGRhdGVkfGdlbnJlPTIz@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "docs",
+      "icon": "public",
+      "label": "Документальное",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPWRvY3Vtb3ZpZSxkb2N1c2VyaWFsfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "tvshows",
+      "icon": "live-tv",
+      "label": "ТВ-шоу",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPXR2c2hvd3xzb3J0PS11cGRhdGVk@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "concerts",
+      "icon": "music-note",
+      "label": "Концерты",
+      "data": "request:interaction:list:Y2F0YWxvZ3x0eXBlPWNvbmNlcnR8c29ydD0tdXBkYXRlZA@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "sep_personal",
+      "type": "separator"
+    },
+    {
+      "id": "bookmarks",
+      "icon": "bookmark",
+      "label": "Закладки",
+      "data": "request:interaction:bookmarks@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "settings",
+      "icon": "tune",
+      "label": "Настройки KinoPub",
+      "data": "request:interaction:settings@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "probe",
+      "icon": "build",
+      "label": "Диагностика",
+      "data": "request:interaction:probe@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "msx_settings",
+      "type": "settings",
+      "label": "Настройки MSX"
+    }
+  ]
+}

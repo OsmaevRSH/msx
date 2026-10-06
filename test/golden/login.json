@@ -1,0 +1,44 @@
+{
+  "type": "pages",
+  "flag": "login",
+  "cache": false,
+  "reuse": false,
+  "headline": "Вход в KinoPub",
+  "pages": [
+    {
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,2",
+          "text": "1. Откройте на телефоне {txt:msx-white:kino.watch/device}{br}2. Введите код:"
+        },
+        {
+          "id": "login_code",
+          "type": "space",
+          "layout": "2,2,8,2",
+          "color": "msx-glass",
+          "alignment": "center",
+          "headline": "HENTBA"
+        },
+        {
+          "type": "space",
+          "layout": "0,4,12,1",
+          "alignment": "center",
+          "text": "Код действует до 00:10"
+        },
+        {
+          "type": "button",
+          "layout": "0,5,6,1",
+          "label": "Новый код",
+          "action": "interaction:commit:message:act:login:new"
+        },
+        {
+          "type": "button",
+          "layout": "6,5,6,1",
+          "label": "Диагностика",
+          "action": "content:request:interaction:probe@https://example.github.io/msx/app/index.html"
+        }
+      ]
+    }
+  ]
+}

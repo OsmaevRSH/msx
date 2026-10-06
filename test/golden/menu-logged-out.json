@@ -1,0 +1,26 @@
+{
+  "headline": "KinoPub",
+  "extension": "{ico:msx-white:access-time} {now:time:hh:mm}",
+  "dictionary": "http://msx.benzac.de/dic/ru.json",
+  "flag": "menu",
+  "cache": true,
+  "menu": [
+    {
+      "id": "login",
+      "icon": "login",
+      "label": "Вход",
+      "data": "request:interaction:login@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "probe",
+      "icon": "build",
+      "label": "Диагностика",
+      "data": "request:interaction:probe@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "msx_settings",
+      "type": "settings",
+      "label": "Настройки MSX"
+    }
+  ]
+}

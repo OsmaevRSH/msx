@@ -1,9 +1,9 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { cacheKeys } from "../../src/cache/repo.ts";
-import type { MsxContentItem, MsxContentRoot, MsxMenuRoot } from "../../src/msx/types.ts";
-import { decodeListKey, encodeListKey, ids, msgs, parseDataId } from "../../src/router/ids.ts";
-import { buildMenu } from "../../src/screens/menu.ts";
+import type { MsxContentRoot, MsxMenuRoot } from "../../src/msx/types.ts";
+import { encodeListKey, ids, msgs, parseDataId } from "../../src/router/ids.ts";
+import { RESOLVE_KINDS, kindOf, menuActionIssues, menuIssues, rootIssues } from "../../tools/crawl-rules.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
@@ -12,6 +12,7 @@ import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 // тесты экранов: корень с `items` без `template` MSX не рисует («Содержимое недоступно», msx-platform §2.1), а меню из
 // start parameter по `reload:menu` не перезапрашивается — только `replace:menu:<flag>:…`. Здесь все маршруты — обходом
 // действий из ответов, как это делал бы MSX, и явно в пустых состояниях и при ошибках — проверяются на оба правила.
+// Сами правила — общие с краулером (`tools/crawl-rules.ts`, этап 32).
 
 let apps: TestApp[] = [];
 
@@ -31,8 +32,6 @@ const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const REQUEST = new RegExp(`request:interaction:([^@"|\\]]+)@${esc(TEST_P)}`, "g");
 const requestsIn = (v: unknown): string[] => [...JSON.stringify(v).matchAll(REQUEST)].map((m) => m[1] ?? "");
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
-/** Ответ для `video:resolve:…`, а не экран: разметке MSX не подлежит, но его действия обходятся. */
-const RESOLVE = new Set(["play", "playEp", "probePlay"]);
 
 const MOVIES = encodeListKey({ src: "catalog", type: "movie", sort: "-updated" });
 const EMPTY_FOLDER = 7;
@@ -44,58 +43,18 @@ async function until(pred: () => boolean): Promise<void> {
 
 // --- Правила ---
 
-const focusable = (i: MsxContentItem, template: MsxContentItem | undefined): boolean =>
-  (i.type ?? template?.type ?? "default") !== "space";
-
-/** Content Root (и `options` — тоже корень): msx-platform §2.1, §2.3, §2.4. */
-function rootIssues(root: MsxContentRoot, at: string): string[] {
-  const out: string[] = [];
-  const { items, pages, template } = root;
-  if (items !== undefined && template === undefined) out.push(`${at}: items без template — MSX покажет «Содержимое недоступно»`);
-  if (items !== undefined && pages !== undefined) out.push(`${at}: items и pages вместе`);
-  if ((items?.length ?? 0) === 0 && (pages?.length ?? 0) === 0) out.push(`${at}: ни items, ни pages`);
-  pages?.forEach((p, n) => {
-    if (!p.items.some((i) => focusable(i, template))) out.push(`${at}: на странице ${n} нет фокусируемого элемента`);
-  });
-  if (root.options !== undefined) out.push(...rootIssues(root.options, `${at} options`));
-  const all = [...(items ?? []), ...(pages ?? []).flatMap((p) => p.items), ...(root.header?.items ?? [])];
-  all.forEach((i, n) => {
-    if (i.options !== undefined) out.push(...rootIssues(i.options, `${at} item ${i.id ?? n} options`));
-  });
-  return out;
-}
-
-function menuIssues(m: MsxMenuRoot): string[] {
-  const out: string[] = [];
-  if (!Array.isArray(m.menu) || m.menu.length === 0) out.push("init: пустое меню");
-  if (m.flag === undefined) out.push("init: у меню нет flag — replace:menu его не найдёт");
-  return out;
-}
-
 function answerIssues(dataId: string, answer: unknown): string[] {
   const k = parseDataId(dataId).k;
-  if (RESOLVE.has(k)) return [];
+  if (RESOLVE_KINDS.has(k)) return [];
   if (k === "init") return menuIssues(answer as MsxMenuRoot);
   return rootIssues(answer as MsxContentRoot, dataId);
-}
-
-/** Меню перерисовывается только `replace:menu:<флаг меню>:request:interaction:init@P`; `reload:menu` — нигде. */
-function menuActionIssues(t: TestApp, where: string, v: unknown): string[] {
-  const text = typeof v === "string" ? v : JSON.stringify(v);
-  const out: string[] = [];
-  if (text.includes("reload:menu")) out.push(`${where}: reload:menu — меню из start parameter MSX не перезапросит`);
-  const want = `replace:menu:${buildMenu(t.ctx).flag}:request:interaction:${ids.init()}@${TEST_P}`;
-  for (const m of text.matchAll(/replace:menu:[^|\]"]*/g)) {
-    if (m[0] !== want) out.push(`${where}: ${m[0]} вместо ${want}`);
-  }
-  return out;
 }
 
 /** Все нарушения в ответах и в действиях, которые плагин выполнил сам. */
 function check(t: TestApp, answers: Map<string, unknown>): void {
   const out: string[] = [];
-  for (const [id, a] of answers) out.push(...answerIssues(id, a), ...menuActionIssues(t, id, a));
-  for (const a of actions(t)) out.push(...menuActionIssues(t, "executeAction", a));
+  for (const [id, a] of answers) out.push(...answerIssues(id, a), ...menuActionIssues(TEST_P, id, a));
+  for (const a of actions(t)) out.push(...menuActionIssues(TEST_P, "executeAction", a));
   assert.deepEqual(out, []);
 }
 
@@ -104,21 +63,6 @@ function check(t: TestApp, answers: Map<string, unknown>): void {
 /** Сколько разных dataId одного вида запрашивать: обходу нужна каждая разметка, а не каждый тайтл. */
 const CAP: Record<string, number> = { item: 5, season: 3, play: 2, playEp: 2, probePlay: 1 };
 const DEFAULT_CAP = 4;
-
-function kindOf(dataId: string): string {
-  const r = parseDataId(dataId);
-  switch (r.k) {
-    case "panel": return `panel:${r.type}`;
-    case "probe": return `probe:${r.page ?? ""}`;
-    case "list":
-      try {
-        return `list:${decodeListKey(r.key).src}`;
-      } catch {
-        return "list:bad";
-      }
-    default: return r.k;
-  }
-}
 
 /**
  * Обход как в MSX: следующие dataId — из действий в ответах (и в ответах resolve) и из действий, которые плагин выполнил
@@ -170,8 +114,7 @@ async function search(t: TestApp, query: string): Promise<void> {
 // --- Тесты ---
 
 describe("MSX markup of every answer (W10b: items need a template, the menu is redrawn by replace:menu)", () => {
-  it("the rules catch the defects found in web MSX", async () => {
-    const t = await make();
+  it("the rules catch the defects found in web MSX", () => {
     assert.deepEqual(rootIssues({ type: "list", items: [{ type: "button", label: "x" }] }, "dev"), [
       "dev: items без template — MSX покажет «Содержимое недоступно»",
     ]);
@@ -183,9 +126,10 @@ describe("MSX markup of every answer (W10b: items need a template, the menu is r
       "o item 0 options: ни items, ни pages",
     ]);
     assert.deepEqual(menuIssues({ menu: [{ label: "x" }] }), ["init: у меню нет flag — replace:menu его не найдёт"]);
-    assert.equal(menuActionIssues(t, "a", "[info:x|reload:menu]").length, 1);
-    assert.equal(menuActionIssues(t, "a", `replace:menu:main:request:interaction:init@${TEST_P}`).length, 1);
-    assert.deepEqual(menuActionIssues(t, "a", `replace:menu:menu:request:interaction:init@${TEST_P}`), []);
+    assert.deepEqual(menuIssues({ flag: "main", menu: [{ label: "x" }] }), ["init: flag main — replace:menu идёт с флагом menu"]);
+    assert.equal(menuActionIssues(TEST_P, "a", "[info:x|reload:menu]").length, 1);
+    assert.equal(menuActionIssues(TEST_P, "a", `replace:menu:main:request:interaction:init@${TEST_P}`).length, 1);
+    assert.deepEqual(menuActionIssues(TEST_P, "a", `replace:menu:menu:request:interaction:init@${TEST_P}`), []);
   });
 
   it("logged out: menu, login, «Диагностика», «Для разработчика» with its panels, the report and every closed route", async () => {

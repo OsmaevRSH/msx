@@ -1,0 +1,61 @@
+{
+  "type": "list",
+  "headline": "Озвучка",
+  "cache": false,
+  "reuse": false,
+  "template": {
+    "type": "button",
+    "layout": "0,0,8,1"
+  },
+  "items": [
+    {
+      "label": "{ico:check} Дубляж · Студия Альфа (RUS) · AAC 2.0",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:1:c",
+      "focus": true
+    },
+    {
+      "label": "Дубляж · Студия Альфа (RUS) · AAC 5.1",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:2:c"
+    },
+    {
+      "label": "Дубляж · Студия Альфа (RUS) · AC3 5.1 · может не играть",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:3:c"
+    },
+    {
+      "label": "Многоголосый · Студия Бета (RUS) · AAC 2.0",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:4:c"
+    },
+    {
+      "label": "Многоголосый · Студия Бета (RUS) · AAC 5.1",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:5:c"
+    },
+    {
+      "label": "Многоголосый · Студия Бета (RUS) · AC3 5.1 · может не играть",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:6:c"
+    },
+    {
+      "label": "Двухголосый · Студия Гамма (RUS) · AAC 2.0",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:7:c"
+    },
+    {
+      "label": "Одноголосый · Студия Дельта (RUS) · AAC 2.0",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:8:c"
+    },
+    {
+      "label": "Многоголосый · Студия Эпсилон (UKR) · AAC 2.0",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:9:c"
+    },
+    {
+      "label": "Оригинал (ENG) · AAC 2.0",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:10:c"
+    },
+    {
+      "label": "Оригинал (ENG) · AAC 5.1",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:11:c"
+    },
+    {
+      "label": "Оригинал (ENG) · AC3 5.1 · может не играть",
+      "action": "interaction:commit:message:act:panel:audio:2004:2004001:12:c"
+    }
+  ]
+}

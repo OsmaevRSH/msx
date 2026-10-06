@@ -19,7 +19,7 @@
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "tv-address": "node tools/tv-address.mjs",
     "crawl": "node tools/crawl.ts",
-    "check": "npm run typecheck && npm test && npm run privacy && npm run build && npm run size"
+    "check": "npm run typecheck && npm test && npm run privacy && npm run build && npm run size && npm run crawl"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

@@ -66,6 +66,7 @@ describe("package.json", () => {
     for (const [name, cmd] of Object.entries(SCRIPTS)) {
       assert.equal(pkg.scripts?.[name], cmd, `script "${name}"`);
     }
-    assert.ok(pkg.scripts?.check?.startsWith(CHECK_PREFIX), `script "check": ${pkg.scripts?.check}`);
+    // С этапа 32 `check` заканчивается краулером (план §0.4).
+    assert.equal(pkg.scripts?.check, `${CHECK_PREFIX} && npm run crawl`);
   });
 });

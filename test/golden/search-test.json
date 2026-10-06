@@ -1,0 +1,714 @@
+{
+  "type": "list",
+  "compress": true,
+  "flag": "search",
+  "cache": false,
+  "reuse": false,
+  "headline": "Поиск",
+  "header": {
+    "items": [
+      {
+        "type": "space",
+        "layout": "0,0,16,1",
+        "headline": "{ico:search} тест_ {col:msx-white-soft}· Найдено: 505"
+      },
+      {
+        "type": "button",
+        "layout": "0,1,1,1",
+        "label": "а",
+        "action": "interaction:commit:message:search:input:а"
+      },
+      {
+        "type": "button",
+        "layout": "1,1,1,1",
+        "label": "б",
+        "action": "interaction:commit:message:search:input:б"
+      },
+      {
+        "type": "button",
+        "layout": "2,1,1,1",
+        "label": "в",
+        "action": "interaction:commit:message:search:input:в"
+      },
+      {
+        "type": "button",
+        "layout": "3,1,1,1",
+        "label": "г",
+        "action": "interaction:commit:message:search:input:г"
+      },
+      {
+        "type": "button",
+        "layout": "4,1,1,1",
+        "label": "д",
+        "action": "interaction:commit:message:search:input:д"
+      },
+      {
+        "type": "button",
+        "layout": "5,1,1,1",
+        "label": "е",
+        "action": "interaction:commit:message:search:input:е"
+      },
+      {
+        "type": "button",
+        "layout": "6,1,1,1",
+        "label": "ё",
+        "action": "interaction:commit:message:search:input:ё"
+      },
+      {
+        "type": "button",
+        "layout": "7,1,1,1",
+        "label": "ж",
+        "action": "interaction:commit:message:search:input:ж"
+      },
+      {
+        "type": "button",
+        "layout": "8,1,1,1",
+        "label": "з",
+        "action": "interaction:commit:message:search:input:з"
+      },
+      {
+        "type": "button",
+        "layout": "9,1,1,1",
+        "label": "и",
+        "action": "interaction:commit:message:search:input:и"
+      },
+      {
+        "type": "button",
+        "layout": "10,1,1,1",
+        "label": "й",
+        "action": "interaction:commit:message:search:input:й"
+      },
+      {
+        "type": "button",
+        "layout": "0,2,1,1",
+        "label": "к",
+        "action": "interaction:commit:message:search:input:к"
+      },
+      {
+        "type": "button",
+        "layout": "1,2,1,1",
+        "label": "л",
+        "action": "interaction:commit:message:search:input:л"
+      },
+      {
+        "type": "button",
+        "layout": "2,2,1,1",
+        "label": "м",
+        "action": "interaction:commit:message:search:input:м"
+      },
+      {
+        "type": "button",
+        "layout": "3,2,1,1",
+        "label": "н",
+        "action": "interaction:commit:message:search:input:н"
+      },
+      {
+        "type": "button",
+        "layout": "4,2,1,1",
+        "label": "о",
+        "action": "interaction:commit:message:search:input:о"
+      },
+      {
+        "type": "button",
+        "layout": "5,2,1,1",
+        "label": "п",
+        "action": "interaction:commit:message:search:input:п"
+      },
+      {
+        "type": "button",
+        "layout": "6,2,1,1",
+        "label": "р",
+        "action": "interaction:commit:message:search:input:р"
+      },
+      {
+        "type": "button",
+        "layout": "7,2,1,1",
+        "label": "с",
+        "action": "interaction:commit:message:search:input:с"
+      },
+      {
+        "type": "button",
+        "layout": "8,2,1,1",
+        "label": "т",
+        "action": "interaction:commit:message:search:input:т"
+      },
+      {
+        "type": "button",
+        "layout": "9,2,1,1",
+        "label": "у",
+        "action": "interaction:commit:message:search:input:у"
+      },
+      {
+        "type": "button",
+        "layout": "10,2,1,1",
+        "label": "ф",
+        "action": "interaction:commit:message:search:input:ф"
+      },
+      {
+        "type": "button",
+        "layout": "0,3,1,1",
+        "label": "х",
+        "action": "interaction:commit:message:search:input:х"
+      },
+      {
+        "type": "button",
+        "layout": "1,3,1,1",
+        "label": "ц",
+        "action": "interaction:commit:message:search:input:ц"
+      },
+      {
+        "type": "button",
+        "layout": "2,3,1,1",
+        "label": "ч",
+        "action": "interaction:commit:message:search:input:ч"
+      },
+      {
+        "type": "button",
+        "layout": "3,3,1,1",
+        "label": "ш",
+        "action": "interaction:commit:message:search:input:ш"
+      },
+      {
+        "type": "button",
+        "layout": "4,3,1,1",
+        "label": "щ",
+        "action": "interaction:commit:message:search:input:щ"
+      },
+      {
+        "type": "button",
+        "layout": "5,3,1,1",
+        "label": "ъ",
+        "action": "interaction:commit:message:search:input:ъ"
+      },
+      {
+        "type": "button",
+        "layout": "6,3,1,1",
+        "label": "ы",
+        "action": "interaction:commit:message:search:input:ы"
+      },
+      {
+        "type": "button",
+        "layout": "7,3,1,1",
+        "label": "ь",
+        "action": "interaction:commit:message:search:input:ь"
+      },
+      {
+        "type": "button",
+        "layout": "8,3,1,1",
+        "label": "э",
+        "action": "interaction:commit:message:search:input:э"
+      },
+      {
+        "type": "button",
+        "layout": "9,3,1,1",
+        "label": "ю",
+        "action": "interaction:commit:message:search:input:ю"
+      },
+      {
+        "type": "button",
+        "layout": "10,3,1,1",
+        "label": "я",
+        "action": "interaction:commit:message:search:input:я"
+      },
+      {
+        "type": "button",
+        "layout": "0,4,1,1",
+        "label": "1",
+        "action": "interaction:commit:message:search:input:1",
+        "key": "1"
+      },
+      {
+        "type": "button",
+        "layout": "1,4,1,1",
+        "label": "2",
+        "action": "interaction:commit:message:search:input:2",
+        "key": "2"
+      },
+      {
+        "type": "button",
+        "layout": "2,4,1,1",
+        "label": "3",
+        "action": "interaction:commit:message:search:input:3",
+        "key": "3"
+      },
+      {
+        "type": "button",
+        "layout": "3,4,1,1",
+        "label": "4",
+        "action": "interaction:commit:message:search:input:4",
+        "key": "4"
+      },
+      {
+        "type": "button",
+        "layout": "4,4,1,1",
+        "label": "5",
+        "action": "interaction:commit:message:search:input:5",
+        "key": "5"
+      },
+      {
+        "type": "button",
+        "layout": "5,4,1,1",
+        "label": "6",
+        "action": "interaction:commit:message:search:input:6",
+        "key": "6"
+      },
+      {
+        "type": "button",
+        "layout": "6,4,1,1",
+        "label": "7",
+        "action": "interaction:commit:message:search:input:7",
+        "key": "7"
+      },
+      {
+        "type": "button",
+        "layout": "7,4,1,1",
+        "label": "8",
+        "action": "interaction:commit:message:search:input:8",
+        "key": "8"
+      },
+      {
+        "type": "button",
+        "layout": "8,4,1,1",
+        "label": "9",
+        "action": "interaction:commit:message:search:input:9",
+        "key": "9"
+      },
+      {
+        "type": "button",
+        "layout": "9,4,1,1",
+        "label": "0",
+        "action": "interaction:commit:message:search:input:0",
+        "key": "0"
+      },
+      {
+        "id": "k_back",
+        "type": "button",
+        "layout": "12,1,4,1",
+        "label": "{ico:backspace} Стереть",
+        "action": "interaction:commit:message:search:control:back",
+        "key": "delete"
+      },
+      {
+        "id": "k_space",
+        "type": "button",
+        "layout": "12,2,4,1",
+        "label": "{ico:space-bar} Пробел",
+        "action": "interaction:commit:message:search:control:space"
+      },
+      {
+        "id": "k_clear",
+        "type": "button",
+        "layout": "12,3,4,1",
+        "label": "{ico:clear} Очистить",
+        "action": "interaction:commit:message:search:control:clear"
+      },
+      {
+        "id": "k_lang",
+        "type": "button",
+        "layout": "12,4,4,1",
+        "label": "{ico:language} RU/EN",
+        "action": "interaction:commit:message:search:control:lang"
+      }
+    ]
+  },
+  "template": {
+    "type": "separate",
+    "layout": "0,0,2,4",
+    "color": "msx-glass",
+    "imageFiller": "cover",
+    "round": true,
+    "selection": {
+      "action": "interaction:commit:message:pf:{context:kid}"
+    }
+  },
+  "items": [
+    {
+      "id": "i1000",
+      "kid": "1000",
+      "title": "Тестовый фильм 1000",
+      "titleFooter": "2003 · КП 7,4",
+      "image": "http://kpmock.invalid/poster/medium/1000.svg",
+      "action": "content:request:interaction:item:1000@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1001",
+      "kid": "1001",
+      "title": "Тестовый сериал 1001",
+      "titleFooter": "2016 · КП 8,5",
+      "image": "http://kpmock.invalid/poster/medium/1001.svg",
+      "action": "content:request:interaction:item:1001@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1002",
+      "kid": "1002",
+      "title": "Тестовый документальный фильм 1002",
+      "titleFooter": "1992 · КП 9,6",
+      "image": "http://kpmock.invalid/poster/medium/1002.svg",
+      "action": "content:request:interaction:item:1002@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1003",
+      "kid": "1003",
+      "title": "Тестовый фильм 1003",
+      "titleFooter": "2005 · КП 5,8",
+      "image": "http://kpmock.invalid/poster/medium/1003.svg",
+      "action": "content:request:interaction:item:1003@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1004",
+      "kid": "1004",
+      "title": "Тестовый сериал 1004",
+      "titleFooter": "2018 · КП 6,9",
+      "image": "http://kpmock.invalid/poster/medium/1004.svg",
+      "action": "content:request:interaction:item:1004@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1005",
+      "kid": "1005",
+      "title": "Тестовый фильм 1005",
+      "titleFooter": "1994 · КП 8,0",
+      "image": "http://kpmock.invalid/poster/medium/1005.svg",
+      "action": "content:request:interaction:item:1005@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1006",
+      "kid": "1006",
+      "title": "Тестовый документальный сериал 1006",
+      "titleFooter": "2007 · КП 9,1",
+      "image": "http://kpmock.invalid/poster/medium/1006.svg",
+      "action": "content:request:interaction:item:1006@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1007",
+      "kid": "1007",
+      "title": "Тестовое шоу 1007",
+      "titleFooter": "2020 · КП 5,3",
+      "image": "http://kpmock.invalid/poster/medium/1007.svg",
+      "action": "content:request:interaction:item:1007@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1008",
+      "kid": "1008",
+      "title": "Тестовый сериал 1008",
+      "titleFooter": "1996 · КП 6,4",
+      "image": "http://kpmock.invalid/poster/medium/1008.svg",
+      "action": "content:request:interaction:item:1008@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1009",
+      "kid": "1009",
+      "title": "Тестовый фильм 1009",
+      "titleFooter": "2009 · КП 7,5",
+      "image": "http://kpmock.invalid/poster/medium/1009.svg",
+      "action": "content:request:interaction:item:1009@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1010",
+      "kid": "1010",
+      "title": "Тестовый концерт 1010",
+      "titleFooter": "2022 · КП 8,6",
+      "image": "http://kpmock.invalid/poster/medium/1010.svg",
+      "action": "content:request:interaction:item:1010@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1011",
+      "kid": "1011",
+      "title": "Тестовый фильм 1011",
+      "titleFooter": "1998 · КП 9,7",
+      "image": "http://kpmock.invalid/poster/medium/1011.svg",
+      "action": "content:request:interaction:item:1011@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1012",
+      "kid": "1012",
+      "title": "Тестовый сериал 1012",
+      "titleFooter": "2011 · КП 5,9",
+      "image": "http://kpmock.invalid/poster/medium/1012.svg",
+      "action": "content:request:interaction:item:1012@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1013",
+      "kid": "1013",
+      "title": "Тестовый фильм 1013",
+      "titleFooter": "2024 · КП 7,0",
+      "image": "http://kpmock.invalid/poster/medium/1013.svg",
+      "action": "content:request:interaction:item:1013@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1014",
+      "kid": "1014",
+      "title": "Тестовый 3D-фильм 1014",
+      "titleFooter": "2000 · КП 8,1",
+      "image": "http://kpmock.invalid/poster/medium/1014.svg",
+      "action": "content:request:interaction:item:1014@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1015",
+      "kid": "1015",
+      "title": "Тестовый сериал 1015",
+      "titleFooter": "2013 · КП 9,2",
+      "image": "http://kpmock.invalid/poster/medium/1015.svg",
+      "action": "content:request:interaction:item:1015@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1016",
+      "kid": "1016",
+      "title": "Тестовый фильм 1016",
+      "titleFooter": "2026 · КП 5,4",
+      "image": "http://kpmock.invalid/poster/medium/1016.svg",
+      "action": "content:request:interaction:item:1016@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1017",
+      "kid": "1017",
+      "title": "Тестовый документальный фильм 1017",
+      "titleFooter": "2002 · КП 6,5",
+      "image": "http://kpmock.invalid/poster/medium/1017.svg",
+      "action": "content:request:interaction:item:1017@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1018",
+      "kid": "1018",
+      "title": "Тестовый сериал 1018",
+      "titleFooter": "2015 · КП 7,6",
+      "image": "http://kpmock.invalid/poster/medium/1018.svg",
+      "action": "content:request:interaction:item:1018@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1019",
+      "kid": "1019",
+      "title": "Тестовый фильм 1019",
+      "titleFooter": "1991 · КП 8,7",
+      "image": "http://kpmock.invalid/poster/medium/1019.svg",
+      "action": "content:request:interaction:item:1019@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1020",
+      "kid": "1020",
+      "title": "Тестовый фильм 1020",
+      "titleFooter": "2004 · КП 9,8",
+      "image": "http://kpmock.invalid/poster/medium/1020.svg",
+      "action": "content:request:interaction:item:1020@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1021",
+      "kid": "1021",
+      "title": "Тестовый сериал 1021",
+      "titleFooter": "2017 · КП 6,0",
+      "image": "http://kpmock.invalid/poster/medium/1021.svg",
+      "action": "content:request:interaction:item:1021@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1022",
+      "kid": "1022",
+      "title": "Тестовый документальный сериал 1022",
+      "titleFooter": "1993 · КП 7,1",
+      "image": "http://kpmock.invalid/poster/medium/1022.svg",
+      "action": "content:request:interaction:item:1022@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1023",
+      "kid": "1023",
+      "title": "Тестовый фильм 1023",
+      "titleFooter": "2006 · КП 8,2",
+      "image": "http://kpmock.invalid/poster/medium/1023.svg",
+      "action": "content:request:interaction:item:1023@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1024",
+      "kid": "1024",
+      "title": "Тестовый сериал 1024",
+      "titleFooter": "2019 · КП 9,3",
+      "image": "http://kpmock.invalid/poster/medium/1024.svg",
+      "action": "content:request:interaction:item:1024@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1025",
+      "kid": "1025",
+      "title": "Тестовое шоу 1025",
+      "titleFooter": "1995 · КП 5,5",
+      "image": "http://kpmock.invalid/poster/medium/1025.svg",
+      "action": "content:request:interaction:item:1025@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1026",
+      "kid": "1026",
+      "title": "Тестовый фильм 1026",
+      "titleFooter": "2008 · КП 6,6",
+      "image": "http://kpmock.invalid/poster/medium/1026.svg",
+      "action": "content:request:interaction:item:1026@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1027",
+      "kid": "1027",
+      "title": "Тестовый концерт 1027",
+      "titleFooter": "2021 · КП 7,7",
+      "image": "http://kpmock.invalid/poster/medium/1027.svg",
+      "action": "content:request:interaction:item:1027@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1028",
+      "kid": "1028",
+      "title": "Тестовый сериал 1028",
+      "titleFooter": "1997 · КП 8,8",
+      "image": "http://kpmock.invalid/poster/medium/1028.svg",
+      "action": "content:request:interaction:item:1028@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1029",
+      "kid": "1029",
+      "title": "Тестовый фильм 1029",
+      "titleFooter": "2010 · КП 5,0",
+      "image": "http://kpmock.invalid/poster/medium/1029.svg",
+      "action": "content:request:interaction:item:1029@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1030",
+      "kid": "1030",
+      "title": "Тестовый документальный фильм 1030",
+      "titleFooter": "2023 · КП 6,1",
+      "image": "http://kpmock.invalid/poster/medium/1030.svg",
+      "action": "content:request:interaction:item:1030@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1031",
+      "kid": "1031",
+      "title": "Тестовый фильм 1031",
+      "titleFooter": "1999 · КП 7,2",
+      "image": "http://kpmock.invalid/poster/medium/1031.svg",
+      "action": "content:request:interaction:item:1031@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1032",
+      "kid": "1032",
+      "title": "Тестовый сериал 1032",
+      "titleFooter": "2012 · КП 8,3",
+      "image": "http://kpmock.invalid/poster/medium/1032.svg",
+      "action": "content:request:interaction:item:1032@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1033",
+      "kid": "1033",
+      "title": "Тестовый фильм 1033",
+      "titleFooter": "2025 · КП 9,4",
+      "image": "http://kpmock.invalid/poster/medium/1033.svg",
+      "action": "content:request:interaction:item:1033@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1034",
+      "kid": "1034",
+      "title": "Тестовый сериал 1034",
+      "titleFooter": "2001 · КП 5,6",
+      "image": "http://kpmock.invalid/poster/medium/1034.svg",
+      "action": "content:request:interaction:item:1034@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1035",
+      "kid": "1035",
+      "title": "Тестовый 3D-фильм 1035",
+      "titleFooter": "2014 · КП 6,7",
+      "image": "http://kpmock.invalid/poster/medium/1035.svg",
+      "action": "content:request:interaction:item:1035@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1036",
+      "kid": "1036",
+      "title": "Тестовый фильм 1036",
+      "titleFooter": "1990 · КП 7,8",
+      "image": "http://kpmock.invalid/poster/medium/1036.svg",
+      "action": "content:request:interaction:item:1036@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1037",
+      "kid": "1037",
+      "title": "Тестовый сериал 1037",
+      "titleFooter": "2003 · КП 8,9",
+      "image": "http://kpmock.invalid/poster/medium/1037.svg",
+      "action": "content:request:interaction:item:1037@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1038",
+      "kid": "1038",
+      "title": "Тестовый фильм 1038",
+      "titleFooter": "2016 · КП 5,1",
+      "image": "http://kpmock.invalid/poster/medium/1038.svg",
+      "action": "content:request:interaction:item:1038@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1039",
+      "kid": "1039",
+      "title": "Тестовый документальный сериал 1039",
+      "titleFooter": "1992 · КП 6,2",
+      "image": "http://kpmock.invalid/poster/medium/1039.svg",
+      "action": "content:request:interaction:item:1039@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1040",
+      "kid": "1040",
+      "title": "Тестовое шоу 1040",
+      "titleFooter": "2005 · КП 7,3",
+      "image": "http://kpmock.invalid/poster/medium/1040.svg",
+      "action": "content:request:interaction:item:1040@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1041",
+      "kid": "1041",
+      "title": "Тестовый фильм 1041",
+      "titleFooter": "2018 · КП 8,4",
+      "image": "http://kpmock.invalid/poster/medium/1041.svg",
+      "action": "content:request:interaction:item:1041@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1042",
+      "kid": "1042",
+      "title": "Тестовый сериал 1042",
+      "titleFooter": "1994 · КП 9,5",
+      "image": "http://kpmock.invalid/poster/medium/1042.svg",
+      "action": "content:request:interaction:item:1042@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1043",
+      "kid": "1043",
+      "title": "Тестовый концерт 1043",
+      "titleFooter": "2007 · КП 5,7",
+      "image": "http://kpmock.invalid/poster/medium/1043.svg",
+      "action": "content:request:interaction:item:1043@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1044",
+      "kid": "1044",
+      "title": "Тестовый фильм 1044",
+      "titleFooter": "2020 · КП 6,8",
+      "image": "http://kpmock.invalid/poster/medium/1044.svg",
+      "action": "content:request:interaction:item:1044@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1045",
+      "kid": "1045",
+      "title": "Тестовый сериал 1045",
+      "titleFooter": "1996 · КП 7,9",
+      "image": "http://kpmock.invalid/poster/medium/1045.svg",
+      "action": "content:request:interaction:item:1045@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1046",
+      "kid": "1046",
+      "title": "Тестовый фильм 1046",
+      "titleFooter": "2009 · КП 9,0",
+      "image": "http://kpmock.invalid/poster/medium/1046.svg",
+      "action": "content:request:interaction:item:1046@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1047",
+      "kid": "1047",
+      "title": "Тестовый документальный фильм 1047",
+      "titleFooter": "2022 · КП 5,2",
+      "image": "http://kpmock.invalid/poster/medium/1047.svg",
+      "action": "content:request:interaction:item:1047@https://example.github.io/msx/app/index.html",
+      "live": {
+        "type": "setup",
+        "action": "interaction:commit:message:extend:search"
+      }
+    }
+  ]
+}

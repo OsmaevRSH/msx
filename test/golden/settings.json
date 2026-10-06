@@ -1,0 +1,140 @@
+{
+  "type": "list",
+  "flag": "settings",
+  "cache": false,
+  "reuse": false,
+  "headline": "Настройки KinoPub",
+  "template": {
+    "type": "control",
+    "layout": "0,0,12,1"
+  },
+  "items": [
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "headline": "Воспроизведение"
+    },
+    {
+      "id": "s_quality",
+      "label": "Качество (потолок)",
+      "extensionLabel": "1080p",
+      "action": "panel:request:interaction:panel:setting:quality@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_mode",
+      "label": "Тип потока",
+      "extensionLabel": "Авто",
+      "action": "panel:request:interaction:panel:setting:mode@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_loc",
+      "label": "CDN-сервер",
+      "extensionLabel": "По умолчанию",
+      "action": "panel:request:interaction:panel:loc@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_audioLang",
+      "label": "Язык озвучки",
+      "extensionLabel": "Русский",
+      "action": "panel:request:interaction:panel:setting:audioLang@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_audioType",
+      "label": "Тип озвучки",
+      "extensionLabel": "Любой",
+      "action": "panel:request:interaction:panel:setting:audioType@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_authors",
+      "label": "Любимые студии",
+      "extensionLabel": "нет",
+      "action": "panel:request:interaction:panel:setting:authors@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_ac3",
+      "label": "Разрешить AC3",
+      "extensionLabel": "нет",
+      "action": "panel:request:interaction:panel:setting:ac3@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_subs",
+      "label": "Субтитры по умолчанию",
+      "extensionLabel": "Выключены",
+      "action": "panel:request:interaction:panel:setting:subs@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "headline": "Это устройство KinoPub"
+    },
+    {
+      "id": "s_hevc",
+      "label": "HEVC",
+      "extensionLabel": "выкл",
+      "action": "panel:request:interaction:panel:setting:hevc@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_uhd",
+      "label": "4K",
+      "extensionLabel": "выкл",
+      "action": "panel:request:interaction:panel:setting:uhd@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_device",
+      "label": "Название",
+      "extensionLabel": "kpmock TV",
+      "enable": false
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "headline": "Аккаунт"
+    },
+    {
+      "id": "s_account",
+      "label": "Подписка",
+      "extensionLabel": "до 31.01.2026, осталось 30 дн.",
+      "action": "panel:request:interaction:panel:setting:account@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "headline": "Для опытных"
+    },
+    {
+      "id": "s_bufferInit",
+      "label": "Буфер старта",
+      "extensionLabel": "4 с",
+      "action": "panel:request:interaction:panel:setting:bufferInit@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_bufferResume",
+      "label": "Буфер продолжения",
+      "extensionLabel": "6 с",
+      "action": "panel:request:interaction:panel:setting:bufferResume@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_posterSize",
+      "label": "Размер постеров",
+      "extensionLabel": "Средние",
+      "action": "panel:request:interaction:panel:setting:posterSize@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_cardBackgrounds",
+      "label": "Фоны карточек",
+      "extensionLabel": "выкл",
+      "action": "panel:request:interaction:panel:setting:cardBackgrounds@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "headline": "Диагностика"
+    },
+    {
+      "id": "s_probe",
+      "label": "Проверки и журнал",
+      "extensionLabel": "",
+      "action": "content:request:interaction:probe@https://example.github.io/msx/app/index.html"
+    }
+  ]
+}
