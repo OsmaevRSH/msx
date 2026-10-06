@@ -148,6 +148,48 @@ describe("SwrCache", () => {
     });
   });
 
+  it("X-1: after a failed load an entry older than staleMax is served at once with offline, refreshed in the background", async () => {
+    const { clock, cache } = setup();
+    await cache.get("k", PERSIST, loader("old"));
+    await clock.advance(STALE_MAX + 1);
+    await cache.get("k", PERSIST, failNet);
+    const hang = deferred<string>();
+    let calls = 0;
+    const slow = (): Promise<string> => {
+      calls++;
+      return hang.promise;
+    };
+    const want = { value: "old", fetchedAt: FAKE_EPOCH, stale: true, source: "l1", offline: "KP-NET" };
+    assert.deepEqual(await cache.get("k", PERSIST, slow), want);
+    assert.deepEqual(await cache.get("k", PERSIST, slow), want, "the refresh in flight is not waited for either");
+    assert.equal(calls, 1, "one background refresh");
+    hang.resolve("new");
+    await clock.advance(0);
+    assert.deepEqual(await cache.get("k", PERSIST, slow), { value: "new", fetchedAt: FAKE_EPOCH + STALE_MAX + 1, stale: false, source: "l1" });
+  });
+
+  it("X-1: a successful load clears the failure: the next entry older than staleMax waits for the network again", async () => {
+    const { clock, cache } = setup();
+    await cache.get("k", PERSIST, loader("v1"));
+    await clock.advance(STALE_MAX + 1);
+    await cache.get("k", PERSIST, failNet);
+    await cache.get("k", PERSIST, loader("v2"));
+    await clock.advance(0);
+    await clock.advance(STALE_MAX + 1);
+    assert.deepEqual(await cache.get("k", PERSIST, loader("v3")), {
+      value: "v3", fetchedAt: FAKE_EPOCH + 2 * (STALE_MAX + 1), stale: false, source: "net",
+    });
+  });
+
+  it("X-1: staleMax 0 (stream links) is never served after a failure", async () => {
+    const { clock, cache } = setup();
+    const links: Policy = { ttlMs: TTL, staleMaxMs: 0, persist: false };
+    await cache.get("k", links, loader("old"));
+    await clock.advance(TTL);
+    assert.equal((await cache.get("k", links, failNet)).offline, "KP-NET");
+    assert.deepEqual(await cache.get("k", links, loader("new")), { value: "new", fetchedAt: FAKE_EPOCH + TTL, stale: false, source: "net" });
+  });
+
   it("load error without any entry throws a KpError", async () => {
     const { cache } = setup();
     await assert.rejects(cache.get("k", PERSIST, failNet), (e: unknown) => e instanceof KpError && e.code === "KP-NET");

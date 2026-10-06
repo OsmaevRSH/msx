@@ -22,6 +22,8 @@ export interface Got<T> {
 type Hit = { e: Entry<unknown>; source: "l1" | "l2" };
 
 const TAG = "swr";
+/** Сбоев по ключам не больше этого: сессия на ТВ без сети длится часами (CNFR-17). */
+const DOWN_MAX = 256;
 
 function got<T>(hit: Hit, stale: boolean): Got<T> {
   return { value: hit.e.value as T, fetchedAt: hit.e.fetchedAt, stale, source: hit.source };
@@ -42,6 +44,8 @@ export class SwrCache {
   private dirty = new Set<string>();
   /** Пометки этой сессии: значение L2, сохранённое до пометки, поднимается в L1 уже устаревшим. */
   private marks = new Map<string, number>();
+  /** Ключи, последняя загрузка которых не удалась, и код сбоя; успешная загрузка ключ снимает. */
+  private down = new Map<string, KpErrorCode>();
 
   constructor(deps: { l1: Lru; l2: L2; clock: Clock; log: Logger }) {
     this.l1 = deps.l1;
@@ -63,6 +67,13 @@ export class SwrCache {
         if (this.clock.now() - hit.e.fetchedAt < policy.staleMaxMs) {
           this.refresh(key, policy, load, opts?.onRefreshed);
           return got(hit, true);
+        }
+        // X-1: сеть по этому ключу уже отказала — запись старше stale-max отдаётся сразу, сеть ждёт только фон.
+        // Иначе каждый показ и каждая сверка экрана снова ждали бы сбоя (до 9,5 с). stale-max 0 — не отдаётся никогда.
+        const off = this.down.get(key);
+        if (off !== undefined && policy.staleMaxMs > 0) {
+          this.refresh(key, policy, load, opts?.onRefreshed);
+          return { ...got<T>(hit, true), offline: off };
         }
       }
     }
@@ -170,10 +181,15 @@ export class SwrCache {
       const e: Entry<unknown> = { value, bytes: sizeOf(value), fetchedAt: this.clock.now(), staleMarked: this.dirty.has(key) };
       this.l1.set(key, e);
       if (policy.persist) this.l2.put(key, value);
+      this.down.delete(key);
       return e;
     } catch (err) {
+      const code = toKpError(err).code;
+      this.down.delete(key);
+      this.down.set(key, code);
+      if (this.down.size > DOWN_MAX) this.down.delete(this.down.keys().next().value ?? key);
       // Ключ `err`: `code` журнал маскирует (CNFR-20).
-      this.log.warn(TAG, "load_failed", { key, err: toKpError(err).code });
+      this.log.warn(TAG, "load_failed", { key, err: code });
       throw err;
     } finally {
       this.flights.delete(key);

@@ -1,14 +1,18 @@
 import type { AppContext, ListState } from "../app/context.ts";
-import type { ItemSummary, Page } from "../api/models.ts";
+import type { BookmarkFolder, ItemSummary, Page } from "../api/models.ts";
+import { cacheKeys } from "../cache/repo.ts";
 import type { ListSource } from "../cache/repo.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
-import { commitMsg, panelAction } from "../msx/actions.ts";
+import { commitMsg } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { decodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
+import { CARTOONS_GENRE, DEFAULT_SORT, filterOptions, listExtension, listTitle } from "./list-head.ts";
 import { gridTemplate, posterTiles } from "./tiles.ts";
+
+export { SORTS, listTitle } from "./list-head.ts";
 
 // Список раздела S5 (спец. §3.4, §6.3, §11 S5; Plan B §8.3 S5): порции по 48 внутри плагина. Догруженное
 // дописывается в память и перерисовывается только у текущего экрана (CD-16). Возврат к списку отвечает из памяти
@@ -25,9 +29,6 @@ const TAG = "list";
 const PER_PAGE = 48;
 /** Списков в памяти не больше этого: каждая сортировка и жанр — свой ключ, а сессия на ТВ длится часами (CNFR-17). */
 export const MAX_LISTS = 16;
-const DEFAULT_SORT = "-updated";
-/** «Мультфильмы» в меню — жанр 23 (research kinopub-api §6.4). */
-const CARTOONS_GENRE = "23";
 /** 16×8 (`compress`): 8 плиток в ряд; картинка 2×3 и полоса названия (`separate`). */
 const GRID = "0,0,2,4";
 /** Страница MSX при `GRID`: 2 ряда по 8. Начало окна кратно ей — при сдвиге плитки не меняют колонку. */
@@ -42,72 +43,22 @@ const KEEP = 2 * PAGE;
 export const MAX_BYTES = 32 * 1024;
 
 const T = {
-  catalog: "Каталог",
-  cartoons: "Мультфильмы",
-  bookmarks: "Закладки",
-  similar: "Похожие",
-  sortGenre: "Сортировка и жанр",
-  sort: "Сортировка",
-  genre: "Жанр",
-  offline: "нет связи",
   empty: "Ничего не найдено",
+  emptyFolder: "В папке пока пусто. Добавьте фильм кнопкой ☆ на карточке",
   back: "Назад",
 };
 
-export const SORTS: { id: string; title: string }[] = [
-  { id: "-updated", title: "Обновлённые" },
-  { id: "-created", title: "Новые на сайте" },
-  { id: "-kinopoisk_rating", title: "Рейтинг КП" },
-  { id: "-imdb_rating", title: "IMDb" },
-  { id: "-views", title: "Популярные" },
-  { id: "-year", title: "Год" },
-];
-
-const TYPE_TITLES: Readonly<Record<string, string>> = {
-  movie: "Фильмы",
-  serial: "Сериалы",
-  "movie,serial": "Фильмы и сериалы",
-  "documovie,docuserial": "Документальное",
-  documovie: "Документальные фильмы",
-  docuserial: "Документальные сериалы",
-  tvshow: "ТВ-шоу",
-  concert: "Концерты",
-  "3D": "3D",
-};
-
-const SHELF_TITLES = { fresh: "Новинки", popular: "Популярное", hot: "Горячее" } as const;
-
 /**
- * Состояние списка в памяти и то, что не входит в общий `ListState`: заголовок с жанром, пометка офлайна и окно
- * ответа [from, to). `anchor` — край, к которому шёл пользователь, `pivot` — граница последнего сдвига: по одну
- * сторону уже виденные плитки, по другую новые.
+ * Состояние списка в памяти и то, что не входит в общий `ListState`: заголовок, название жанра, всего найдено
+ * (`pagination`), пометка офлайна и окно ответа [from, to). `anchor` — край, к которому шёл пользователь, `pivot` —
+ * граница последнего сдвига: по одну сторону уже виденные плитки, по другую новые.
  */
 type ListEntry = ListState & {
-  headline?: string; offline?: KpErrorCode; from?: number; to?: number; anchor?: "start" | "end"; pivot?: number;
+  headline?: string; genre?: string; total?: number; offline?: KpErrorCode;
+  from?: number; to?: number; anchor?: "start" | "end"; pivot?: number;
 };
 
 type Edge = "up" | "down";
-
-const section = (k: ListKey): string =>
-  k.genre === CARTOONS_GENRE ? T.cartoons : TYPE_TITLES[k.type ?? ""] ?? T.catalog;
-
-/** «Фильмы · Обновлённые», «Новинки · Сериалы», «Закладки», «Похожие». Название жанра добавляет экран. */
-export function listTitle(k: ListKey): string {
-  switch (k.src) {
-    case "catalog": {
-      const sort = SORTS.find((s) => s.id === (k.sort || DEFAULT_SORT));
-      return sort === undefined ? section(k) : `${section(k)} · ${sort.title}`;
-    }
-    case "fresh":
-    case "popular":
-    case "hot":
-      return `${SHELF_TITLES[k.src]} · ${section(k)}`;
-    case "folder":
-      return T.bookmarks;
-    case "similar":
-      return T.similar;
-  }
-}
 
 const bad = (): KpError => new KpError("KP-BAD", "bad list key");
 
@@ -197,6 +148,7 @@ async function extend(ctx: AppContext, key: string, st: ListEntry, w: { from: nu
     return;
   }
   const added = apply(st, page, want);
+  st.total = page.pagination.totalItems;
   // Пока шла загрузка, пользователь мог уйти к началу окна (`up`): тогда новое только дописывается в память.
   if (st.from === w.from && st.to === w.to) shift(st, "down");
   ctx.metrics.record("list:extend", ctx.clock.perf() - t0);
@@ -260,11 +212,13 @@ function apply(st: ListState, page: Page<ItemSummary>, want: number): number {
 
 async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSource): Promise<ListEntry> {
   const [got, genre] = await Promise.all([ctx.repo.listPage(src, 1), genreTitle(ctx, k)]);
+  const folder = folderTitle(ctx, k);
   const raced = recall(ctx, key);
   if (raced !== undefined) return raced;
-  const st: ListEntry = { key, items: [], page: 0, totalPages: 0, done: false, headline: listTitle(k) };
-  if (genre !== undefined) st.headline = `${st.headline} · ${genre}`;
+  const st: ListEntry = { key, items: [], page: 0, totalPages: 0, done: false, headline: folder ?? listTitle(k) };
+  if (genre !== undefined) Object.assign(st, { genre, headline: `${st.headline} · ${genre}` });
   if (got.offline !== undefined) st.offline = got.offline;
+  st.total = got.value.pagination.totalItems;
   apply(st, got.value, 1);
   remember(ctx, key, st);
   return st;
@@ -281,6 +235,12 @@ async function genreTitle(ctx: AppContext, k: ListKey): Promise<string | undefin
     ctx.log.debug(TAG, "genres_failed", { err: toKpError(e).code });
     return undefined;
   }
+}
+
+/** V-31: папка называется своим именем — из кэша списка папок, с которого её открыли; без него — «Закладки». */
+function folderTitle(ctx: AppContext, k: ListKey): string | undefined {
+  if (k.src !== "folder") return undefined;
+  return ctx.cache.peek<BookmarkFolder[]>(cacheKeys.bookmarks())?.value.find((f) => f.id === k.folder)?.title;
 }
 
 /** Из памяти; использованный список становится самым свежим. */
@@ -310,17 +270,15 @@ function prefetchNext(ctx: AppContext, src: ListSource, st: ListState): void {
 }
 
 function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): MsxContentRoot {
-  const filters = k.src !== "folder" && k.src !== "similar";
-  const extension: string[] = [];
-  if (filters) extension.push(`{ico:msx-red:stop} ${k.src === "catalog" ? T.sortGenre : T.genre}`);
-  if (st.offline !== undefined) extension.push(`{ico:msx-yellow:history} ${T.offline}`);
   const root: MsxContentRoot = {
     type: "list", compress: true, flag: listFlag(key), cache: false, reuse: false, headline: st.headline ?? listTitle(k),
   };
-  if (extension.length > 0) root.extension = extension.join("  ");
-  if (filters) root.options = filterOptions(ctx, key, k);
+  const extension = listExtension(k, { genre: st.genre, total: st.total, offline: st.offline !== undefined });
+  if (extension !== undefined) root.extension = extension;
+  const options = filterOptions(ctx, key, k, st.genre);
+  if (options !== undefined) root.options = options;
   if (st.items.length === 0) {
-    root.pages = [{ items: emptyItems() }];
+    root.pages = [{ items: emptyItems(k) }];
     return root;
   }
   root.template = gridTemplate(ctx, GRID);
@@ -365,18 +323,10 @@ export function bytes(v: unknown): number {
   return new TextEncoder().encode(JSON.stringify(v)).length;
 }
 
-/** Красная кнопка (Plan B S6): у полок KinoPub нет параметра сортировки — только жанр. */
-function filterOptions(ctx: AppContext, key: string, k: ListKey): MsxContentRoot {
-  const items: MsxContentItem[] = [];
-  if (k.src === "catalog") items.push({ id: "o_sort", icon: "sort", label: T.sort, action: panelAction(ctx.P, ids.panel("sort", key)) });
-  items.push({ id: "o_genre", icon: "category", label: T.genre, action: panelAction(ctx.P, ids.panel("genre", key)) });
-  return { headline: k.src === "catalog" ? T.sortGenre : T.genre, template: { type: "control", layout: "0,0,8,1" }, items };
-}
-
 /** Страница должна содержать фокусируемый элемент (msx-platform §2.4), поэтому кроме текста — «Назад». */
-function emptyItems(): MsxContentItem[] {
+function emptyItems(k: ListKey): MsxContentItem[] {
   return [
-    { type: "space", layout: "0,0,16,2", text: T.empty },
+    { type: "space", layout: "0,0,16,2", text: k.src === "folder" ? T.emptyFolder : T.empty },
     { id: "b_back", type: "button", layout: "0,2,4,1", label: T.back, action: "back" },
   ];
 }

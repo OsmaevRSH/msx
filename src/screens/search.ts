@@ -1,6 +1,7 @@
 import type { AppContext } from "../app/context.ts";
 import type { ItemSummary, Page } from "../api/models.ts";
 import { toKpError } from "../core/errors.ts";
+import { fmtCount } from "../core/format.ts";
 import { commitMsg } from "../msx/actions.ts";
 import type { MsxContentRoot } from "../msx/types.ts";
 import { ids, msgs } from "../router/ids.ts";
@@ -28,7 +29,8 @@ const MIN_CHARS = 2;
 const MAX_CHARS = 32;
 /** CNFR-10: результат ≤ 1,5 с после последней буквы. */
 const DEBOUNCE_MS = 500;
-const T = { headline: "Поиск" };
+const T = { headline: "Поиск", query: "{ico:search}" };
+const RESULTS = ["результат", "результата", "результатов"] as const;
 
 /**
  * Состояние поиска в памяти и то, что не входит в общий `SearchState`: число найденного, идущая догрузка и
@@ -47,6 +49,8 @@ export async function searchScreen(ctx: AppContext): Promise<MsxContentRoot> {
     root.pages = [keyboardPage(ctx, s)];
     return root;
   }
+  // V-09: в результатах клавиатура уходит вверх, а `headline` MSX у экрана из меню не показывает — запрос в `extension`.
+  root.extension = `${T.query} «${norm(s.query)}» · ${fmtCount(s.total ?? s.items.length, RESULTS)}`;
   const tiles = posterTiles(ctx, s.items);
   if (!s.done) tiles[tiles.length - 1].live = { type: "setup", action: commitMsg(msgs.extend(EXTEND_KEY)) };
   const template = gridTemplate(ctx, GRID);

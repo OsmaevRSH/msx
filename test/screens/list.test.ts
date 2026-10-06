@@ -9,6 +9,7 @@ import { decodeListKey, encodeListKey, ids, listFlag } from "../../src/router/id
 import type { ListKey } from "../../src/router/ids.ts";
 import { errorScreen } from "../../src/screens/error.ts";
 import { MAX_LISTS, SORTS, listScreen, listSource, listTitle, onExtend } from "../../src/screens/list.ts";
+import { chain, panelAction } from "../../src/msx/actions.ts";
 import { gridTemplate, posterTiles } from "../../src/screens/tiles.ts";
 import { catalog } from "../../tools/kpmock/fixtures.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
@@ -36,6 +37,7 @@ const CONCERTS = catalogKey("concert");
 const visible = (type: string): number => catalog().filter((it) => !it.deleted && it.type === type).length;
 
 const items = (s: MsxContentRoot): MsxContentItem[] => s.items ?? [];
+const options = (s: MsxContentRoot): MsxContentItem[] => [...(s.options?.items ?? []), ...(s.options?.pages ?? []).flatMap((p) => p.items)];
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 const EXTEND = "interaction:commit:message:extend:";
 const live = (key: string, dir: "down" | "up", at: number): MsxContentItem["live"] =>
@@ -59,17 +61,14 @@ async function until(pred: () => boolean): Promise<void> {
 describe("listScreen (S5, CC-05)", () => {
   it("«Фильмы»: 48 tiles, live setup → extend on the last one, unique flag, cache:false", async () => {
     const t = await make();
+    assert.equal(visible("movie"), 203);
     const s: MsxContentRoot = await t.request(ids.list(MOVIES));
-    const { items: _items, template, options, ...root } = s;
+    const { items: _items, template, options: _options, ...root } = s;
     assert.deepEqual(root, {
       type: "list", compress: true, flag: listFlag(MOVIES), cache: false, reuse: false,
-      headline: "Фильмы · Обновлённые", extension: "{ico:msx-red:stop} Сортировка и жанр",
+      headline: "Фильмы · Обновлённые", extension: "{ico:msx-red:stop} Обновлённые · 203 фильма",
     });
     assert.deepEqual(template, gridTemplate(t.ctx, "0,0,2,4"));
-    assert.deepEqual(options?.items?.map((i) => i.action), [
-      `panel:request:interaction:panel:sort:${MOVIES}@${TEST_P}`,
-      `panel:request:interaction:panel:genre:${MOVIES}@${TEST_P}`,
-    ]);
     const tiles = items(s);
     assert.equal(tiles.length, 48);
     assert.deepEqual(tiles.at(-1)?.live, live(MOVIES, "down", 48));
@@ -126,7 +125,7 @@ describe("listScreen (S5, CC-05)", () => {
     b.mock.setScenario({ rules: [{ path: ".*", drop: true }] });
     const s = await b.request(ids.list(MOVIES));
     assert.equal(items(s).length, 48);
-    assert.equal(s.extension, "{ico:msx-red:stop} Сортировка и жанр  {ico:msx-yellow:history} нет связи");
+    assert.equal(s.extension, "{ico:msx-red:stop} Обновлённые · 203 фильма  {ico:msx-yellow:history} нет связи");
     assert.deepEqual(items(s).at(-1)?.live, live(MOVIES, "down", 48));
   });
 
@@ -156,13 +155,15 @@ describe("listScreen (S5, CC-05)", () => {
     assert.ok(items(s).every((i) => i.live === undefined));
   });
 
-  it("shelf: «Новинки · Фильмы» from /v1/items/fresh, only the genre option", async () => {
+  it("shelf: «Новые фильмы» as on the home shelf (V-08), /v1/items/fresh, only the genre option", async () => {
     const t = await make();
     const key = encodeListKey({ src: "fresh", type: "movie" });
     const s: MsxContentRoot = await t.request(ids.list(key));
-    assert.equal(s.headline, "Новинки · Фильмы");
-    assert.equal(s.extension, "{ico:msx-red:stop} Жанр");
-    assert.deepEqual(s.options?.items?.map((i) => i.action), [`panel:request:interaction:panel:genre:${key}@${TEST_P}`]);
+    assert.equal(s.headline, "Новые фильмы");
+    assert.match(s.extension ?? "", /^\{ico:msx-red:stop\} Все жанры · \d+ фильм(а|ов)?$/);
+    assert.deepEqual(options(s).map((i) => [i.id, i.label, i.action]), [
+      ["o_genre", "Жанр: все жанры", chain(["back", panelAction(TEST_P, ids.panel("genre", key))])],
+    ]);
     assert.equal(items(s).length, 48);
     assert.equal(pageCalls(t, 1, "/v1/items/fresh"), 1);
   });
@@ -175,6 +176,47 @@ describe("listScreen (S5, CC-05)", () => {
     assert.equal(cartoons.headline, "Мультфильмы · Обновлённые");
     const top = await t.request(ids.list(catalogKey("serial", { sort: "-kinopoisk_rating" })));
     assert.equal(top.headline, "Сериалы · Рейтинг КП");
+  });
+
+  it("V-09, V-11: the extension shows the sort, the genre and the total from pagination", async () => {
+    const t = await make();
+    const key = catalogKey("movie", { genre: "9", sort: "-kinopoisk_rating" });
+    const drama = await t.request(ids.list(key));
+    const total = (await t.run(t.ctx.repo.listPage(listSource(decodeListKey(key)), 1))).value.pagination.totalItems;
+    assert.ok(total > 4, `${total}`);
+    assert.match(drama.extension ?? "", new RegExp(`^\\{ico:msx-red:stop\\} Рейтинг КП · Драма · ${total} фильм(а|ов)?$`));
+    const concerts = await t.request(ids.list(CONCERTS));
+    assert.equal(concerts.extension, "{ico:msx-red:stop} Обновлённые · 30 концертов");
+    const mixed = await t.request(ids.list(catalogKey("movie,serial", { genre: "23" })));
+    assert.match(mixed.extension ?? "", /^\{ico:msx-red:stop\} Обновлённые · Мультфильмы · \d+ шт\.$/);
+  });
+
+  it("V-12: options show the current values; each item closes the options before its panel", async () => {
+    const t = await make();
+    const key = catalogKey("movie", { genre: "9", sort: "-kinopoisk_rating" });
+    const s: MsxContentRoot = await t.request(ids.list(key));
+    assert.equal(s.options?.headline, "Сортировка и жанр");
+    assert.deepEqual(options(s).map((i) => [i.id, i.label, i.action]), [
+      ["o_sort", "Сортировка: Рейтинг КП", chain(["back", panelAction(TEST_P, ids.panel("sort", key))])],
+      ["o_genre", "Жанр: Драма", chain(["back", panelAction(TEST_P, ids.panel("genre", key))])],
+    ]);
+    const cartoons: MsxContentRoot = await t.request(ids.list(catalogKey("movie,serial", { genre: "23" })));
+    assert.deepEqual(options(cartoons).map((i) => i.label), ["Сортировка: Обновлённые", "Жанр: Мультфильмы"]);
+  });
+
+  it("V-31: a folder is titled by its name; an empty folder explains how to fill it", async () => {
+    const t = await make();
+    t.mock.state.folders.set(9, { title: "Смотреть позже", items: [], created: 0 });
+    // Без списка папок в кэше (папку открыли не с «Закладок») — общий заголовок, лишнего запроса нет.
+    assert.equal((await t.request(ids.list(encodeListKey({ src: "folder", folder: 1 })))).headline, "Закладки");
+    t.ctx.state.lists.clear();
+    await t.request(ids.bookmarks());
+    const s = await t.request(ids.list(encodeListKey({ src: "folder", folder: 1 })));
+    assert.deepEqual([s.headline, s.extension], ["Избранное", "2 шт."]);
+    const key = encodeListKey({ src: "folder", folder: 9 });
+    const empty: MsxContentRoot = await t.request(ids.list(key));
+    assert.equal(empty.headline, "Смотреть позже");
+    assert.deepEqual(empty.pages?.[0]?.items.map((i) => i.text ?? i.label), ["В папке пока пусто. Добавьте фильм кнопкой ☆ на карточке", "Назад"]);
   });
 
   it("a bad key → error screen KP-BAD", async () => {
@@ -306,11 +348,13 @@ describe("SORTS and listTitle (for the S6 panels)", () => {
     ]);
   });
 
-  it("titles by source", () => {
+  it("titles by source; shelves of movies and serials are named as on the home (V-08)", () => {
     assert.equal(listTitle({ src: "catalog", type: "concert", sort: "-year" }), "Концерты · Год");
     assert.equal(listTitle({ src: "catalog", type: "documovie,docuserial" }), "Документальное · Обновлённые");
-    assert.equal(listTitle({ src: "popular", type: "serial" }), "Популярное · Сериалы");
-    assert.equal(listTitle({ src: "hot", type: "movie" }), "Горячее · Фильмы");
+    assert.equal(listTitle({ src: "popular", type: "serial" }), "Популярные сериалы");
+    assert.equal(listTitle({ src: "hot", type: "movie" }), "Горячее: фильмы");
+    assert.equal(listTitle({ src: "fresh", type: "serial" }), "Новые сериалы");
+    assert.equal(listTitle({ src: "fresh", type: "concert" }), "Новинки · Концерты");
     assert.equal(listTitle({ src: "folder", folder: 7 }), "Закладки");
     assert.equal(listTitle({ src: "similar", id: 1 }), "Похожие");
   });

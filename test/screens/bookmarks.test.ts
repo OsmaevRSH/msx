@@ -27,7 +27,7 @@ const screen = async (t: TestApp): Promise<MsxContentRoot> => (await t.request(i
 const allItems = (s: MsxContentRoot): MsxContentItem[] => [...(s.items ?? []), ...(s.pages ?? []).flatMap((p) => p.items)];
 
 describe("bookmarksScreen (S11)", () => {
-  it("16×8 list, not cached; «Избранное» is a 4×2 bookmark tile «2 шт.» that opens the folder list", async () => {
+  it("16×8 list, not cached; «Избранное» is a 4×2 tile, the bookmark icon inside its headline (V-30), «2 шт.»", async () => {
     const t = await make();
     const s = await screen(t);
     assert.equal(s.type, "list");
@@ -35,27 +35,30 @@ describe("bookmarksScreen (S11)", () => {
     assert.equal(s.cache, false);
     assert.equal(s.headline, "Закладки");
     assert.equal(s.template?.layout, "0,0,4,2");
-    assert.equal(s.template?.icon, "bookmark");
-    assert.deepEqual(s.items, [{ title: "Избранное", titleFooter: "2 шт.", action: contentAction(P, ids.list(folderKey(1))) }]);
+    assert.equal(s.template?.icon, undefined, "the template icon was drawn over the folder name");
+    assert.equal(s.template?.enumerate, false);
+    assert.deepEqual(s.items, [{ headline: "{ico:bookmark} Избранное", text: "2 шт.", action: contentAction(P, ids.list(folderKey(1))) }]);
   });
 
   it("every folder gets a tile in the server order", async () => {
     const t = await make();
     t.mock.state.folders.set(7, { title: "Позже", items: [FIX.SERIAL_SMALL], created: 0 });
     const s = await screen(t);
-    assert.deepEqual(s.items?.map((i) => [i.title, i.titleFooter, i.action]), [
-      ["Избранное", "2 шт.", contentAction(P, ids.list(folderKey(1)))],
-      ["Позже", "1 шт.", contentAction(P, ids.list(folderKey(7)))],
+    assert.deepEqual(s.items?.map((i) => [i.headline, i.text, i.action]), [
+      ["{ico:bookmark} Избранное", "2 шт.", contentAction(P, ids.list(folderKey(1)))],
+      ["{ico:bookmark} Позже", "1 шт.", contentAction(P, ids.list(folderKey(7)))],
     ]);
   });
 
-  it("no folders — a hint to add a title from the card", async () => {
+  it("no folders — a hint and a normal-sized «Найти фильм» to the search (V-32)", async () => {
     const t = await make();
     t.mock.state.folders.clear();
     const s = await screen(t);
-    const texts = allItems(s).map((i) => i.text);
-    assert.ok(texts.includes("Папок нет. Добавьте тайтл в закладки из карточки"), JSON.stringify(s));
-    assert.ok(s.items === undefined || s.template !== undefined, "MSX не показывает items корня без template");
+    assert.equal(s.items, undefined, "explicit layouts: MSX lays root items out by the template");
+    assert.deepEqual(s.pages?.[0]?.items.map((i) => [i.type, i.layout, i.text ?? i.label, i.action]), [
+      ["space", "0,0,16,2", "Здесь появятся папки с закладками. Добавьте фильм кнопкой ☆ на карточке", undefined],
+      ["button", "0,2,4,1", "{ico:search} Найти фильм", contentAction(P, ids.search())],
+    ]);
   });
 
   it("folder contents are the S5 list of that folder (paging and window come from list.ts)", async () => {

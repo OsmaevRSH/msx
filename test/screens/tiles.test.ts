@@ -1,7 +1,7 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ItemSummary } from "../../src/api/models.ts";
-import { gridTemplate, posterTile, posterTiles } from "../../src/screens/tiles.ts";
+import { gridTemplate, posterTile, posterTiles, titleLines } from "../../src/screens/tiles.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 
@@ -25,25 +25,43 @@ const summary = (over: Partial<ItemSummary> = {}): ItemSummary => ({
   ...over,
 });
 
+describe("titleLines (V-10)", () => {
+  it("up to 12 characters — one line", () => {
+    assert.deepEqual(titleLines("Брат 2"), { title: "Брат 2" });
+    assert.deepEqual(titleLines("Достучаться!"), { title: "Достучаться!" });
+  });
+
+  it("longer — split at the last word boundary within 12 characters, the rest white in titleFooter", () => {
+    assert.deepEqual(titleLines("Тестовый фильм 1001"), { title: "Тестовый", titleFooter: "{col:msx-white}фильм 1001" });
+    assert.deepEqual(titleLines("Властелин колец: Братство кольца"), { title: "Властелин", titleFooter: "{col:msx-white}колец: Братство кольца" });
+    assert.deepEqual(titleLines("Москва слезам не верит"), { title: "Москва", titleFooter: "{col:msx-white}слезам не верит" });
+  });
+
+  it("a first word longer than a line stays whole (MSX adds «…»); one long word — one line", () => {
+    assert.deepEqual(titleLines("Достопримечательности Москвы"), { title: "Достопримечательности", titleFooter: "{col:msx-white}Москвы" });
+    assert.deepEqual(titleLines("Достопримечательности"), { title: "Достопримечательности" });
+  });
+});
+
 describe("posterTile", () => {
-  it("id, kid, Russian title, year and КП rating with a comma, medium poster, action to the card", async () => {
+  it("id, kid, Russian title in two lines, year and КП rating in the stamp, medium poster, action to the card", async () => {
     const t = await make();
     assert.deepEqual(posterTile(t.ctx, summary()), {
-      id: "i1001", kid: "1001", title: "Тестовый фильм 1001", titleFooter: "2001 · КП 7,9",
+      id: "i1001", kid: "1001", title: "Тестовый", titleFooter: "{col:msx-white}фильм 1001", stamp: "2001 · 7,9",
       image: "https://cdn.test/m/1001.jpg", action: `content:request:interaction:item:1001@${TEST_P}`,
     });
   });
 
-  it("empty footer parts are dropped; a whole rating keeps one decimal", async () => {
+  it("empty stamp parts are dropped; a whole rating keeps one decimal", async () => {
     const t = await make();
     const { year: _y, ...noYear } = summary();
     const { kpRating: _r, ...noRating } = summary();
-    assert.equal(posterTile(t.ctx, noYear).titleFooter, "КП 7,9");
-    assert.equal(posterTile(t.ctx, noRating).titleFooter, "2001");
-    assert.equal(posterTile(t.ctx, summary({ kpRating: 0 })).titleFooter, "2001");
-    assert.equal(posterTile(t.ctx, summary({ kpRating: 8 })).titleFooter, "2001 · КП 8,0");
+    assert.equal(posterTile(t.ctx, noYear).stamp, "7,9");
+    assert.equal(posterTile(t.ctx, noRating).stamp, "2001");
+    assert.equal(posterTile(t.ctx, summary({ kpRating: 0 })).stamp, "2001");
+    assert.equal(posterTile(t.ctx, summary({ kpRating: 8 })).stamp, "2001 · 8,0");
     const { year: _y2, kpRating: _r2, ...bare } = summary();
-    assert.ok(!("titleFooter" in posterTile(t.ctx, bare)));
+    assert.ok(!("stamp" in posterTile(t.ctx, bare)));
   });
 
   it("badge «4K» only for quality ≥ 2160", async () => {
@@ -65,7 +83,7 @@ describe("posterTile", () => {
     const got = await t.run(t.ctx.repo.item(2004));
     const tile = posterTile(t.ctx, got.value);
     assert.equal(tile.badge, "4K");
-    assert.equal(tile.title, "Тестовый фильм «12 озвучек»");
+    assert.deepEqual([tile.title, tile.titleFooter], ["Тестовый", "{col:msx-white}фильм «12 озвучек»"]);
     assert.equal(tile.image, got.value.posters.medium);
   });
 
@@ -80,9 +98,14 @@ describe("gridTemplate", () => {
   it("separate glass tile with cover and round corners; focus prefetch selection by default (CD-10)", async () => {
     const t = await make();
     assert.deepEqual(gridTemplate(t.ctx, "0,0,2,4"), {
-      type: "separate", layout: "0,0,2,4", color: "msx-glass", imageFiller: "cover", round: true,
+      type: "separate", layout: "0,0,2,4", color: "msx-glass", imageFiller: "cover", round: true, enumerate: false,
       selection: { action: "interaction:commit:message:pf:{context:kid}" },
     });
+  });
+
+  it("V-11: tiles are not enumerated — MSX hides its «(57/96)» counter of the window", async () => {
+    const t = await make();
+    assert.equal(gridTemplate(t.ctx, "0,0,2,4").enumerate, false);
   });
 
   it("focusPrefetch: off → no selection", async () => {

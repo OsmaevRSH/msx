@@ -11,16 +11,33 @@ export function fmtClock(sec: number): string {
   return h > 0 ? `${h}:${pad2(m)}:${ss}` : `${m}:${ss}`;
 }
 
-/** 2820 → "47 мин", 7260 → "2 ч 01 мин". Любая положительная длительность — не меньше 1 мин. */
+/** Целые минуты; любая положительная длительность — не меньше 1 мин. */
+const wholeMinutes = (sec: number): number => (Number.isFinite(sec) && sec > 0 ? Math.max(1, Math.round(sec / 60)) : 0);
+
+/** 2820 → "47 мин", 7260 → "2 ч 01 мин". */
 export function fmtMinutes(sec: number): string {
-  const s = Number.isFinite(sec) && sec > 0 ? sec : 0;
-  const total = s > 0 ? Math.max(1, Math.round(s / 60)) : 0;
+  const total = wholeMinutes(sec);
   if (total < 60) return `${total} мин`;
   return `${Math.floor(total / 60)} ч ${pad2(total % 60)} мин`;
 }
 
+/**
+ * Остаток для `stamp` постера (V-05): MSX пишет его прописными и режет после ~8 знаков, поэтому без «осталось» и
+ * с «м» после часов. 2820 → "47 мин", 4200 → "1 ч 10 м", 7200 → "2 ч".
+ */
 export function fmtRemaining(sec: number): string {
-  return `осталось ${fmtMinutes(sec)}`;
+  const total = wholeMinutes(sec);
+  if (total < 60) return `${total} мин`;
+  const m = total % 60;
+  return m === 0 ? `${total / 60} ч` : `${Math.floor(total / 60)} ч ${m} м`;
+}
+
+/** Русское множественное число: 1 фильм, 2 фильма, 5 фильмов; разряды — неразрывным пробелом (1 234). */
+export function fmtCount(n: number, forms: readonly [string, string, string]): string {
+  const v = Math.max(0, Math.floor(n));
+  const [ten, hundred] = [v % 10, v % 100];
+  const form = ten === 1 && hundred !== 11 ? forms[0] : ten >= 2 && ten <= 4 && (hundred < 12 || hundred > 14) ? forms[1] : forms[2];
+  return `${String(v).replace(/\B(?=(\d{3})+$)/g, "\u00a0")} ${form}`;
 }
 
 /** Unix-секунды → "DD.MM.YYYY" в местном времени ТВ. */
