@@ -187,3 +187,60 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     assert.equal(t.storage.getItem("kp.auth.pair"), pair, "a network failure of refresh does not touch the pair");
   });
 });
+
+// Этап 33b: API заблокирован по SNI или упал VPN на роутере — TLS-рукопожатие висит, fetch не отвечает ничем (в отличие
+// от обрыва выше, где `TypeError` приходит сразу). Раньше экран ждал таймауты 8–15 с и повторы: «Нет связи» через 15–54 с.
+describe("CC-13 end to end: the API hangs (SNI block, VPN down; stage 33b)", () => {
+  const HANG: Partial<Scenario> = { rules: [{ path: ".*", hang: true }] };
+  const NO_ANSWER_MS = 6000;
+
+  /** Всё висит: ждать ответы в реальном времени перед каждым поддельным таймером незачем. */
+  function hang(t: TestApp): void {
+    t.mock.setScenario(HANG);
+    t.clock.ioGraceMs = 20;
+  }
+
+  async function timed(t: TestApp, dataId: string): Promise<{ s: MsxContentRoot; ms: number }> {
+    const t0 = t.clock.perf();
+    const s = (await t.request(dataId)) as MsxContentRoot;
+    return { s, ms: t.clock.perf() - t0 };
+  }
+
+  it("logged out: «Вход» says «Нет связи … Проверьте VPN» (KP-NET) after 6 s, not after the OAuth timeout of 15 s", async () => {
+    const t = await make({ loggedIn: false });
+    hang(t);
+    const { s, ms } = await timed(t, ids.login());
+    assert.equal(ms, NO_ANSWER_MS);
+    assert.equal(errorCode(s), "KP-NET");
+    assert.match(pageItems(s)[0]?.text ?? "", /^Нет связи с KinoPub\. Проверьте VPN/);
+  });
+
+  it("no cache: a list, a card, its season and bookmarks — each says KP-NET 6 s after its request; no no-cors probe", async () => {
+    const t = await make();
+    hang(t);
+    for (const dataId of [ids.list(MOVIES), ids.item(FIX.SERIAL_SMALL), ids.season(FIX.SERIAL_SMALL, 1), ids.bookmarks()]) {
+      const { s, ms } = await timed(t, dataId);
+      assert.equal(errorCode(s), "KP-NET", dataId);
+      assert.equal(ms, NO_ANSWER_MS, dataId);
+    }
+    assert.deepEqual(probes(t), [], "a hang is not a TypeError");
+  });
+
+  it("a list kept in L2 for 8 days → that list with «нет связи» after 6 s; one without cache → KP-NET", async () => {
+    const storage = new MemoryStorage();
+    const a = await make({ storage });
+    const fresh = (await a.request(ids.list(SERIALS))) as MsxContentRoot;
+    await waitFor(a, () => (a.storage.writes.some((k) => k.startsWith("kp.l2.list:"))), "first page in L2");
+
+    const b = await make({ mock: a.mock, storage, clock: new FakeClock(a.clock.now() + WEEK_MS + 86_400_000) });
+    hang(b);
+    const cached = await timed(b, ids.list(SERIALS));
+    assert.equal(cached.ms, NO_ANSWER_MS);
+    assert.equal(errorCode(cached.s), undefined);
+    assert.deepEqual(cached.s.items?.map((i) => i.kid), fresh.items?.map((i) => i.kid));
+    assert.match(cached.s.extension ?? "", /нет связи/);
+    const none = await timed(b, ids.list(MOVIES));
+    assert.equal(errorCode(none.s), "KP-NET");
+    assert.equal(none.ms, NO_ANSWER_MS);
+  });
+});

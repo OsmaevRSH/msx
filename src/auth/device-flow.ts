@@ -1,8 +1,9 @@
 import type { DeviceTokenResult, KpApi } from "../api/client.ts";
 import type { DeviceCode, TokenPairRaw } from "../api/models.ts";
+import { NO_ANSWER_MS } from "../api/transport.ts";
 import type { Clock, TimerId } from "../core/clock.ts";
 import { toKpError } from "../core/errors.ts";
-import type { KpErrorCode } from "../core/errors.ts";
+import type { KpError, KpErrorCode } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { AuthService } from "./auth-service.ts";
 
@@ -20,6 +21,8 @@ const TAG = "login";
 const MIN_INTERVAL_SEC = 5;
 const SLOW_DOWN_STEP_MS = 5000;
 const FALLBACK_TITLE = "MSX TV";
+
+type CodeResult = { dc: DeviceCode } | { err: KpError };
 
 /**
  * Вход по коду на ТВ (спец. §7.1, research kinopub-api §4.2–4.3). Опрос — только по `clock.setTimeout`
@@ -88,18 +91,49 @@ export class DeviceFlow {
     return st;
   }
 
+  /**
+   * Этап 33b: код не пришёл за `NO_ANSWER_MS` — сразу `KP-NET` («Нет связи … Проверьте VPN»), а не через таймаут
+   * OAuth (15 с): так выглядит висящее соединение (блокировка по SNI, упавший VPN). Запрос не обрывается и не
+   * повторяется (OAuth вслепую не повторяем, CM-01): код, пришедший позже, принимается и объявляется через `onChange`
+   * — экран входа перерисуется с ним; поздний отказ ничего не меняет, экран уже показывает ошибку.
+   */
   private async newCode(announce: boolean): Promise<LoginState> {
     const seq = this.halt();
-    let dc: DeviceCode;
-    try {
-      dc = await this.d.api.deviceCode();
-    } catch (e) {
-      if (seq !== this.seq) return this.st;
-      const err = toKpError(e);
-      this.d.log.warn(TAG, "device_code_failed", { err: err.code, status: err.status });
-      return this.set({ phase: "error", code: err.code }, announce);
-    }
+    const req: Promise<CodeResult> = this.d.api.deviceCode().then((dc) => ({ dc }), (e: unknown) => ({ err: toKpError(e) }));
+    const r = await this.orSilence(req);
+    if (r !== undefined) return this.apply(seq, r, announce);
     if (seq !== this.seq) return this.st;
+    this.d.log.warn(TAG, "device_code_no_answer", { ms: NO_ANSWER_MS });
+    void req.then((late) => {
+      if (seq !== this.seq) return;
+      if ("dc" in late) {
+        this.d.log.info(TAG, "device_code_late");
+        this.apply(seq, late, true);
+      } else {
+        this.d.log.warn(TAG, "device_code_failed", { err: late.err.code, status: late.err.status, late: true });
+      }
+    });
+    return this.set({ phase: "error", code: "KP-NET" }, announce);
+  }
+
+  /** Результат `p` или `undefined`, если он не пришёл за `NO_ANSWER_MS`. */
+  private orSilence<T>(p: Promise<T>): Promise<T | undefined> {
+    return new Promise((resolve) => {
+      const id = this.d.clock.setTimeout(() => resolve(undefined), NO_ANSWER_MS);
+      void p.then((v) => {
+        this.d.clock.clearTimeout(id);
+        resolve(v);
+      });
+    });
+  }
+
+  private apply(seq: number, r: CodeResult, announce: boolean): LoginState {
+    if (seq !== this.seq) return this.st;
+    if ("err" in r) {
+      this.d.log.warn(TAG, "device_code_failed", { err: r.err.code, status: r.err.status });
+      return this.set({ phase: "error", code: r.err.code }, announce);
+    }
+    const { dc } = r;
     this.code = dc.code;
     this.intervalMs = Math.max(dc.interval, MIN_INTERVAL_SEC) * 1000;
     this.codeExpiresAt = this.d.clock.now() + dc.expiresIn * 1000;

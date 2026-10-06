@@ -1,5 +1,6 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { setTimeout as realSleep } from "node:timers/promises";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { loginScreen, onLoginAct } from "../../src/screens/login.ts";
 import { FAKE_EPOCH } from "../helpers/fake-clock.ts";
@@ -38,6 +39,8 @@ const buttons = (s: MsxContentRoot): { label?: string; action?: string }[] =>
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 const mockCodes = (t: TestApp): string[] => [...t.mock.state.deviceCodes.values()].map((r) => r.userCode);
 const oauthCalls = (t: TestApp): number => t.mock.calls().filter((c) => c.path === "/oauth2/device").length;
+const codeGrants = (t: TestApp): number =>
+  t.mock.calls().filter((c) => c.path === "/oauth2/device" && new URLSearchParams(c.query).get("grant_type") === "device_code").length;
 const hhmm = (ms: number): string => {
   const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -141,6 +144,34 @@ describe("loginScreen (S2)", () => {
     ]);
     const again = await t.request("login");
     assert.equal(codeOf(again), mockCodes(t)[0]);
+  });
+
+  // Этап 33b: API заблокирован по SNI (упал VPN) — TLS-рукопожатие висит. Раньше «Нет связи» ждали таймаут OAuth 15 с.
+  it("the code request hangs → «Нет связи … Проверьте VPN» (KP-NET) after 6 s, not after the OAuth timeout", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/oauth2/device$", hang: true }] });
+    const t0 = t.clock.perf();
+    const s = await t.request("login");
+    assert.equal(t.clock.perf() - t0, 6000);
+    assert.equal(s.flag, "login");
+    assert.equal(codeOf(s), undefined);
+    assert.ok(texts(s).includes("Нет связи с KinoPub. Проверьте VPN{br}Код: KP-NET"), JSON.stringify(texts(s)));
+    assert.deepEqual(buttons(s)[0], { label: "Повторить", action: RETRY });
+    assert.equal(codeGrants(t), 1);
+  });
+
+  it("a code that comes after the verdict (slow but alive network) replaces the error by reload:content", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/oauth2/device$", hang: true, times: 1 }] });
+    assert.equal(codeOf(await t.request("login")), undefined);
+    t.mock.release();
+    const reloaded = (): boolean => actions(t).includes("reload:content");
+    await t.run((async () => {
+      for (let i = 0; i < 300 && !reloaded(); i++) await realSleep(10);
+    })());
+    assert.ok(reloaded(), "the late code redraws the current login screen");
+    assert.equal(codeOf(await t.request("login")), mockCodes(t)[0]);
+    assert.equal(codeGrants(t), 1, "the late code is shown, not a new one");
   });
 
   it("two requests at once share one code", async () => {

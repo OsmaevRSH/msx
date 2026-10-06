@@ -39,7 +39,8 @@ describe("Transport", () => {
   let mock: MockServer;
   let token = "";
 
-  const rig = (): Rig => {
+  /** `script` — подмена сети для отдельных URL; `next` — настоящий путь через эмулятор CORS к mock. */
+  const rig = (script?: (url: string, init: RequestInit, next: FetchLike) => Promise<Response>): Rig => {
     const clock = new FakeClock();
     const log = new Logger(clock);
     const metrics = new Metrics();
@@ -50,7 +51,7 @@ describe("Transport", () => {
     const inits: { url: string; init: RequestInit }[] = [];
     const fetch: FetchLike = (url, init) => {
       inits.push({ url, init });
-      return cors(url, init);
+      return script === undefined ? cors(url, init) : script(url, init, cors);
     };
     return { t: new Transport({ fetch, clock, log, metrics, flags, limiter, breaker }), clock, log, metrics, flags, limiter, breaker, cors, inits };
   };
@@ -267,16 +268,6 @@ describe("Transport", () => {
       assert.equal(calls().filter((c) => c === PROBE).length, 0);
     });
 
-    it("a mock reply slower than the timeout → KP-NET by FakeClock, 3 attempts", async () => {
-      // Ответ mock дольше ioGraceMs (250 мс реального времени) FakeClock считает долгим: таймаут 8 с срабатывает раньше.
-      mock.setScenario({ rules: [{ path: "^/v1/items$", delayMs: 1500 }] });
-      const r = rig();
-      const t0 = r.clock.perf();
-      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-NET", "timeout"));
-      assert.equal(r.clock.perf() - t0, 8000 + 3000 + 8000 + 6000 + 8000);
-      assert.equal(mock.calls().length, 3, "a timeout is not a TypeError: no probe");
-    });
-
     it("an open breaker fails fast with KP-NET and sends nothing", async () => {
       const r = rig();
       for (let i = 0; i < 5; i++) r.breaker.failure();
@@ -301,6 +292,119 @@ describe("Transport", () => {
       assert.equal(await r.clock.runUntilSettled(r.t.probeNoCors()), false);
       assert.deepEqual(calls(), [PROBE, PROBE]);
       assert.ok(r.inits.every((i) => i.init.mode === "no-cors" && i.init.credentials === "omit"));
+    });
+  });
+
+  // Этап 33b: блокировка по SNI или упавший VPN — TLS-рукопожатие висит, fetch не отвечает ничем. Раньше экран ждал
+  // таймаут (8 с, у OAuth и карточки 15 с) и повторы 3 с и 6 с: «Нет связи» — через 33 с, у карточки через 54 с.
+  describe("a hung connection (stage 33b: SNI block, VPN down)", () => {
+    const NO_ANSWER_MS = 6000;
+    const hang = (path: string): void => mock.setScenario({ rules: [{ path, hang: true }] });
+    /** Всё, что дальше уходит в сеть, висит: ждать ответы в реальном времени перед каждым поддельным таймером незачем. */
+    const silent = (r: Rig): Rig => {
+      r.clock.ioGraceMs = 20;
+      return r;
+    };
+    const authed = (path: string, over: Partial<ApiRequest> = {}): ApiRequest => get(path, { query: { access_token: token }, ...over });
+    /** Попытка висит, пока транспорт её не оборвёт (как fetch с AbortController). */
+    const hung = (init: RequestInit): Promise<Response> => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")));
+    });
+    /** Ждать (поддельное время идёт), пока условие не выполнится. */
+    const until = async (cond: () => boolean): Promise<void> => {
+      while (!cond()) await new Promise<void>((resolve) => setImmediate(resolve));
+    };
+    const logged = (r: Rig, re: RegExp): boolean => r.log.entries().some((e) => e.tag === "api" && re.test(e.msg));
+
+    it("nothing has ever answered: KP-NET no-answer after 6 s without retries; the fetch itself runs on to its own timeout", async () => {
+      hang("^/v1/items$");
+      const r = silent(rig());
+      const t0 = r.clock.perf();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-NET", "no-answer"));
+      assert.equal(r.clock.perf() - t0, NO_ANSWER_MS);
+      assert.deepEqual(calls(), ["GET /v1/items"]);
+      const signal = r.inits[0]?.init.signal as AbortSignal;
+      assert.equal(signal.aborted, false, "a slow but alive network may still answer it");
+      await r.clock.advance(8000 - NO_ANSWER_MS);
+      assert.equal(signal.aborted, true, "its usual timeout of 8 s ends it");
+      await r.clock.advance(60_000);
+      assert.deepEqual(calls(), ["GET /v1/items"], "no retries, no no-cors probe");
+      assert.equal(r.metrics.summary().counters["api:no_answer"], 1);
+      assert.ok(logged(r, /^GET \/v1\/items no-answer 6000ms fg$/), JSON.stringify(r.log.entries()));
+    });
+
+    it("the verdict also ends requests waiting in the limiter queue; those never reach the network", async () => {
+      hang("^/v1/items");
+      const r = silent(rig());
+      const sends = [1, 2, 3, 4, 5].map((id) => r.t.send(get(`/v1/items/${id}`)).catch((e: unknown) => e));
+      const t0 = r.clock.perf();
+      const errs = await r.clock.runUntilSettled(Promise.all(sends));
+      assert.equal(r.clock.perf() - t0, NO_ANSWER_MS);
+      for (const e of errs) kp("KP-NET", "no-answer")(e);
+      assert.equal(mock.calls().length, 3, "3 in flight (CNFR-18), 2 waited in the queue");
+      await r.clock.advance(60_000);
+      assert.equal(mock.calls().length, 3, "the abandoned ones are not sent later");
+      assert.deepEqual(r.limiter.inFlight(), { fg: 0, bg: 0 });
+    });
+
+    it("a late answer to an abandoned request proves the link: the next slow request is not cut at 6 s", async () => {
+      hang("^/v1/items$");
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(authed("/v1/items"))), kp("KP-NET", "no-answer"));
+      assert.equal(mock.release(), 1);
+      await r.clock.runUntilSettled(until(() => logged(r, /^GET \/v1\/items 200 /)));
+      hang("^/v1/items$");
+      const t0 = r.clock.perf();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(authed("/v1/items"))), kp("KP-NET", "timeout"));
+      assert.equal(r.clock.perf() - t0, 8000, "the full timeout; nothing answered meanwhile — no blind retry");
+      assert.equal(mock.calls().length, 2);
+    });
+
+    it("a timeout while KinoPub answers other requests is retried after 3 s and 6 s (spec §5.3)", async () => {
+      // Каждая попытка /v1/items висит, а KinoPub тем временем отвечает на /v1/types: связь жива, потерян один ответ.
+      const r: Rig = rig((url, init, next) => {
+        if (!url.includes("/v1/items")) return next(url, init);
+        void r.t.send(authed("/v1/types")).catch(() => undefined);
+        return hung(init);
+      });
+      const t0 = r.clock.perf();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-NET", "timeout"));
+      assert.equal(r.clock.perf() - t0, 8000 + 3000 + 8000 + 6000 + 8000);
+      assert.equal(r.inits.filter((i) => i.url.includes("/v1/items")).length, 3);
+      assert.equal(calls().filter((c) => c === PROBE).length, 0, "a timeout is not a TypeError: no probe");
+    });
+
+    it("the link goes quiet mid-session: the first timeout is final at 8 s, the requests waiting behind it end at once", async () => {
+      const r = rig();
+      await r.clock.runUntilSettled(r.t.send(authed("/v1/types")));
+      hang("^/v1/items");
+      silent(r);
+      const sends = [1, 2, 3, 4, 5].map((id) => r.t.send(get(`/v1/items/${id}`)).catch((e: unknown) => e));
+      const t0 = r.clock.perf();
+      const errs = await r.clock.runUntilSettled(Promise.all(sends));
+      assert.equal(r.clock.perf() - t0, 8000);
+      for (const e of errs) kp("KP-NET")(e);
+      assert.equal(mock.calls().filter((c) => c.path.startsWith("/v1/items")).length, 3);
+      // Следующий запрос на молчащей связи — вердикт через 6 с.
+      const t1 = r.clock.perf();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items/6"))), kp("KP-NET", "no-answer"));
+      assert.equal(r.clock.perf() - t1, NO_ANSWER_MS);
+    });
+
+    it("retry: none is never abandoned (refresh rotates the pair, CM-01): it waits for its own timeout", async () => {
+      hang("^/oauth2/token$");
+      const r = silent(rig());
+      const t0 = r.clock.perf();
+      const refresh: ApiRequest = { method: "POST", path: "/oauth2/token", retry: "none", timeoutMs: 15_000, cls: "fg" };
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(refresh)), kp("KP-NET", "timeout"));
+      assert.equal(r.clock.perf() - t0, 15_000);
+    });
+
+    it("TypeErrors are not a hang: 3 attempts and the no-cors probe as before (CC-13)", async () => {
+      mock.setScenario({ rules: [{ path: ".*", drop: true }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-NET", "network"));
+      assert.deepEqual(calls(), ["GET /v1/items", "GET /v1/items", "GET /v1/items", PROBE]);
     });
   });
 

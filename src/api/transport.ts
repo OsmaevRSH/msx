@@ -1,5 +1,5 @@
 import { sleep } from "../core/clock.ts";
-import type { Clock } from "../core/clock.ts";
+import type { Clock, TimerId } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { Metrics } from "../core/metrics.ts";
@@ -70,9 +70,31 @@ const PROBE_PATH = "/v1/types?access_token=x";
 const PROBE_TIMEOUT_MS = 8000;
 const JSON_TYPE = /^application\/(?:[\w.+-]+\+)?json\s*(?:;|$)/i;
 
+/**
+ * Этап 33b: столько ждёт ответа запрос на связи без признаков жизни, прежде чем экран получит «Нет связи» (`KP-NET`).
+ * Висящее TLS-рукопожатие (блокировка по SNI, упавший VPN) fetch не отличает от медленного ответа, поэтому таймауты
+ * §5.2 (8 и 15 с) с повторами давали «Нет связи» только через 33–54 с.
+ */
+export const NO_ANSWER_MS = 6000;
+
+/** `quiet` — KinoPub не ответил ничем (таймаут): признак висящей связи, в отличие от `TypeError`. */
 type Outcome =
   | { ok: true; res: ApiResponse }
-  | { ok: false; err: KpError; retry: boolean; pauseMs?: number };
+  | { ok: false; err: KpError; retry: boolean; pauseMs?: number; quiet?: boolean };
+
+/** Попытка `send`, которую можно закончить вердиктом «нет ответа», не дожидаясь её fetch. */
+interface Wait {
+  req: ApiRequest;
+  /** Когда встала в очередь лимитера: ожидание в очереди тоже считается. */
+  at: number;
+  timer: TimerId | undefined;
+  /** Вердикт вынесен: из очереди попытка не уходит в сеть, а ответ уже идущей никто не ждёт. */
+  abandoned: boolean;
+  end(o: Outcome): void;
+}
+
+/** Попытка, брошенная до отправки: лимитер даёт ей слот, она сразу его возвращает. */
+const SKIPPED: Outcome = { ok: false, err: new KpError("KP-NET", "no-answer"), retry: false };
 
 const pathOnly = (path: string): string => path.split("?")[0] as string;
 const metricPath = (path: string): string => pathOnly(path).replace(/\/\d+(?=\/|$)/g, "/:id");
@@ -91,6 +113,13 @@ export class Transport {
   private breaker: Breaker;
   private typeErrors = 0;
   private probing: Promise<boolean> | undefined;
+  /** Сколько ответов KinoPub получено (любой HTTP-статус, проба `no-cors`) и когда последний (`perf`). */
+  private heardN = 0;
+  private heardAt = Number.NEGATIVE_INFINITY;
+  /** `heardN` на момент последнего таймаута: связь жива, только если ответ был и после него. */
+  private quietMark = 0;
+  /** Ждущие попытки `retry: "auto"` — кандидаты на вердикт «нет ответа». */
+  private waits = new Set<Wait>();
 
   constructor(deps: TransportDeps) {
     this.fetch = deps.fetch;
@@ -102,11 +131,15 @@ export class Transport {
     this.breaker = deps.breaker;
   }
 
-  /** 2xx и 4xx — ответ (кроме 401, 404, 429); остальное — KpError. Повторы 3 с и 6 с — только при `retry: "auto"`. */
+  /**
+   * 2xx и 4xx — ответ (кроме 401, 404, 429); остальное — KpError. Повторы 3 с и 6 с — только при `retry: "auto"`;
+   * таймаут повторяется, только если KinoPub за это время отвечал на другие запросы. На связи без признаков жизни
+   * запрос `retry: "auto"` без ответа за `NO_ANSWER_MS` — `KP-NET` (этап 33b).
+   */
   async send(req: ApiRequest): Promise<ApiResponse> {
     const attempts = req.retry === "auto" ? RETRY_PAUSES_MS.length + 1 : 1;
     for (let i = 0; ; i++) {
-      const out = await this.limiter.run(req.prio ?? req.cls, () => this.attempt(req));
+      const out = await this.queue(req);
       if (out.ok) return out.res;
       if (!out.retry || i + 1 >= attempts) throw out.err;
       await sleep(this.clock, out.pauseMs ?? (RETRY_PAUSES_MS[i] as number));
@@ -141,6 +174,88 @@ export class Transport {
     return req.method === "POST" && this.flags.get().postBody === "form";
   }
 
+  /** Связь жива: KinoPub ответил хоть что-то после последнего таймаута (на старте — ещё не ответил). */
+  private live(): boolean {
+    return this.heardN > this.quietMark;
+  }
+
+  private heard(): void {
+    this.heardN += 1;
+    this.heardAt = this.clock.perf();
+  }
+
+  /**
+   * Одна попытка через лимитер. Запрос `retry: "auto"` на связи без признаков жизни, который за `NO_ANSWER_MS` (вместе
+   * с очередью) ничего не услышал, заканчивается `KP-NET` «no-answer» без повторов, но его fetch не обрывается раньше
+   * своего таймаута: медленная, но живая сеть ответит, ответ докажет связь (и прогреет соединение браузера) для
+   * следующего запроса. Бросить так можно только идемпотентный запрос (спец. §5.3, CM-01): ответ refresh, опроса входа
+   * или `toggle` терять нельзя — они ждут свой таймаут.
+   */
+  private queue(req: ApiRequest): Promise<Outcome> {
+    return new Promise<Outcome>((resolve, reject) => {
+      let done = false;
+      const settle = (): boolean => {
+        if (done) return false;
+        done = true;
+        this.waits.delete(w);
+        if (w.timer !== undefined) this.clock.clearTimeout(w.timer);
+        w.timer = undefined;
+        return true;
+      };
+      const w: Wait = {
+        req, at: this.clock.perf(), timer: undefined, abandoned: false,
+        end: (o) => {
+          if (settle()) resolve(o);
+        },
+      };
+      if (req.retry === "auto") {
+        this.waits.add(w);
+        if (!this.live()) this.arm(w);
+      }
+      const run = async (): Promise<Outcome> => {
+        if (w.abandoned) return SKIPPED;
+        const o = await this.attempt(req);
+        w.end(o);
+        // После `end` (своя попытка закончилась таймаутом, а не вердиктом) и до того, как лимитер отдаст слот
+        // следующей в очереди: ждущие получают вердикт раньше, чем уйдут в сеть.
+        if (!o.ok && o.quiet === true) this.quiet();
+        return o;
+      };
+      this.limiter.run(req.prio ?? req.cls, run).catch((e: unknown) => {
+        if (settle()) reject(e);
+      });
+    });
+  }
+
+  /** Срок вердикта — `NO_ANSWER_MS` тишины: с постановки в очередь или с последнего ответа KinoPub, что позже. */
+  private arm(w: Wait): void {
+    const left = Math.max(w.at, this.heardAt) + NO_ANSWER_MS - this.clock.perf();
+    if (left <= 0) {
+      this.noAnswer(w);
+      return;
+    }
+    w.timer = this.clock.setTimeout(() => {
+      w.timer = undefined;
+      if (w.abandoned || !this.waits.has(w) || this.live()) return;
+      this.arm(w);
+    }, left);
+  }
+
+  /** Таймаут: связь замолчала. Ждущие попытки, которые 6 с ничего не слышали, получают вердикт сразу. */
+  private quiet(): void {
+    this.quietMark = this.heardN;
+    for (const w of [...this.waits]) {
+      if (w.timer === undefined && !w.abandoned && this.waits.has(w)) this.arm(w);
+    }
+  }
+
+  private noAnswer(w: Wait): void {
+    w.abandoned = true;
+    this.metrics.inc("api:no_answer");
+    this.logCall("warn", w.req, "no-answer", this.clock.perf() - w.at);
+    w.end({ ok: false, err: new KpError("KP-NET", "no-answer"), retry: false });
+  }
+
   private async attempt(req: ApiRequest): Promise<Outcome> {
     if (!this.breaker.allow()) {
       this.logCall("warn", req, "breaker-open", 0);
@@ -155,6 +270,7 @@ export class Transport {
       ac.abort();
     }, req.timeoutMs);
     const t0 = this.clock.perf();
+    const heard = this.heardN;
     let status = 0;
     let contentType = "";
     let text = "";
@@ -166,18 +282,22 @@ export class Transport {
       text = await res.text();
     } catch (e) {
       const ms = this.clock.perf() - t0;
-      return timedOut ? this.onTimeout(req, ms) : this.onFetchError(req, e, ms);
+      return timedOut ? this.onTimeout(req, ms, heard) : this.onFetchError(req, e, ms);
     } finally {
       this.clock.clearTimeout(timer);
     }
     return this.onResponse(req, status, contentType, text, this.clock.perf() - t0);
   }
 
-  private onTimeout(req: ApiRequest, ms: number): Outcome {
+  /**
+   * Повтор таймаута (спец. §5.3) — только если KinoPub за это время отвечал на другие запросы (потерян один ответ).
+   * Не ответил ничего — связь висит: повторы через 3 и 6 с лишь отложили бы «Нет связи» ещё на 25 с (этап 33b).
+   */
+  private onTimeout(req: ApiRequest, ms: number, heardBefore: number): Outcome {
     this.breaker.failure();
     this.metrics.inc("api:timeout");
     this.logCall("warn", req, "timeout", ms);
-    return { ok: false, err: new KpError("KP-NET", "timeout"), retry: true };
+    return { ok: false, err: new KpError("KP-NET", "timeout"), retry: this.heardN > heardBefore, quiet: true };
   }
 
   // Спец. §5.3: TypeError — отказ CORS, DNS, TCP/TLS или VPN, причины неразличимы; в работе это временная сеть.
@@ -206,6 +326,7 @@ export class Transport {
   }
 
   private onResponse(req: ApiRequest, status: number, contentType: string, text: string, ms: number): Outcome {
+    this.heard();
     this.typeErrors = 0;
     this.metrics.record(`api:${metricPath(req.path)}`, ms);
     this.logCall(status >= 500 || status === 429 ? "warn" : "info", req, String(status), ms);
@@ -237,6 +358,7 @@ export class Transport {
     const t0 = this.clock.perf();
     try {
       await this.fetch(this.base() + PROBE_PATH, { method: "GET", mode: "no-cors", credentials: "omit", signal: ac.signal });
+      this.heard();
       this.log.info("api", `probe no-cors reachable ${Math.round(this.clock.perf() - t0)}ms`);
       return true;
     } catch {

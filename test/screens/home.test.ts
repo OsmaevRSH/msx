@@ -74,9 +74,12 @@ function drive(t: TestApp, cond: () => boolean, what: string): Promise<void> {
   return t.run(until(cond, what));
 }
 
-/** Таймеры FakeClock идут до первого действия плагина: проверка стоит ровно на нём, время дальше не убегает. */
-function driveToAction(t: TestApp): Promise<void> {
-  t.clock.ioGraceMs = 2000;
+/**
+ * Таймеры FakeClock идут до первого действия плагина: проверка стоит ровно на нём, время дальше не убегает. `graceMs` —
+ * сколько реального времени ждать запросы в полёте перед каждым таймером; при висящих запросах (этап 33b) — меньше.
+ */
+function driveToAction(t: TestApp, graceMs = 2000): Promise<void> {
+  t.clock.ioGraceMs = graceMs;
   return t.run(new Promise<void>((resolve) => {
     const exec = t.host.executeAction.bind(t.host);
     t.host.executeAction = (action: string, data?: unknown): void => {
@@ -429,6 +432,48 @@ describe("homeScreen: conditional redraw (спец. §6.3, D-40)", () => {
     await until(() => actions(t).length > 0, "replace");
     assert.deepEqual(actions(t), [REPLACE]);
     assert.equal(shelf(await open(t), "Продолжить просмотр")[1]?.progress, 0.74);
+  });
+});
+
+// Этап 33b: API заблокирован по SNI или упал VPN — ни один запрос не отвечает ничем. Раньше ошибка приходила заменой
+// через 27 с: таймауты 8 с волнами по 3 запроса, повторы 3 и 6 с, затем circuit breaker.
+describe("homeScreen: KinoPub hangs (stage 33b)", () => {
+  const NO_ANSWER_MS = 6000;
+  const HANG = { rules: [{ path: "^/v1/", hang: true }] };
+
+  it("no cache: «loading» at 1.5 s, the KP-NET error by replace at 6 s; opened again — the error at once", async () => {
+    const t = await make();
+    t.mock.setScenario(HANG);
+    // Всё висит: ждать ответы в реальном времени перед каждым поддельным таймером незачем.
+    t.clock.ioGraceMs = 20;
+    const p0 = t.clock.perf();
+    const first = await open(t);
+    assert.equal(t.clock.perf() - p0, DEADLINE_MS);
+    assert.match(JSON.stringify(first), /Загружаю полки KinoPub/);
+    await driveToAction(t, 20);
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.equal(t.clock.perf() - p0, NO_ANSWER_MS);
+    const second = await open(t);
+    assert.match(JSON.stringify(second), /Нет связи с KinoPub\. Проверьте VPN\{br\}Код: KP-NET"/);
+  });
+
+  it("L2 from two hours ago: all shelves at once; the failed background refresh leaves them on the screen", async () => {
+    const first = await make();
+    await open(first);
+    await persisted(first);
+    first.mock.setScenario(HANG);
+    const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false, clock: new FakeClock(FAKE_EPOCH + 120 * MIN) });
+    const fake0 = t.clock.perf();
+    const s = (await t.app.handleRequest(HOME, {})) as MsxContentRoot;
+    assert.equal(t.clock.perf(), fake0, "answered from L2 without waiting for KinoPub");
+    assert.deepEqual(headers(s), ALL);
+    t.clock.ioGraceMs = 250;
+    await t.run(until(() => counter(t, "refresh:unchanged") === 1, "the D-40 recheck"));
+    await t.clock.advance(NO_ANSWER_MS);
+    assert.ok(t.ctx.log.entries().some((e) => e.tag === "api" && / no-answer 6000ms /.test(e.msg)), "the refresh went out and got the verdict");
+    await t.clock.advance(60_000);
+    await realSleep(20);
+    assert.deepEqual(actions(t), [], "nothing to redraw: the shelves from L2 stay");
   });
 });
 
