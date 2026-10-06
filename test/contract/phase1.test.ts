@@ -59,7 +59,9 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
 
     const loginId = follow(menuItem(guest, "login").data, "");
     const screen = (await a.request(loginId)) as MsxContentRoot;
-    userCode = pick(pageItems(screen), (i) => i.id === "login_code", "login code").headline ?? "";
+    // Код нарисован картинкой SVG (V-01): текст из `<text>` её `data:`-адреса.
+    const image = decodeURIComponent(pick(pageItems(screen), (i) => i.id === "login_code", "login code").image ?? "");
+    userCode = /<text[^>]*>([^<]*)<\/text>/.exec(image)?.[1] ?? "";
     assert.match(userCode, /^[A-Z]{6}$/);
     assert.deepEqual([...mock.state.deviceCodes.values()].map((r) => r.userCode), [userCode]);
     assert.equal(a.ctx.current.get(), "login");

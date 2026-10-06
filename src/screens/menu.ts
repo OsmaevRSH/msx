@@ -1,7 +1,10 @@
 import type { AppContext } from "../app/context.ts";
+import type { LogoutReason } from "../auth/auth-service.ts";
+import { KpError } from "../core/errors.ts";
 import { replaceMenu, req } from "../msx/actions.ts";
 import type { MsxMenuItem, MsxMenuRoot } from "../msx/types.ts";
 import { encodeListKey, ids } from "../router/ids.ts";
+import { errorText } from "./error.ts";
 
 // Меню S3 (спец. §7.1, §11; Plan B §8.3 S3). Строится без сети и без ожидания (CNFR-03).
 
@@ -18,9 +21,10 @@ const T = {
   search: "Поиск",
   catalog: "Каталог",
   bookmarks: "Закладки",
-  settings: "Настройки KinoPub",
+  settings: "Просмотр и аккаунт",
   probe: "Диагностика",
   msxSettings: "Настройки MSX",
+  bye: "Вы вышли из KinoPub",
 };
 
 /** Разделы каталога как в официальном приложении; «Мультфильмы» — жанр 23 (research kinopub-api §6.4). */
@@ -39,6 +43,15 @@ const SECTIONS: readonly { id: string; label: string; icon: string; type: string
  */
 export function refreshMenu(P: string): string {
   return replaceMenu(MENU_FLAG, P, ids.init());
+}
+
+/**
+ * Выход и потеря сессии (V-39): гостевое меню и причина уведомлением; отказ refresh — текстом `KP-AUTH`. Меню MSX
+ * перерисует, только если открыт корневой экран: на вложенном `replace:menu` не выполняется (X-3).
+ */
+export function loggedOutActions(P: string, reason: LogoutReason): string[] {
+  const why = reason === "logout" ? T.bye : errorText(new KpError("KP-AUTH", reason)).text;
+  return [refreshMenu(P), `info:${why}`];
 }
 
 export function buildMenu(ctx: AppContext): MsxMenuRoot {

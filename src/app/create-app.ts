@@ -31,7 +31,7 @@ import { Outbox } from "../progress/outbox.ts";
 import { Overlay } from "../progress/overlay.ts";
 import { ProgressTracker } from "../progress/tracker.ts";
 import { App } from "../router/router.ts";
-import { refreshMenu } from "../screens/menu.ts";
+import { loggedOutActions } from "../screens/menu.ts";
 import { OVERLAY_KEY, persistState } from "./context.ts";
 import type { AppContext, AppState } from "./context.ts";
 
@@ -107,12 +107,12 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   ctx.chain = new FallbackChain(ctx);
   attachProbe(ctx, o.loadProbe);
 
-  auth.onLoggedOut = () => {
+  auth.onLoggedOut = (reason) => {
     // Прежний вход по коду завершён: следующий экран входа начнёт новый (этап 17).
     ctx.state.login?.stop();
     ctx.state.login = undefined;
     repo.forgetDevice();
-    ctx.host.executeAction(refreshMenu(ctx.P));
+    for (const a of loggedOutActions(ctx.P, reason)) ctx.host.executeAction(a);
   };
   ctx.tracker.addListener((e) => onTrackerEvent(ctx, e));
 

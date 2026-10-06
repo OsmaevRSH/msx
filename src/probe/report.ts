@@ -31,8 +31,9 @@ const SECRET_MIN = 6;
 
 const T = {
   headline: (i: number, n: number): string => `Отчёт · страница ${i} из ${n}`,
-  back: "Назад",
-  next: "Дальше",
+  prev: (k: number): string => `‹ Стр. ${k}`,
+  next: (k: number): string => `Стр. ${k} ›`,
+  close: "Закрыть",
   notRun: "не запускалась",
   flagsDefault: "по умолчанию",
   hintAudio: "CDG-05: a2 звучит другой озвучкой, чем a1? — проверьте на слух",
@@ -212,15 +213,23 @@ export function msxText(s: string): string {
   return s.replace(/\{/g, "(").replace(/\}/g, ")").replace(/[✓✗]/g, (m) => MARK_ICONS[m] ?? m);
 }
 
-/** `probe:report:<n>`: страница отчёта для фото; «Назад»/«Дальше» заменяют страницу на месте, Back — к «Диагностике». */
+/**
+ * `probe:report:<n>`: страница отчёта для фото. Текст — `headline`: белый и крупнее серого `text` (V-38). «‹ Стр. k» и
+ * «Стр. k ›» заменяют страницу на месте; «Закрыть» и Back — к «Диагностике».
+ */
 export function reportScreen(ctx: AppContext, n: number): MsxContentRoot {
   const pages = reportPages(buildReport(ctx));
   const i = Math.min(Math.max(1, Math.floor(n)), pages.length);
   const page = (k: number): string => replaceContent(REPORT_FLAG, ctx.P, ids.probe(`report:${k}`));
   const items: MsxContentItem[] = [
-    { type: "space", layout: "0,0,12,5", text: (pages[i - 1] ?? []).map(msxText).join("{br}") },
-    { id: "r_back", type: "button", layout: "0,5,6,1", label: T.back, action: i > 1 ? page(i - 1) : "back" },
+    { type: "space", layout: "0,0,12,5", headline: (pages[i - 1] ?? []).map(msxText).join("{br}") },
+    { id: "r_back", type: "button", layout: "0,5,6,1", ...(i > 1 ? { label: T.prev(i - 1), action: page(i - 1) } : { label: T.close, action: "back" }) },
   ];
-  if (i < pages.length) items.push({ id: "r_next", type: "button", layout: "6,5,6,1", label: T.next, action: page(i + 1), focus: true });
+  // Правая кнопка всегда `r_next`: замена страницы MSX возвращает фокус по id, и OK подряд листает до «Закрыть».
+  const last = i === pages.length;
+  if (!last || i > 1) {
+    const next = last ? { label: T.close, action: "back" } : { label: T.next(i + 1), action: page(i + 1) };
+    items.push({ id: "r_next", type: "button", layout: "6,5,6,1", ...next, focus: true });
+  }
   return { type: "pages", flag: REPORT_FLAG, cache: false, reuse: false, headline: T.headline(i, pages.length), pages: [{ items }] };
 }
