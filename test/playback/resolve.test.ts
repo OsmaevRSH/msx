@@ -49,6 +49,14 @@ async function until(cond: () => boolean, what: string): Promise<void> {
   assert.fail(`timed out waiting for ${what}`);
 }
 
+const RETRY = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
+/** Режим и шаг цепочки — в журнале resolve, на экране их нет (V-27). */
+const lastResolved = (t: TestApp): unknown => {
+  const data = t.ctx.log.entries().filter((e) => e.tag === "resolve" && e.msg === "resolved").at(-1)?.data as
+    | { step?: number; mode?: string } | undefined;
+  return { step: data?.step, mode: data?.mode };
+};
+
 const user = (active: boolean): User => ({ username: "tester", subscription: { active, endTime: 0, days: 0 } });
 
 describe("resolvePlay: «Продолжить» и свойства (CC-08)", () => {
@@ -57,7 +65,7 @@ describe("resolvePlay: «Продолжить» и свойства (CC-08)", ()
     const res = await play(t, ids.playContinue(BIG));
     const p = props(res);
     assert.match(res.url ?? "", /\/kp2001004_1080p\.mp4\/master-v1a1\.m3u8\?loc=nl$/);
-    assert.equal(res.label, "Тестовый сериал «Большой» · S1E4");
+    assert.equal(res.label, "Тестовый сериал «Большой» · 1 сезон, 4 серия");
     assert.equal(p["resume:position"], "597");
     assert.equal(p["kp:i"], String(BIG));
     assert.equal(p["kp:m"], String(BIG_S1E4));
@@ -66,8 +74,9 @@ describe("resolvePlay: «Продолжить» и свойства (CC-08)", ()
     assert.equal(p["kp:n"], "1");
     assert.equal(p["button:next:action"], resolveAction(P, ids.playEp(BIG, BIG_S1E5, 1, 5)));
     assert.equal(p["button:prev:action"], resolveAction(P, ids.playEp(BIG, mid(BIG, 3), 1, 3)));
-    assert.equal(p["label:extension"], "1080p · Студия Бета · HLS1");
+    assert.equal(p["label:extension"], "1080p · Студия Бета");
     assert.equal(p["trigger:load"], undefined);
+    assert.deepEqual(lastResolved(t), { step: 1, mode: "hls1" });
     assert.equal(typeof t.ctx.state.resolveAt.get(BIG_S1E4), "number");
     assert.equal(t.ctx.metrics.summary().values.resolve?.n, 1);
   });
@@ -87,7 +96,7 @@ describe("resolvePlay: «Продолжить» и свойства (CC-08)", ()
     assert.match(res.url ?? "", /\/master-v1a7\.m3u8\?loc=ru$/);
     assert.ok(!(res.url ?? "").includes("loc=nl"));
     assert.equal(res.label, "Тестовый фильм «12 озвучек»");
-    assert.equal(p["label:extension"], "1080p · Студия Гамма · HLS1");
+    assert.equal(p["label:extension"], "1080p · Студия Гамма");
     assert.match(p["tizen:subtitle:url"] ?? "", /\/2004001\.eng\.srt\?loc=ru$/);
     assert.equal(p["resume:position"], "none");
   });
@@ -188,8 +197,9 @@ describe("resolvePlay: links and the fallback chain", () => {
     await t.clock.advance(9_000);
     const p2 = props(await play(t, ids.playContinue(BIG)));
     assert.equal(linkCalls(t), 2);
-    assert.equal(p2["label:extension"], "1080p · Студия Бета · HLS1 (новые ссылки)");
-    assert.equal(p2["trigger:load"], "info:Предыдущий запуск не удался — пробую HLS1");
+    assert.equal(p2["label:extension"], "1080p · Студия Бета", "mode and step only in the log (V-27)");
+    assert.equal(p2["trigger:load"], RETRY);
+    assert.deepEqual(lastResolved(t), { step: 2, mode: "hls1" });
 
     await t.clock.advance(9_000);
     const r3 = await play(t, ids.playContinue(BIG));
@@ -197,8 +207,9 @@ describe("resolvePlay: links and the fallback chain", () => {
     assert.equal(linkCalls(t), 3);
     assert.match(r3.url ?? "", /\/cdn\/hls2\/[^/]+\/2001004\.m3u8\?loc=nl$/);
     assert.equal(p3["tizen:stream:ADAPTIVE_INFO"], "STARTBITRATE=HIGHEST");
-    assert.equal(p3["label:extension"], "Авто · HLS2 (резерв, озвучка по умолчанию)");
-    assert.equal(p3["trigger:load"], "info:Предыдущий запуск не удался — пробую HLS2");
+    assert.equal(p3["label:extension"], "Авто");
+    assert.equal(p3["trigger:load"], RETRY);
+    assert.deepEqual(lastResolved(t), { step: 3, mode: "hls2" });
 
     await t.clock.advance(9_000);
     assert.deepEqual(await play(t, ids.playContinue(BIG)), { error: NO_START_TEXT });
@@ -220,7 +231,8 @@ describe("resolvePlay: links and the fallback chain", () => {
     t.mock.setScenario({ rules: [{ path: `^${LINKS_PATH}$`, status: 500, times: 3 }] });
     const p = props(await play(t, ids.playContinue(BIG)));
     assert.equal(linkCalls(t), 4);
-    assert.equal(p["label:extension"], "1080p · Студия Бета · HLS1 (новые ссылки)");
+    assert.equal(p["label:extension"], "1080p · Студия Бета");
+    assert.deepEqual(lastResolved(t), { step: 2, mode: "hls1" });
     assert.ok(t.ctx.log.entries().some((e) => e.tag === "resolve" && e.msg === "links_failed"));
   });
 
@@ -248,7 +260,7 @@ describe("resolvePlay: links and the fallback chain", () => {
     t.ctx.prefs.setTitle("mode", BIG, "hls2");
     const res = await play(t, ids.playContinue(BIG));
     assert.match(res.url ?? "", /\/cdn\/hls2\//);
-    assert.equal(props(res)["label:extension"], "Авто · HLS2");
+    assert.equal(props(res)["label:extension"], "Авто");
   });
 });
 
@@ -289,7 +301,7 @@ describe("onTrackerEvent", () => {
     const t = await make();
     props(await play(t, ids.playContinue(BIG)));
     await t.clock.advance(9_000);
-    assert.equal(props(await play(t, ids.playContinue(BIG)))["trigger:load"], "info:Предыдущий запуск не удался — пробую HLS1");
+    assert.equal(props(await play(t, ids.playContinue(BIG)))["trigger:load"], RETRY);
 
     onTrackerEvent(t.ctx, { kind: "started", s: session(BIG_S1E4, 4, true) });
     await until(() => linkCalls(t, BIG_S1E5) === 1, "prefetch of S1E5 links");
@@ -299,7 +311,7 @@ describe("onTrackerEvent", () => {
     await t.clock.advance(9_000);
     const p = props(await play(t, ids.playContinue(BIG)));
     assert.equal(p["trigger:load"], undefined, "step 1 again");
-    assert.equal(p["label:extension"], "1080p · Студия Бета · HLS1");
+    assert.equal(p["label:extension"], "1080p · Студия Бета");
   });
 
   it("the last episode or other events → no prefetch", async () => {

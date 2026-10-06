@@ -95,16 +95,24 @@ export function continueTarget(item: ItemDetail, overlay?: OverlayLookup, cardFe
   return { ref: first.ref, position: "none", again: true };
 }
 
-const epTag = (r: EpRef): string => `S${r.season}E${r.video}`;
+/**
+ * Номер серии по-русски (V-18): длинная форма — «1 сезон, 4 серия» (карточка, метка плеера, серии), короткая —
+ * «1 сез. 4 сер.» для тегов плиток.
+ */
+export function episodeName(r: { season: number; video: number }, form: "long" | "short" = "long"): string {
+  return form === "long" ? `${r.season} сезон, ${r.video} серия` : `${r.season} сез. ${r.video} сер.`;
+}
 
 /**
- * Подпись главной кнопки карточки (Plan B §8.3 S8): «▶ Смотреть», «▶ Продолжить 1:02:15», «▶ Продолжить S2E5»,
- * «▶ S2E6», «▶ Смотреть снова S1E1». У фильма номеров серий нет: «▶ Смотреть снова», «▶ Часть 2».
+ * Подпись главной кнопки карточки (Plan B §8.3 S8): «▶ Смотреть», «▶ Продолжить с 1:02:15», «▶ Продолжить: 2 сезон,
+ * 5 серия», «▶ Смотреть: 2 сезон, 6 серия», «▶ Смотреть снова» (всегда с первой серии). У фильма из частей — «▶ Часть 2».
  */
 export function mainButtonLabel(item: ItemDetail, t: { ref: EpRef; position: number | "none"; again: boolean }): string {
   const serial = isSerial(item);
-  if (t.again) return serial ? `▶ Смотреть снова ${epTag(t.ref)}` : "▶ Смотреть снова";
-  if (typeof t.position === "number") return serial ? `▶ Продолжить ${epTag(t.ref)}` : `▶ Продолжить ${fmtClock(t.position)}`;
+  if (t.again) return "▶ Смотреть снова";
+  if (typeof t.position === "number") {
+    return serial ? `▶ Продолжить: ${episodeName(t.ref)}` : `▶ Продолжить с ${fmtClock(t.position)}`;
+  }
   if (orderedUnits(item)[0]?.mid === t.ref.mid) return "▶ Смотреть";
-  return serial ? `▶ ${epTag(t.ref)}` : `▶ Часть ${t.ref.video}`;
+  return serial ? `▶ Смотреть: ${episodeName(t.ref)}` : `▶ Часть ${t.ref.video}`;
 }

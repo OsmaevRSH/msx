@@ -5,6 +5,7 @@ import { isKpError } from "../../src/core/errors.ts";
 import type { OverlayEntry, OverlayLookup } from "../../src/progress/overlay.ts";
 import {
   continueTarget,
+  episodeName,
   findUnit,
   mainButtonLabel,
   mergedState,
@@ -226,32 +227,44 @@ describe("continueTarget", () => {
   });
 });
 
+describe("episodeName (V-18)", () => {
+  it("long form for the card, the player label and the season: «1 сезон, 4 серия»", () => {
+    assert.equal(episodeName(ref(1, 4)), "1 сезон, 4 серия");
+    assert.equal(episodeName(ref(12, 104), "long"), "12 сезон, 104 серия");
+  });
+
+  it("short form for tags: «1 сез. 4 сер.»", () => {
+    assert.equal(episodeName(ref(1, 4), "short"), "1 сез. 4 сер.");
+  });
+});
+
 describe("mainButtonLabel", () => {
-  it("covers the five variants of the card button", () => {
+  it("covers the five variants of the card button in Russian, without S1E4", () => {
     const fresh = serial({ 1: [NONE, NONE] });
     assert.equal(mainButtonLabel(fresh, continueTarget(fresh)), "▶ Смотреть");
 
     const m = movie([at(3738)]);
-    assert.equal(mainButtonLabel(m, continueTarget(m)), "▶ Продолжить 1:02:15");
+    assert.equal(mainButtonLabel(m, continueTarget(m)), "▶ Продолжить с 1:02:15");
 
     const started = serial({ 1: [DONE, DONE], 2: [DONE, DONE, DONE, DONE, at(600)] });
-    assert.equal(mainButtonLabel(started, continueTarget(started)), "▶ Продолжить S2E5");
+    assert.equal(mainButtonLabel(started, continueTarget(started)), "▶ Продолжить: 2 сезон, 5 серия");
 
     const next = serial({ 1: [DONE], 2: [DONE, DONE, DONE, DONE, DONE, NONE] });
-    assert.equal(mainButtonLabel(next, continueTarget(next)), "▶ S2E6");
+    assert.equal(mainButtonLabel(next, continueTarget(next)), "▶ Смотреть: 2 сезон, 6 серия");
 
     const all = serial({ 1: [DONE, DONE], 2: [DONE] });
-    assert.equal(mainButtonLabel(all, continueTarget(all)), "▶ Смотреть снова S1E1");
+    assert.equal(mainButtonLabel(all, continueTarget(all)), "▶ Смотреть снова");
   });
 
   it("names an episode restarted from the beginning", () => {
     const s = serial({ 1: [DONE], 2: [DONE, at(10)] });
-    assert.equal(mainButtonLabel(s, continueTarget(s)), "▶ S2E2");
+    assert.equal(mainButtonLabel(s, continueTarget(s)), "▶ Смотреть: 2 сезон, 2 серия");
   });
 
-  it("uses film wording without episode numbers", () => {
+  it("uses film wording without episode numbers; «с» before the resume time", () => {
     assert.equal(mainButtonLabel(movie([NONE]), continueTarget(movie([NONE]))), "▶ Смотреть");
     assert.equal(mainButtonLabel(movie([DONE]), continueTarget(movie([DONE]))), "▶ Смотреть снова");
+    assert.equal(mainButtonLabel(movie([at(1197)]), continueTarget(movie([at(1197)]))), "▶ Продолжить с 19:54");
     const parts = movie([DONE, NONE, NONE]);
     assert.equal(mainButtonLabel(parts, continueTarget(parts)), "▶ Часть 2");
   });

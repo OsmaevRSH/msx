@@ -6,9 +6,9 @@ import { ruTitle } from "../core/format.ts";
 import type { MsxResolveResponse } from "../msx/types.ts";
 import type { TrackerEvent } from "../progress/tracker.ts";
 import type { PlayRoute } from "../router/ids.ts";
-import { buildResolveResponse } from "../screens/player.ts";
+import { audioTitle, buildResolveResponse } from "../screens/player.ts";
 import type { PlayerPropsInput, ResolvedPlay } from "../screens/player.ts";
-import { continueTarget, findUnit, mergedState, neighbours, orderedUnits, startPosition } from "./episodes.ts";
+import { continueTarget, episodeName, findUnit, mergedState, neighbours, orderedUnits, startPosition } from "./episodes.ts";
 import type { EpRef } from "./episodes.ts";
 import type { ChainStep } from "./modes.ts";
 import type { StreamMode } from "./prefs.ts";
@@ -162,7 +162,7 @@ function resolved(
     if (file !== undefined && url !== undefined) {
       url = audio === undefined ? url : withAudio(url, audio.index);
       quality = qualityLabel(file);
-      audioText = audio === undefined ? "" : audioLabel(audio);
+      audioText = audio === undefined ? "" : audioTitle(audio);
     }
   } else {
     url = links.files.find((f) => f.urls.hls2 !== undefined)?.urls.hls2;
@@ -185,14 +185,9 @@ function resolved(
   return out;
 }
 
-/** Сериал — «<название> · S1E4»; фильм из частей — «<название> · Часть 2»; фильм — название (спец. §9.2). */
+/** Сериал — «<название> · 1 сезон, 4 серия»; фильм из частей — «<название> · Часть 2»; фильм — название (спец. §9.2). */
 function playLabel(item: ItemDetail, ref: EpRef): string {
   const title = ruTitle(item.title);
-  if (ref.season > 0) return `${title} · S${ref.season}E${ref.video}`;
+  if (ref.season > 0) return `${title} · ${episodeName(ref)}`;
   return item.videos.length > 1 ? `${title} · Часть ${ref.video}` : title;
-}
-
-/** Студия озвучки, иначе её тип («Оригинал»), иначе язык. */
-function audioLabel(a: Audio): string {
-  return a.authorTitle ?? a.typeTitle ?? a.lang;
 }

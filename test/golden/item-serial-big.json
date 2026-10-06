@@ -3,13 +3,14 @@
   "flag": "item_2001",
   "cache": false,
   "options": {
+    "headline": "Тестовый сериал «Большой»",
     "template": {
       "type": "button",
       "layout": "0,0,8,1"
     },
     "items": [
       {
-        "label": "Режим потока",
+        "label": "Способ воспроизведения",
         "action": "panel:request:interaction:panel:mode:2001@https://example.github.io/msx/app/index.html"
       },
       {
@@ -36,51 +37,51 @@
         {
           "id": "b_main",
           "type": "button",
-          "layout": "3,4,3,1",
-          "label": "▶ Продолжить S1E4",
+          "layout": "3,4,5,1",
+          "label": "▶ Продолжить: 1 сезон, 4 серия",
           "focus": true,
           "action": "video:resolve:request:interaction:play:2001:continue@https://example.github.io/msx/app/index.html"
         },
         {
           "id": "b_second",
           "type": "button",
-          "layout": "6,4,3,1",
+          "layout": "8,4,2,1",
           "label": "Сезоны",
           "action": "content:request:interaction:season:2001:1@https://example.github.io/msx/app/index.html"
         },
         {
-          "id": "b_bm",
-          "type": "button",
-          "layout": "9,4,3,1",
-          "label": "★ В закладках",
-          "action": "panel:request:interaction:panel:bookmarks:2001@https://example.github.io/msx/app/index.html"
-        },
-        {
           "id": "b_similar",
           "type": "button",
-          "layout": "0,5,3,1",
+          "layout": "10,4,2,1",
           "label": "Похожие",
           "action": "content:request:interaction:list:c2ltaWxhcnxpZD0yMDAx@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_bm",
+          "type": "button",
+          "layout": "0,5,3,1",
+          "label": "★ В закладках",
+          "action": "panel:request:interaction:panel:bookmarks:2001@https://example.github.io/msx/app/index.html"
         },
         {
           "id": "b_audio",
           "type": "button",
           "layout": "3,5,3,1",
-          "label": "Озвучка: Студия Бета",
+          "label": "{ico:record-voice-over} Студия Бета",
           "action": "panel:request:interaction:panel:audio:2001:2001004:c@https://example.github.io/msx/app/index.html"
         },
         {
           "id": "b_quality",
           "type": "button",
-          "layout": "6,5,3,1",
-          "label": "Качество: 1080p",
+          "layout": "6,5,2,1",
+          "label": "{ico:hd} 1080p",
           "action": "panel:request:interaction:panel:quality:2001:2001004:c@https://example.github.io/msx/app/index.html"
         },
         {
           "id": "b_subs",
           "type": "button",
-          "layout": "9,5,3,1",
-          "label": "Субтитры: выкл",
+          "layout": "8,5,4,1",
+          "label": "{ico:subtitles} Выключены",
           "action": "panel:request:interaction:panel:subs:2001:2001004:c@https://example.github.io/msx/app/index.html"
         }
       ]

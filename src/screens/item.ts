@@ -13,7 +13,7 @@ import type { SelectPrefs, SubsChoice } from "../playback/select.ts";
 import { qualityLabel } from "../playback/url.ts";
 import { encodeListKey, ids, msgs, parseDataId } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
-import { playerProps } from "./player.ts";
+import { audioTitle, playerProps, subsTitle } from "./player.ts";
 import type { PlayerPropsInput } from "./player.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import type { RefreshSpec } from "./refresh.ts";
@@ -27,20 +27,29 @@ const T = {
   inBookmarks: "★ В закладках",
   toBookmarks: "☆ В закладки",
   similar: "Похожие",
-  audio: "Озвучка",
-  quality: "Качество",
-  subs: "Субтитры",
-  subsOff: "выкл",
   forced: "форсированные",
   auto: "Авто",
   markFilm: "Отметить просмотренным",
   markEpisode: "Отметить просмотренной",
   unmark: "Снять отметку",
-  mode: "Режим потока",
+  mode: "Способ воспроизведения",
   refresh: "Обновить",
   kp: "КП",
   imdb: "IMDb",
 };
+/** V-15: значения без префиксов «Озвучка:», «Качество:», «Субтитры:» — иконки MSX. */
+const ICO = { audio: "{ico:record-voice-over}", quality: "{ico:hd}", subs: "{ico:subtitles}" };
+
+/**
+ * Сетка 12×6 (V-15, V-18): «▶» — 5 колонок, чтобы «▶ Продолжить: 1 сезон, 4 серия» не обрезалась; закладки — под
+ * постером; субтитрам — 4 колонки на «Английские · только надписи».
+ */
+const L = {
+  main: "3,4,5,1", second: "8,4,2,1", similar: "10,4,2,1", similarWide: "8,4,4,1",
+  bm: "0,5,3,1", audio: "3,5,3,1", quality: "6,5,2,1", subs: "8,5,4,1",
+};
+/** Главная кнопка: на ней фокус при открытии и после плеера (V-16). */
+const MAIN_ID = "b_main";
 
 const TAG = "item";
 const PLOT_MAX = 600;
@@ -49,15 +58,17 @@ const REFRESH_WAIT_MS = 3000;
 /** Панель опций (красная кнопка) — сетка 8×6, строка на пункт. */
 const OPTION_TEMPLATE: MsxContentItem = { type: "button", layout: "0,0,8,1" };
 
-export interface OptionRow { label: string; action: string }
+/** `key` — кнопка пульта, которая выполняет пункт без открытия опций (Option Shortcut MSX). */
+export interface OptionRow { label: string; action: string; key?: string }
 
 export const itemFlag = (id: number): string => `item_${id}`;
 
 /** Сериал — есть сезоны с сериями; иначе единицы — `videos` (фильм или части фильма). */
 export const isSerial = (item: ItemDetail): boolean => item.seasons.some((s) => s.episodes.length > 0);
 
-export function optionsRoot(rows: OptionRow[]): MsxContentRoot {
-  return { template: OPTION_TEMPLATE, items: rows.map((r) => ({ label: r.label, action: r.action })) };
+export function optionsRoot(rows: OptionRow[], headline?: string): MsxContentRoot {
+  const items = rows.map((r): MsxContentItem => ({ ...r }));
+  return headline === undefined ? { template: OPTION_TEMPLATE, items } : { headline, template: OPTION_TEMPLATE, items };
 }
 
 /** Ручная отметка единицы — через сверку статуса в outbox (спец. §10.3, CM-01); `act:item:watched:<id>:<s>:<v>:<0|1>`. */
@@ -131,7 +142,7 @@ export function itemHash(ctx: AppContext, item: ItemDetail, fetchedAt: number): 
 
 export function itemRefreshSpec(ctx: AppContext, id: number, hash: string): RefreshSpec {
   return {
-    dataId: ids.item(id), flag: itemFlag(id), hash,
+    dataId: ids.item(id), flag: itemFlag(id), hash, focus: MAIN_ID,
     recompute: async () => {
       const got = await freshItem(ctx, id, "bg");
       return itemHash(ctx, got.value, got.fetchedAt);
@@ -170,32 +181,31 @@ function cardItems(ctx: AppContext, item: ItemDetail, m: CardModel): MsxContentI
     { type: "space", layout: "3,0,9,4", headline: ruTitle(item.title), text: describe(item) },
   ];
   const bm: MsxContentItem = {
-    id: "b_bm", type: "button", layout: "9,4,3,1", label: m.inBookmarks ? T.inBookmarks : T.toBookmarks,
+    id: "b_bm", type: "button", layout: L.bm, label: m.inBookmarks ? T.inBookmarks : T.toBookmarks,
     action: panelAction(P, ids.panel("bookmarks", id)),
   };
-  const similar: MsxContentItem = {
-    id: "b_similar", type: "button", layout: "0,5,3,1", label: T.similar,
-    action: contentAction(P, ids.list(encodeListKey({ src: "similar", id }))),
-  };
+  const similar = (layout: string): MsxContentItem => ({
+    id: "b_similar", type: "button", layout, label: T.similar, action: contentAction(P, ids.list(encodeListKey({ src: "similar", id }))),
+  });
   const t = m.target;
-  if (t === undefined) {
-    bm.focus = true;
-    return [...out, bm, similar];
-  }
+  if (t === undefined) return [...out, { ...bm, focus: true }, similar(L.similarWide)];
   const main: MsxContentItem = {
-    id: "b_main", type: "button", layout: "3,4,3,1", label: m.label, focus: true, action: resolveAction(P, ids.playContinue(id)),
+    id: MAIN_ID, type: "button", layout: L.main, label: m.label, focus: true, action: resolveAction(P, ids.playContinue(id)),
   };
   // Р-18: у карточки нет шаблона — свойства плеера явно у кнопок, которые запускают видео.
   if (withProps) main.properties = playerProps(ctx, playerInput(item, t.ref));
-  out.push(main, secondButton(ctx, item, t, withProps), bm, similar);
+  const second = secondButton(ctx, item, t, withProps);
+  // V-17: у фильма без позиции «▶» уже запускает с начала — на месте «С начала» «Похожие».
+  out.push(main, ...(second === undefined ? [similar(L.similarWide)] : [second, similar(L.similar)]), bm);
   if (m.unit !== undefined) out.push(...prefButtons(ctx, item, m.unit, t.ref.mid));
   return out;
 }
 
-function secondButton(ctx: AppContext, item: ItemDetail, t: ContinueTarget, withProps: boolean): MsxContentItem {
-  const b: MsxContentItem = { id: "b_second", type: "button", layout: "6,4,3,1" };
+function secondButton(ctx: AppContext, item: ItemDetail, t: ContinueTarget, withProps: boolean): MsxContentItem | undefined {
+  const b: MsxContentItem = { id: "b_second", type: "button", layout: L.second };
   if (isSerial(item)) return { ...b, label: T.seasons, action: contentAction(ctx.P, ids.season(item.id, t.ref.season)) };
   if (item.subtype === "multi" || item.videos.length > 1) return { ...b, label: T.parts, action: contentAction(ctx.P, ids.season(item.id, 1)) };
+  if (typeof t.position !== "number") return undefined;
   b.label = T.fromStart;
   b.action = resolveAction(ctx.P, ids.playStart(item.id));
   const first = orderedUnits(item)[0];
@@ -208,13 +218,13 @@ function prefButtons(ctx: AppContext, item: ItemDetail, unit: MediaUnit, mid: nu
   const sp = selectPrefs(ctx.prefs.get(), item.id);
   const audio = pickAudio(unit.audios, sp);
   const file = pickFile(unit.files, sp);
-  const row = (id: string, x: number, label: string, panel: string): MsxContentItem => ({
-    id, type: "button", layout: `${x},5,3,1`, label, action: panelAction(ctx.P, ids.panel(panel, item.id, mid, "c")),
+  const row = (id: string, layout: string, label: string, panel: string): MsxContentItem => ({
+    id, type: "button", layout, label, action: panelAction(ctx.P, ids.panel(panel, item.id, mid, "c")),
   });
   return [
-    row("b_audio", 3, `${T.audio}: ${audio === undefined ? T.auto : audioName(audio)}`, "audio"),
-    row("b_quality", 6, `${T.quality}: ${file === undefined ? T.auto : qualityLabel(file)}`, "quality"),
-    row("b_subs", 9, `${T.subs}: ${subsName(unit, sp, audio)}`, "subs"),
+    row("b_audio", L.audio, `${ICO.audio} ${audio === undefined ? T.auto : audioTitle(audio)}`, "audio"),
+    row("b_quality", L.quality, `${ICO.quality} ${file === undefined ? T.auto : qualityLabel(file)}`, "quality"),
+    row("b_subs", L.subs, `${ICO.subs} ${subsName(unit, sp, audio)}`, "subs"),
   ];
 }
 
@@ -223,7 +233,7 @@ function cardOptions(ctx: AppContext, item: ItemDetail, m: CardModel): MsxConten
   if (m.film !== undefined) rows.push(watchedRow(m.film.ref, m.film.status, true));
   rows.push({ label: T.mode, action: panelAction(ctx.P, ids.panel("mode", item.id)) });
   rows.push({ label: T.refresh, action: commitMsg(msgs.act("item", "refresh", item.id)) });
-  return optionsRoot(rows);
+  return optionsRoot(rows, ruTitle(item.title));
 }
 
 /** «2023 · Драма, Триллер · США{br}КП 7,9 · IMDb 8,1 · 2 ч 01 мин{br}{br}сюжет» — пустые части опускаются. */
@@ -250,10 +260,7 @@ function rating(name: string, v: number | undefined): string | undefined {
 
 const clip = (s: string, max: number): string => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
-/** Студия озвучки, иначе её тип («Оригинал»), иначе язык. */
-const audioName = (a: Audio): string => a.authorTitle ?? a.typeTitle ?? a.lang;
-
-/** «ENG», «ENG · форсированные» — одинаково на карточке и в панели субтитров (S10). */
+/** «ENG», «ENG · форсированные» — строки панели субтитров (S10); карточка пишет язык по-русски (`subsTitle`, V-20). */
 export const subsLabel = (c: SubsChoice): string => (c.forced ? `${c.lang.toUpperCase()} · ${T.forced}` : c.lang.toUpperCase());
 
 /**
@@ -262,9 +269,7 @@ export const subsLabel = (c: SubsChoice): string => (c.forced ? `${c.lang.toUppe
  */
 function subsName(unit: MediaUnit, sp: SelectPrefs, audio: Audio | undefined): string {
   const sub = pickSubtitle(unit.subtitles, sp, audio?.lang);
-  if (sub !== undefined) return subsLabel(sub);
-  const want = parseSubsValue(sp.titleSubs ?? sp.subsLang);
-  return want === "off" ? T.subsOff : subsLabel(want);
+  return subsTitle(sub ?? parseSubsValue(sp.titleSubs ?? sp.subsLang));
 }
 
 // --- Сообщения `act:item:*` ---

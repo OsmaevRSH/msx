@@ -1,6 +1,6 @@
 {
   "url": "http://kpmock.invalid/cdn/hls/aWQ9MTswOzA7MjAwMTAwNDsxNzY3MjI1NjAwJmg9bW9jayZlPTE3NjczMTIwMDA/8/6c/kp2001004_1080p.mp4/master-v1a1.m3u8?loc=nl",
-  "label": "Тестовый сериал «Большой» · S1E4",
+  "label": "Тестовый сериал «Большой» · 1 сезон, 4 серия",
   "properties": {
     "kp:i": "2001",
     "kp:m": "2001004",
@@ -29,6 +29,6 @@
     "trigger:60t": "[interaction:commit:video|player:ticking:restart]",
     "trigger:90%": "shot:interaction:commit:video",
     "resume:position": "597",
-    "label:extension": "1080p · Студия Бета · HLS1"
+    "label:extension": "1080p · Студия Бета"
   }
 }

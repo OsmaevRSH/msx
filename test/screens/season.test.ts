@@ -6,7 +6,7 @@ import { fmtMinutes } from "../../src/core/format.ts";
 import { commitMsg, panelAction, replaceContent, resolveAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
-import { seasonHash, seasonLabel, seasonRefreshSpec } from "../../src/screens/season.ts";
+import { seasonHash, seasonLabel, seasonRefreshSpec, seasonTabLabel } from "../../src/screens/season.ts";
 import { FIX, findItem } from "../../tools/kpmock/fixtures.ts";
 import { watchKey } from "../../tools/kpmock/state.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
@@ -61,19 +61,30 @@ async function until(cond: () => boolean, what: string): Promise<void> {
 }
 
 describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
-  it("list 16×8 with the episode template and flag ep_2001_1", async () => {
+  it("list 16×8 with the episode template and flag ep_2001_1; two full rows of 4×4 per screen (V-25)", async () => {
     const t = await make();
     const s = await open(t, BIG, 1);
     assert.equal(s.type, "list");
     assert.equal(s.compress, true);
     assert.equal(s.flag, "ep_2001_1");
     assert.equal(s.cache, false);
-    assert.equal(s.headline, "Тестовый сериал «Большой» · Сезон 1");
+    assert.equal(s.headline, "Тестовый сериал «Большой» · Сезон 1 из 10");
     assert.deepEqual(s.template, {
-      type: "separate", layout: "0,0,4,3", color: "msx-glass", imageFiller: "cover", progress: -1, progressColor: "msx-blue",
+      type: "separate", layout: "0,0,4,4", color: "msx-glass", imageFiller: "cover", progress: -1, progressColor: "msx-blue",
       enumerate: false,
     });
     assert.equal(eps(s).length, 20);
+  });
+
+  it("the season switch is visible: red-button hint «Сезоны», the red button opens the seasons panel (V-23)", async () => {
+    const t = await make();
+    const s = await open(t, BIG, 1);
+    assert.equal(s.extension, "{ico:msx-red:stop} Сезоны");
+    // Option Shortcut: MSX ищет `key` в опциях элемента в фокусе — пункт и у корня (вкладки), и у каждой серии.
+    const seasons = { label: "Сезоны…", action: panelAction(P, ids.panel("seasons", BIG, 1)), key: "red" };
+    assert.equal(s.options?.headline, "Тестовый сериал «Большой»");
+    assert.deepEqual(s.options?.items, [seasons]);
+    for (const e of eps(s)) assert.deepEqual(e.options?.items?.[0], seasons);
   });
 
   it("E1–E3 watched with ✓, E4 with progress and focus, the rest without marks", async () => {
@@ -101,25 +112,25 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     const s = await open(t, BIG, 1);
     const m4 = mid(BIG, 4);
     const e4 = ep(s, m4);
-    assert.equal(e4.title, "4. Серия 4");
+    assert.equal(e4.title, "Серия 4", "the mock title «Серия 4» is not repeated after the number (V-26)");
     assert.equal(e4.titleFooter, fmtMinutes(duration(BIG, 4)));
     assert.match(e4.image ?? "", /thumb/);
-    assert.equal(e4.playerLabel, "Тестовый сериал «Большой» · S1E4");
+    assert.equal(e4.playerLabel, "Тестовый сериал «Большой» · 1 сезон, 4 серия");
     assert.equal(e4.action, resolveAction(P, ids.playEp(BIG, m4, 1, 4)));
     assert.equal(e4.properties, undefined);
-    assert.deepEqual((e4.options?.items ?? []).map((i) => ({ label: i.label, action: i.action })), [
+    assert.deepEqual((e4.options?.items ?? []).slice(1).map((i) => ({ label: i.label, action: i.action })), [
       { label: "Отметить просмотренной", action: commitMsg(msgs.act("item", "watched", BIG, 1, 4, 1)) },
       { label: "Смотреть с начала", action: resolveAction(P, ids.playEp(BIG, m4, 1, 4, { start: true })) },
     ]);
-    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[0]?.label, "Снять отметку");
-    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[0]?.action, commitMsg(msgs.act("item", "watched", BIG, 1, 1, 0)));
+    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[1]?.label, "Снять отметку");
+    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[1]?.action, commitMsg(msgs.act("item", "watched", BIG, 1, 1, 0)));
   });
 
-  it("more than 8 seasons → one «Сезон N ▾» button opening the seasons panel", async () => {
+  it("more than 5 seasons → one «Сезон N ▾» button opening the seasons panel", async () => {
     const t = await make();
     const s = await open(t, BIG, 1);
     assert.deepEqual(tabs(s).map((i) => ({ label: i.label, action: i.action, layout: i.layout })), [
-      { label: "Сезон 1 ▾", action: panelAction(P, ids.panel("seasons", BIG, 1)), layout: "0,0,2,1" },
+      { label: "Сезон 1 ▾", action: panelAction(P, ids.panel("seasons", BIG, 1)), layout: "0,0,3,1" },
     ]);
   });
 
@@ -127,7 +138,8 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     const t = await make();
     const s = await open(t, BIG, 2);
     assert.equal(s.flag, "ep_2001_2");
-    assert.equal(ep(s, mid(BIG, 21)).title, "1. Серия 1");
+    assert.equal(ep(s, mid(BIG, 21)).title, "Серия 1");
+    assert.equal(s.headline, "Тестовый сериал «Большой» · Сезон 2 из 10");
     assert.equal(eps(s).filter((i) => i.focus === true).length, 0);
   });
 
@@ -154,17 +166,28 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
 });
 
 describe("seasonScreen: tabs, parts, errors", () => {
-  it("SERIAL_SMALL: two tabs replace the screen flagged with the current season", async () => {
+  it("SERIAL_SMALL: two tabs 3 wide replace the screen flagged with the current season; the open one is ✓ (V-24)", async () => {
     const t = await make();
     const s = await open(t, SMALL, 1);
     assert.deepEqual(tabs(s).map((i) => ({ type: i.type, label: i.label, layout: i.layout, action: i.action })), [
-      { type: "button", label: "Сезон 1 · 1/3", layout: "0,0,2,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 1)) },
-      { type: "button", label: "Сезон 2 · 0/3", layout: "2,0,2,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 2)) },
+      { type: "button", label: "{ico:check} Сезон 1 · 1/3", layout: "0,0,3,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 1)) },
+      { type: "button", label: "Сезон 2 · 0/3", layout: "3,0,3,1", action: replaceContent("ep_2002_1", P, ids.season(SMALL, 2)) },
     ]);
     assert.equal(tabs(s)[1]?.action, `replace:content:ep_2002_1:request:interaction:season:2002:2@${P}`);
+    assert.equal(s.headline, "Тестовый сериал «Короткий» · Сезон 1 из 2");
+    assert.equal(s.extension, "{ico:msx-red:stop} Сезоны");
     const s2 = await open(t, SMALL, 2);
     assert.equal(tabs(s2)[0]?.action, replaceContent("ep_2002_2", P, ids.season(SMALL, 1)));
+    assert.deepEqual(tabs(s2).map((i) => i.label), ["Сезон 1 · 1/3", "{ico:check} Сезон 2 · 0/3"]);
     assert.equal(eps(s2).length, 3);
+  });
+
+  it("seasonTabLabel: short label of a tab; seasonLabel of the seasons panel is unchanged", async () => {
+    const t = await make();
+    const got = await t.run(t.ctx.repo.item(SMALL));
+    assert.equal(seasonTabLabel(t.ctx, got.value, got.fetchedAt, 2, false), "Сезон 2 · 0/3");
+    assert.equal(seasonTabLabel(t.ctx, got.value, got.fetchedAt, 1, true), "{ico:check} Сезон 1 · 1/3");
+    assert.equal(seasonLabel(t.ctx, got.value, got.fetchedAt, 1), "Сезон 1 · 1/3");
   });
 
   it("MOVIE_MULTI: parts as season 1 without tabs", async () => {
@@ -173,13 +196,31 @@ describe("seasonScreen: tabs, parts, errors", () => {
     assert.equal(s.flag, "ep_2003_1");
     assert.equal(s.headline, "Тестовый фильм «Из частей» · Части");
     assert.equal(s.header, undefined);
+    assert.equal(s.extension, undefined, "no seasons to switch");
+    assert.equal(s.options, undefined);
     assert.equal(eps(s).length, 3);
     const p1 = ep(s, mid(FIX.MOVIE_MULTI, 1));
-    assert.equal(p1.title, "1. Часть 1");
+    assert.equal(p1.title, "Часть 1");
+    assert.equal(p1.options?.items?.length, 2, "no «Сезоны…» for parts");
     assert.equal(p1.playerLabel, "Тестовый фильм «Из частей» · Часть 1");
     assert.equal(p1.action, resolveAction(P, ids.playEp(FIX.MOVIE_MULTI, mid(FIX.MOVIE_MULTI, 1), 0, 1)));
     assert.equal(p1.focus, true);
     assert.equal(p1.options?.items?.[0]?.action, commitMsg(msgs.act("item", "watched", FIX.MOVIE_MULTI, 0, 1, 1)));
+  });
+
+  it("an episode with its own name: «1. Национальный гимн»; without one — «Серия N» (V-26)", async () => {
+    const e1 = findItem(SMALL)?.seasons?.[0]?.episodes[0];
+    assert.ok(e1);
+    const was = e1.title;
+    e1.title = "Национальный гимн";
+    try {
+      const t = await make();
+      const s = await open(t, SMALL, 1);
+      assert.equal(ep(s, mid(SMALL, 1)).title, "1. Национальный гимн");
+      assert.equal(ep(s, mid(SMALL, 2)).title, "Серия 2");
+    } finally {
+      e1.title = was;
+    }
   });
 
   it("an unknown season or a deleted title → error screen KP-404", async () => {

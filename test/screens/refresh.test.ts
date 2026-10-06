@@ -185,13 +185,24 @@ describe("refreshAfterPlayback", () => {
     assert.deepEqual(actions(t), [`replace:content:ep_${A}_1:request:interaction:season:${A}:1@${P}`]);
   });
 
-  it("current item:<id> → its card is updated and replaced with item_<id>", async () => {
+  it("current item:<id> → focus on «▶» at once, then the card is updated and replaced with item_<id> (V-16)", async () => {
     const t = await make();
     await t.request(ids.item(A));
     t.mock.state.watching.set(watchKey(A, 1, 4), { time: 2440, status: 1, updated: 0 });
     refreshAfterPlayback(t.ctx, A);
+    assert.deepEqual(actions(t), ["focus:b_main"], "before the recompute: «С начала» must not stay in focus");
     await until(() => finished(t) === 1, "the refresh");
-    assert.deepEqual(actions(t), [replaceContent(`item_${A}`, P, ids.item(A))]);
+    // MSX возвращает фокус после замены на элемент с тем же id — это b_main.
+    assert.deepEqual(actions(t), ["focus:b_main", replaceContent(`item_${A}`, P, ids.item(A))]);
+  });
+
+  it("current item:<id>, nothing changed → only the focus on «▶» (V-16)", async () => {
+    const t = await make();
+    await t.request(ids.item(B));
+    refreshAfterPlayback(t.ctx, B);
+    await until(() => finished(t) === 1, "the refresh");
+    assert.equal(count(t, "unchanged"), 1);
+    assert.deepEqual(actions(t), ["focus:b_main"]);
   });
 
   it("nothing changed → no replace", async () => {

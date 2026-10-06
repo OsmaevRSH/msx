@@ -126,14 +126,14 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     assert.equal(apiCalls(a, `/v1/items/${SMALL}`).length, 1, "the card comes from the focus prefetch");
     assert.equal(card.flag, `item_${SMALL}`);
     const main = pick(pageItems(card), (i) => i.id === "b_main", "main button");
-    assert.equal(main.label, "▶ S1E2", "S1E1 is watched in the mock → the next episode from the start");
+    assert.equal(main.label, "▶ Смотреть: 1 сезон, 2 серия", "S1E1 is watched in the mock → the next episode from the start");
 
     const playId = follow(main.action, "video:resolve");
     assert.equal(playId, ids.playContinue(SMALL));
     const res = (await a.request(playId)) as MsxResolveResponse;
     assert.equal(res.error, undefined);
     assert.match(res.url ?? "", /^http:\/\/127\.0\.0\.1:\d+\/.+\.m3u8/);
-    assert.match(res.label ?? "", /· S1E2$/);
+    assert.match(res.label ?? "", /· 1 сезон, 2 серия$/);
     const props = res.properties ?? {};
     assert.deepEqual(
       [props["kp:i"], props["kp:m"], props["kp:s"], props["kp:e"], props["kp:d"], props["kp:n"], props["resume:position"]],
@@ -170,11 +170,12 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     assert.equal(mock.state.watching.get(`${SMALL}:1:2`)?.time, 56);
     assert.equal(toggles(a).length, 1, "«просмотрено» once per episode");
 
-    // После `stop` экран под плеером — карточка: она заменяется своим флагом (спец. §6.3).
+    // После `stop` экран под плеером — карточка: фокус на «▶» (V-16), затем замена своим флагом (спец. §6.3).
     const replace = `replace:content:item_${SMALL}:request:interaction:${ids.item(SMALL)}@${TEST_P}`;
     await a.run(until(() => actions(a).includes(replace)));
+    assert.ok(actions(a).indexOf("focus:b_main") >= 0 && actions(a).indexOf("focus:b_main") < actions(a).indexOf(replace));
     const redrawn = (await a.request(ids.item(SMALL))) as MsxContentRoot;
-    assert.equal(pick(pageItems(redrawn), (i) => i.id === "b_main", "main button").label, "▶ S1E3");
+    assert.equal(pick(pageItems(redrawn), (i) => i.id === "b_main", "main button").label, "▶ Смотреть: 1 сезон, 3 серия");
   });
 
   it("4. «Сезоны» → ✓ on S1E2 → S1E3 → button:next crosses into S2E1, trigger:complete presses it (CC-08, CAC-16, CAC-17)", async () => {
@@ -199,7 +200,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
 
     s2e1 = (await a.request(nextId)) as MsxResolveResponse;
     assert.equal(s2e1.error, undefined);
-    assert.match(s2e1.label ?? "", /· S2E1$/);
+    assert.match(s2e1.label ?? "", /· 2 сезон, 1 серия$/);
     const p = s2e1.properties ?? {};
     assert.deepEqual([p["kp:m"], p["kp:s"], p["kp:e"], p["kp:n"]], [String(mid(2, 1)), "2", "1", "1"]);
     assert.equal(follow(p["button:prev:action"], "video:resolve"), ids.playEp(SMALL, mid(1, 3), 1, 3), "back across the season boundary");
@@ -218,7 +219,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     await a.run(until(() => actions(a).includes("[back|reload:content]")));
 
     const again = (await a.request(ids.item(id))) as MsxContentRoot;
-    assert.equal(pick(pageItems(again), (i) => i.id === "b_audio", "«Озвучка»").label, "Озвучка: Студия Гамма");
+    assert.equal(pick(pageItems(again), (i) => i.id === "b_audio", "«Озвучка»").label, "{ico:record-voice-over} Студия Гамма");
     const res = (await a.request(follow(pick(pageItems(again), (i) => i.id === "b_main", "main").action, "video:resolve"))) as MsxResolveResponse;
     assert.match(res.url ?? "", /master-v1a7\.m3u8/, "track 7 is «Студия Гамма» (AUDIO12 fixture)");
     assert.match(res.properties?.["label:extension"] ?? "", /Студия Гамма/);
@@ -257,7 +258,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     // CAC-13: позиция «другого устройства» (MOVIE_SIMPLE 20:00 в mock) → «Продолжить» за 3 с до неё.
     const card = (await restart.request(ids.item(FIX.MOVIE_SIMPLE))) as MsxContentRoot;
     const main = pick(pageItems(card), (i) => i.id === "b_main", "main button");
-    assert.equal(main.label, "▶ Продолжить 19:57");
+    assert.equal(main.label, "▶ Продолжить с 19:57");
     const res = (await restart.request(follow(main.action, "video:resolve"))) as MsxResolveResponse;
     assert.equal(res.properties?.["resume:position"], "1197");
   });
