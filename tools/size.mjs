@@ -5,7 +5,9 @@ import { gzipSync } from "node:zlib";
 
 /** @type {Record<string, import("./size.d.mts").SizeLimit>} */
 export const LIMITS = {
-  "app/app.js": { bytes: 256_000, gzip: 81_920 },
+  // 90 КБ gzip (спец. v1.9.2): визуальное качество важнее нескольких КБ. Gzip в CI (официальный Node с zlib Chromium)
+  // чуть больше, чем у Node из Homebrew с системной zlib, поэтому нужен запас, а не впритык.
+  "app/app.js": { bytes: 288_000, gzip: 92_160 },
   "app/index.html": { bytes: 1023 },
   // Пробник грузится только при открытии «Диагностики». ~1,2× его размера на этапе 23b (34 КБ, 13,5 КБ gzip):
   // запас на правки по итогам Phase 0, а модули app.js, скопированные в probe.js по ошибке сборки, сразу видны.

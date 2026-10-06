@@ -199,7 +199,7 @@ Chrome нужно запустить с флагом `--disable-features=LocalNe
 | `npm test` | unit, contract и golden-тесты (`node --test`) |
 | `npm run typecheck` | `tsc` без сборки |
 | `npm run build` | боевая сборка в `dist/`: `app/app.js`, `app/probe.js`, `app/index.html`, `start.json`, `build-info.json` |
-| `npm run size` | бюджет: `app.js` ≤ 256 000 Б и ≤ 81 920 Б gzip, `probe.js` ≤ 40 960 Б и ≤ 16 384 Б gzip, `index.html` < 1 КБ |
+| `npm run size` | бюджет: `app.js` ≤ 288 000 Б и ≤ 92 160 Б (90 КБ) gzip, `probe.js` ≤ 40 960 Б и ≤ 16 384 Б gzip, `index.html` < 1 КБ |
 | `npm run privacy` | «ничего личного»: токены, IP-адреса вне тестовых диапазонов, отчёты, `.clear(` |
 | `npm run crawl` | краулер: обход всех экранов и действий от `init` против mock, проверка JSON MSX, размеров и кэша |
 | `npm run e2e` | Playwright в web-MSX против mock (один раз нужен `npx playwright install chromium`) |
