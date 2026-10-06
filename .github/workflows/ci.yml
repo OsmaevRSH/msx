@@ -1,5 +1,6 @@
-# Проверки и деплой на GitHub Pages (спец. §15.5, CM-03). Деплой — только из main; откат — `git revert` в main
-# или ручной запуск из main с входом `sha` (сборка указанного коммита).
+# Проверки, деплой на GitHub Pages и e2e (спец. §15.5, CM-03). Деплой — только из main: push в main или ручной запуск
+# из main (вход `deploy`). Откат — `git revert` в main или ручной запуск из main с входом `sha` (сборка указанного
+# коммита). E2E в web MSX против kpmock — только вручную (вход `e2e`): ему нужен msx.benzac.de из интернета.
 name: ci
 on:
   push:
@@ -11,6 +12,16 @@ on:
         description: "Коммит для сборки и деплоя (пусто — текущий main)"
         required: false
         default: ""
+      deploy:
+        description: "Собрать и выложить на GitHub Pages (только из main)"
+        required: false
+        type: boolean
+        default: true
+      e2e:
+        description: "Прогнать e2e в web MSX (Playwright, Chromium)"
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -27,12 +38,13 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run crawl
       - run: npm run privacy
       - run: npm run build
       - run: npm run size
   deploy:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -66,3 +78,24 @@ jobs:
           path: dist
       - id: deployment
         uses: actions/deploy-pages@v4
+  e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "26"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: test-results
+          retention-days: 7
