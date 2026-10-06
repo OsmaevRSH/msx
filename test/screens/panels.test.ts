@@ -200,15 +200,52 @@ describe("panelScreen: audio, quality, subtitles (S10)", () => {
     assert.match(actions(t)[0], /play:2004:2004001:0:1:at321@/);
   });
 
-  it("in the player without video data — the last position of the tracker session, else 0", async () => {
+  it("in the player without video data — the last checked position of the tracker session", async () => {
     const t = await make();
-    t.ctx.tracker.session = () => ({ mid: M12, lastPos: 77.9 }) as PlaybackSession;
+    t.ctx.tracker.session = () => ({ mid: M12, lastPos: 77.9, peak: 90 }) as PlaybackSession;
     await act(t, "audio", A12, M12, 4, "p");
     assert.match(actions(t)[0], /:at77@/);
+  });
+
+  it("X-2: requestData fails — audio and quality restart from the session position, not from 0", async () => {
+    const t = await make();
+    t.host.responses.set("video", () => {
+      throw new Error("no player data");
+    });
+    // «Продолжить»: проверенной позиции ещё нет, максимум сессии засеян `resume:position`.
+    t.ctx.tracker.session = () => ({ mid: M12, peak: 1287 }) as PlaybackSession;
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.match(actions(t)[0], /^\[cleanup\|player:eject\|video:resolve:.*play:2004:2004001:0:1:at1287@/);
     t.host.clearActions();
-    t.ctx.tracker.session = () => ({ mid: 1, lastPos: 500 }) as PlaybackSession;
-    await act(t, "audio", A12, M12, 7, "p");
-    assert.match(actions(t)[0], /:at0@/);
+    t.ctx.tracker.session = () => ({ mid: M12, lastPos: 640.4, peak: 700 }) as PlaybackSession;
+    await act(t, "quality", A12, M12, 720, "p");
+    assert.match(actions(t)[0], /:at640@/);
+  });
+
+  it("X-2: the player answers 0 while «Продолжить» buffers — the session maximum, not 0", async () => {
+    const t = await make();
+    t.host.responses.set("video", { video: { data: { position: 0 } } });
+    t.ctx.tracker.session = () => ({ mid: M12, peak: 1287 }) as PlaybackSession;
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.match(actions(t)[0], /:at1287@/);
+  });
+
+  it("X-2: no session of this mid — the overlay position of this video", async () => {
+    const t = await make();
+    t.ctx.tracker.session = () => ({ mid: 1, lastPos: 500, peak: 500 }) as PlaybackSession;
+    t.ctx.overlay.set(A12, 0, 1, { time: 912, status: 0 });
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.match(actions(t)[0], /:at912@/);
+  });
+
+  it("X-2: no position at all — no restart from 0: the panel closes with a message, the choice is kept", async () => {
+    const t = await make();
+    t.ctx.tracker.session = () => undefined;
+    t.ctx.overlay.set(A12, 0, 1, { time: 5900, status: 1 });
+    await act(t, "audio", A12, M12, 4, "p");
+    assert.equal(t.ctx.prefs.get().titleAudio[String(A12)], "rus|2|12");
+    assert.deepEqual(actions(t), ["[back|info:Не удалось узнать позицию — выбор сработает при следующем запуске]"]);
+    assert.ok(!actions(t)[0].includes("player:eject"));
   });
 
   it("in the player, the voice that already plays: only close the panel", async () => {

@@ -29,6 +29,7 @@ const T = {
   upTo: "до", subs: "Субтитры", subsOff: "Выключены", bookmarks: "Закладки", createFolder: "Создать папку „MSX“ и добавить",
   seasons: "Сезоны", mode: "Способ воспроизведения",
   modeTv: "Как в настройках", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов", part: "Часть",
+  noPos: "Не удалось узнать позицию — выбор сработает при следующем запуске",
 };
 
 const TAG = "panels";
@@ -304,21 +305,34 @@ async function chooseQuality(ctx: AppContext, args: string[]): Promise<void> {
   await applied(ctx, w, tu, playing() !== before);
 }
 
-/** До старта — перерисовать карточку; в плеере — перезапуск с позиции, если меняется то, что играет (спец. §9.1). */
+/**
+ * До старта — перерисовать карточку; в плеере — перезапуск с позиции, если меняется то, что играет (спец. §9.1).
+ * Позиция неизвестна — без перезапуска: с 0 он потерял бы просмотренное (X-2), выбор сработает при следующем запуске.
+ */
 async function applied(ctx: AppContext, w: Where, tu: TitleUnit, changed: boolean): Promise<void> {
   if (w === "c" || !changed) return ctx.host.executeAction(w === "c" ? BACK_RELOAD : "back");
   const { item, ref } = tu;
-  const at = Math.floor(await playerPosition(ctx, ref.mid));
-  const resolve = resolveAction(ctx.P, ids.playEp(item.id, ref.mid, ref.season, ref.video, { at }));
+  const pos = await playerPosition(ctx, item.id, ref);
+  if (pos === undefined) {
+    ctx.log.warn(TAG, "no_position", { mid: ref.mid });
+    return ctx.host.executeAction(chain(["back", `info:${T.noPos}`]));
+  }
+  const resolve = resolveAction(ctx.P, ids.playEp(item.id, ref.mid, ref.season, ref.video, { at: Math.floor(pos) }));
   // `video:` из цепочки берёт метку плеера только из `data` (msx-platform §3.2).
   ctx.host.executeAction(chain(["cleanup", "player:eject", resolve]), { playerLabel: playLabel(item, ref) });
 }
 
-/** Позиция из данных плеера, иначе — последний снимок сессии этого `mid` (Plan B §5.10). */
-async function playerPosition(ctx: AppContext, mid: number): Promise<number> {
+/**
+ * Позиция плеера (Plan B §5.10). Нет её или 0 (плеер ещё грузит «Продолжить») — проверенная позиция или максимум
+ * сессии этого `mid` (при «Продолжить» он засеян `resume:position`); сессии нет — недосмотренная позиция оверлея.
+ */
+async function playerPosition(ctx: AppContext, id: number, ref: EpRef): Promise<number | undefined> {
   const pos = await ctx.host.requestData("video").then((d) => positionFrom(d).position, () => undefined);
+  if (pos !== undefined && pos > 0) return pos;
   const s = ctx.tracker.session();
-  return pos ?? (s?.mid === mid ? s.lastPos : undefined) ?? 0;
+  const o = ctx.overlay.get(id, ref.season, ref.video);
+  const known = s?.mid === ref.mid ? s.lastPos || s.peak : o?.status === 0 ? o.time : undefined;
+  return known || pos;
 }
 
 /** Как метка ответа resolve: «<название> · S1E5», «<название> · Часть 2» или название. */
