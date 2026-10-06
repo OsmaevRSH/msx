@@ -19,8 +19,11 @@ const DEFAULT_URI = "kino.watch/device";
 
 const T = {
   headline: "Вход в KinoPub",
-  steps: (uri: string): string => `1. Откройте на телефоне {txt:msx-white:${uri}}{br}2. Введите код:`,
-  until: (hhmm: string): string => `Код действует до ${hhmm}`,
+  steps: (uri: string): string => `{col:msx-white}1. Откройте на телефоне ${uri}{br}2. Введите код:`,
+  until: (hhmm: string): string => `{col:msx-white}Код действует до ${hhmm}`,
+  check: "Проверить сейчас",
+  pending: "Код ещё не подтверждён",
+  checkFailed: "Не удалось проверить, повторю через несколько секунд",
   newCode: "Новый код",
   probe: "Диагностика",
   codeFailed: "{ico:msx-yellow:warning} Не удалось получить код входа",
@@ -30,10 +33,22 @@ const T = {
   reloadMenu: "Обновить меню",
 };
 
-/** `https://kino.watch/device` → `kino.watch/device`; фигурные скобки сломали бы выражение `{txt:…}`. */
+/** `https://kino.watch/device` → `kino.watch/device`; фигурные скобки MSX счёл бы своим выражением. */
 function bareUri(uri: string): string {
   const s = uri.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/\/+$/, "").replace(/[{}]/g, "");
   return s !== "" ? s : DEFAULT_URI;
+}
+
+/**
+ * Код входа картинкой (V-01): у текста MSX нет размера шрифта, а код читают с дивана. SVG рисуется MSX как `<img>`
+ * (web MSX 0.1.167); ширина растёт с длиной кода, `imageFiller: "fit"` вписывает её в плитку.
+ */
+function codeImage(code: string): string {
+  const text = code.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  const w = Math.max(900, code.length * 112);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} 220"><text x="50%" y="50%" dominant-baseline="central" ` +
+    `text-anchor="middle" font-family="Roboto,Arial,sans-serif" font-size="150" font-weight="500" letter-spacing="18" fill="#fff">${text}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 function screen(items: MsxContentItem[]): MsxContentRoot {
@@ -43,10 +58,12 @@ function screen(items: MsxContentItem[]): MsxContentRoot {
 function codeScreen(ctx: AppContext, st: Extract<LoginState, { phase: "code" }>): MsxContentRoot {
   return screen([
     { type: "space", layout: "0,0,12,2", text: T.steps(bareUri(st.verificationUri)) },
-    { id: "login_code", type: "space", layout: "2,2,8,2", color: "msx-glass", alignment: "center", headline: st.userCode },
+    { id: "login_code", type: "space", layout: "2,2,8,2", color: "msx-glass", image: codeImage(st.userCode), imageFiller: "fit" },
     { type: "space", layout: "0,4,12,1", alignment: "center", text: T.until(fmtTime(st.expiresAt)) },
-    { type: "button", layout: "0,5,6,1", label: T.newCode, action: commitMsg(msgs.act("login", "new")) },
-    { type: "button", layout: "6,5,6,1", label: T.probe, action: contentAction(ctx.P, ids.probe()) },
+    // Первой и в фокусе — безопасная проверка: OK по привычке не должен менять код, пока его вводят (V-02).
+    { type: "button", layout: "0,5,4,1", label: T.check, action: commitMsg(msgs.act("login", "check")), focus: true },
+    { type: "button", layout: "4,5,4,1", label: T.newCode, action: commitMsg(msgs.act("login", "new")) },
+    { type: "button", layout: "8,5,4,1", label: T.probe, action: contentAction(ctx.P, ids.probe()) },
   ]);
 }
 
@@ -112,8 +129,9 @@ export async function loginScreen(ctx: AppContext): Promise<MsxContentRoot> {
   }
 }
 
+/** `act:login:new` — новый код; `act:login:check` — опрос сразу, с откликом, если код ещё не подтверждён. */
 export async function onLoginAct(ctx: AppContext, name: string, _args: string[]): Promise<void> {
-  if (name !== "new") {
+  if (name !== "new" && name !== "check") {
     ctx.log.warn(TAG, "unknown_act", { name });
     return;
   }
@@ -123,5 +141,10 @@ export async function onLoginAct(ctx: AppContext, name: string, _args: string[])
     if (ctx.current.isCurrent(ids.login())) ctx.host.executeAction("reload:content");
     return;
   }
-  await flow.renew();
+  if (name === "new") {
+    await flow.renew();
+    return;
+  }
+  const r = await flow.checkNow();
+  if (r !== undefined) ctx.host.executeAction(`info:${r === "pending" ? T.pending : T.checkFailed}`);
 }

@@ -256,6 +256,50 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     r.flow.stop();
   });
 
+  // V-02: «Проверить сейчас» — опрос сразу, не дожидаясь таймера.
+  it("checkNow() polls at once; the next poll is again one interval later", async () => {
+    env.mock().setScenario({ pendingPolls: 3 });
+    const r = flowRig(env);
+    await r.run(r.flow.start());
+    const t0 = r.clock.now();
+    await r.clock.advance(1000);
+    assert.equal(await r.run(r.flow.checkNow()), "pending");
+    await r.next("done");
+    assert.deepEqual(gaps(r.polls, t0), [1000, 5000, 5000, 5000]);
+    assert.equal(r.clock.pending(), 0);
+  });
+
+  it("checkNow() after the code was confirmed → done at once (onChange), nothing to report", async () => {
+    env.mock().setScenario({ pendingPolls: 0 });
+    const r = flowRig(env);
+    await r.run(r.flow.start());
+    assert.equal(await r.run(r.flow.checkNow()), undefined);
+    assert.deepEqual(r.states, [{ phase: "done" }]);
+    assert.equal(r.polls.length, 1);
+    assert.ok(r.auth.isLoggedIn());
+  });
+
+  it("checkNow() while a poll is in flight or without a code does nothing", async () => {
+    const r = flowRig(env);
+    assert.equal(await r.run(r.flow.checkNow()), undefined, "no code yet");
+    await r.run(r.flow.start());
+    const a = r.flow.checkNow();
+    const b = r.flow.checkNow();
+    assert.deepEqual(await r.run(Promise.all([a, b])), ["pending", undefined]);
+    assert.equal(r.polls.length, 1);
+    r.flow.stop();
+  });
+
+  it("checkNow() with the network down → «failed», the next poll on schedule", async () => {
+    const r = flowRig(env);
+    await r.run(r.flow.start());
+    const t0 = r.clock.now();
+    env.mock().setScenario({ rules: [{ path: "^/oauth2/device$", drop: true, times: 1 }] });
+    assert.equal(await r.run(r.flow.checkNow()), "failed");
+    await r.next("done");
+    assert.deepEqual(gaps(r.polls, t0), [0, 5000, 5000, 5000]);
+  });
+
   it("deviceTitle failure → the login still completes with a fallback title", async () => {
     const r = flowRig(env, () => Promise.reject(new Error("no info")));
     await r.run(r.flow.start());

@@ -32,7 +32,11 @@ async function until(pred: () => boolean): Promise<void> {
 }
 
 const items = (s: MsxContentRoot): MsxContentItem[] => s.pages?.[0]?.items ?? [];
-const codeOf = (s: MsxContentRoot): string | undefined => items(s).find((i) => i.layout === "2,2,8,2")?.headline;
+/** Код входа нарисован картинкой SVG (V-01): текст из `<text>` в `data:`-адресе. */
+const codeOf = (s: MsxContentRoot): string | undefined => {
+  const image = items(s).find((i) => i.id === "login_code")?.image;
+  return image === undefined ? undefined : /<text[^>]*>([^<]*)<\/text>/.exec(decodeURIComponent(image))?.[1];
+};
 const texts = (s: MsxContentRoot): string[] => items(s).flatMap((i) => [i.headline, i.text]).filter((x): x is string => x !== undefined);
 const buttons = (s: MsxContentRoot): { label?: string; action?: string }[] =>
   items(s).filter((i) => i.type === "button").map((i) => ({ label: i.label, action: i.action }));
@@ -57,13 +61,28 @@ describe("loginScreen (S2)", () => {
     );
     assert.equal(mockCodes(t).length, 1);
     assert.equal(codeOf(s), mockCodes(t)[0]);
-    assert.ok(texts(s).includes("1. Откройте на телефоне {txt:msx-white:kino.watch/device}{br}2. Введите код:"));
-    assert.ok(texts(s).includes(`Код действует до ${hhmm(FAKE_EPOCH + CODE_TTL_MS)}`));
+    assert.ok(texts(s).includes("{col:msx-white}1. Откройте на телефоне kino.watch/device{br}2. Введите код:"));
+    assert.ok(texts(s).includes(`{col:msx-white}Код действует до ${hhmm(FAKE_EPOCH + CODE_TTL_MS)}`));
     assert.deepEqual(buttons(s), [
+      { label: "Проверить сейчас", action: "interaction:commit:message:act:login:check" },
       { label: "Новый код", action: "interaction:commit:message:act:login:new" },
       { label: "Диагностика", action: `content:request:interaction:probe@${TEST_P}` },
     ]);
     for (const p of s.pages ?? []) assert.ok(p.items.some((i) => i.type !== "space"));
+  });
+
+  // V-01, V-02: код читается с дивана, а OK по привычке не меняет код.
+  it("the code is a large SVG picture; the safe «Проверить сейчас» is first and focused", async () => {
+    const t = await make();
+    const s: MsxContentRoot = await t.request("login");
+    const code = items(s).find((i) => i.id === "login_code");
+    assert.match(code?.image ?? "", /^data:image\/svg\+xml,%3Csvg/);
+    assert.equal(code?.imageFiller, "fit");
+    assert.equal(code?.headline, undefined);
+    assert.match(decodeURIComponent(code?.image ?? ""), /font-size="150"/);
+    const focused = items(s).filter((i) => i.focus === true);
+    assert.deepEqual(focused.map((i) => i.label), ["Проверить сейчас"]);
+    assert.equal(items(s).find((i) => i.type === "button")?.label, "Проверить сейчас");
   });
 
   it("is reached from a content route without login", async () => {
@@ -193,6 +212,41 @@ describe("loginScreen (S2)", () => {
 });
 
 describe("onLoginAct", () => {
+  it("«check» before the code is confirmed → one poll at once and «Код ещё не подтверждён»", async () => {
+    const t = await make();
+    await t.request("login");
+    const polls = (): number => t.mock.calls().filter((c) => c.path === "/oauth2/device").length - 1;
+    await t.run(onLoginAct(t.ctx, "check", []));
+    assert.equal(polls(), 1);
+    assert.deepEqual(actions(t), ["info:Код ещё не подтверждён"]);
+  });
+
+  it("«check» after the code was confirmed → logged in at once: toast + replace:menu", async () => {
+    const t = await make();
+    t.mock.setScenario({ pendingPolls: 0 });
+    await t.request("login");
+    await t.run(onLoginAct(t.ctx, "check", []));
+    assert.ok(t.ctx.auth.isLoggedIn());
+    assert.deepEqual(actions(t), [DONE]);
+  });
+
+  it("«check» with the network down → a toast; polling goes on", async () => {
+    const t = await make();
+    await t.request("login");
+    t.mock.setScenario({ rules: [{ path: "^/oauth2/device$", drop: true, times: 1 }] });
+    await t.run(onLoginAct(t.ctx, "check", []));
+    assert.deepEqual(actions(t), ["info:Не удалось проверить, повторю через несколько секунд"]);
+    assert.equal(t.ctx.state.login?.state().phase, "code");
+  });
+
+  it("«check» from the router message act:login:check", async () => {
+    const t = await make();
+    await t.request("login");
+    t.app.handleData({ message: "act:login:check" });
+    await t.run(until(() => actions(t).length > 0));
+    assert.deepEqual(actions(t), ["info:Код ещё не подтверждён"]);
+  });
+
   it("«new» gives a new code and reloads the current login screen", async () => {
     const t = await make();
     const first = codeOf(await t.request("login"));
@@ -212,11 +266,12 @@ describe("onLoginAct", () => {
     assert.ok(st?.phase === "code" && st.userCode !== first);
   });
 
-  it("«new» without a flow (plugin reloaded) just reloads the login screen", async () => {
+  it("«new» and «check» without a flow (plugin reloaded) just reload the login screen", async () => {
     const t = await make();
     t.ctx.current.onRequest("login");
     await t.run(onLoginAct(t.ctx, "new", []));
-    assert.deepEqual(actions(t), ["reload:content"]);
+    await t.run(onLoginAct(t.ctx, "check", []));
+    assert.deepEqual(actions(t), ["reload:content", "reload:content"]);
     assert.equal(t.mock.calls().length, 0);
   });
 

@@ -23,6 +23,8 @@ const SLOW_DOWN_STEP_MS = 5000;
 const FALLBACK_TITLE = "MSX TV";
 
 type CodeResult = { dc: DeviceCode } | { err: KpError };
+/** Итог опроса для экрана: код ещё не подтверждён или опрос не удался; остальное сообщает `onChange`. */
+export type PollOutcome = "pending" | "failed" | undefined;
 
 /**
  * Вход по коду на ТВ (спец. §7.1, research kinopub-api §4.2–4.3). Опрос — только по `clock.setTimeout`
@@ -39,6 +41,7 @@ export class DeviceFlow {
   private intervalMs = MIN_INTERVAL_SEC * 1000;
   private codeExpiresAt = 0;
   private starting: Promise<LoginState> | undefined;
+  private polling = false;
 
   constructor(deps: DeviceFlowDeps) {
     this.d = deps;
@@ -58,6 +61,16 @@ export class DeviceFlow {
   /** Новый код взамен текущего (кнопка «Новый код» или истёк срок); сообщается и через `onChange`. */
   renew(): Promise<LoginState> {
     return this.newCode(true);
+  }
+
+  /**
+   * «Проверить сейчас» (V-02): опрос сразу, следующий — снова через интервал. Без кода и пока идёт опрос — ничего.
+   */
+  checkNow(): Promise<PollOutcome> {
+    if (this.st.phase !== "code" || this.polling) return Promise.resolve(undefined);
+    if (this.timer !== undefined) this.d.clock.clearTimeout(this.timer);
+    this.timer = undefined;
+    return this.poll(this.seq);
   }
 
   /** Остановить опрос; показанный код больше не действует для этого объекта. */
@@ -149,7 +162,7 @@ export class DeviceFlow {
     }, this.intervalMs);
   }
 
-  private async poll(seq: number): Promise<void> {
+  private async poll(seq: number): Promise<PollOutcome> {
     if (seq !== this.seq) return;
     if (this.d.clock.now() >= this.codeExpiresAt) {
       this.d.log.info(TAG, "code_lifetime_over");
@@ -157,6 +170,7 @@ export class DeviceFlow {
       return;
     }
     let r: DeviceTokenResult;
+    this.polling = true;
     try {
       r = await this.d.api.deviceToken(this.code);
     } catch (e) {
@@ -164,20 +178,25 @@ export class DeviceFlow {
       if (seq !== this.seq) return;
       this.d.log.warn(TAG, "poll_failed", { err: toKpError(e).code });
       this.schedule(seq);
-      return;
+      return "failed";
+    } finally {
+      this.polling = false;
     }
     // Пара уже выдана и слот устройства занят: принимаем её, даже если опрос успели остановить.
-    if (r.kind === "ok") return this.finish(r.pair);
+    if (r.kind === "ok") {
+      await this.finish(r.pair);
+      return;
+    }
     if (seq !== this.seq) return;
     switch (r.kind) {
       case "pending":
         this.schedule(seq);
-        return;
+        return "pending";
       case "slow_down":
         this.intervalMs += SLOW_DOWN_STEP_MS;
         this.d.log.info(TAG, "slow_down", { intervalMs: this.intervalMs });
         this.schedule(seq);
-        return;
+        return "pending";
       case "expired":
         await this.newCode(true);
         return;
