@@ -1,0 +1,31 @@
+{
+  "type": "pages",
+  "cache": false,
+  "reuse": false,
+  "headline": "Ошибка",
+  "pages": [
+    {
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,4",
+          "headline": "{ico:msx-yellow:warning} Не удалось загрузить",
+          "text": "KinoPub не отвечает. Проверьте VPN{br}Код: KP-NET"
+        },
+        {
+          "type": "button",
+          "layout": "0,5,6,1",
+          "label": "Повторить",
+          "action": "[invalidate:content|reload:content]"
+        },
+        {
+          "type": "button",
+          "layout": "6,5,6,1",
+          "label": "Диагностика",
+          "action": "content:request:interaction:probe@https://example.github.io/msx/app/index.html"
+        }
+      ]
+    }
+  ],
+  "flag": "late_1"
+}

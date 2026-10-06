@@ -1,5 +1,5 @@
 import type { AppContext } from "../app/context.ts";
-import { toKpError } from "../core/errors.ts";
+import { KpError, toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
 import { chain, contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
@@ -27,6 +27,8 @@ const T = {
   back: "Назад",
   search: "Поиск",
   placeholder: "Раздел в разработке",
+  /** V-40: за срок экрана не пришло ничего — причина неизвестна (5xx, `TypeError`, зависание). */
+  slow: "KinoPub не отвечает. Проверьте VPN",
 };
 
 /** Перезапросить текущий экран; `invalidate:content` — только визуальная пометка «обновляю» (msx-platform §3.2). */
@@ -50,6 +52,8 @@ export interface ErrorItemsOptions {
   headline?: string;
   /** `KP-404` тайтла: «Назад» и «Поиск» — повтор не вернёт удалённый тайтл (V-41). */
   gone?: boolean;
+  /** Причина вместо текста кода. */
+  text?: string;
 }
 
 /** Элементы S14: причина с кодом на `0,0,w,4` и две кнопки в нижней строке. */
@@ -61,17 +65,20 @@ export function errorItems(ctx: AppContext, err: unknown, o: ErrorItemsOptions):
   const gone = o.gone === true && code === "KP-404";
   const button = (x: number, label: string, action: string): MsxContentItem => ({ type: "button", layout: `${x},5,${half},1`, label, action });
   return [
-    { type: "space", layout: `0,0,${w},4`, headline: o.headline ?? T.headline, text: `${text}{br}${T.code}: ${code}` },
+    { type: "space", layout: `0,0,${w},4`, headline: o.headline ?? T.headline, text: `${o.text ?? text}{br}${T.code}: ${code}` },
     gone ? button(0, T.back, "back") : button(0, login ? T.login : T.retry, login ? contentAction(ctx.P, ids.login()) : o.retry),
     gone ? button(half, T.search, contentAction(ctx.P, ids.search())) : button(half, T.probe, contentAction(ctx.P, ids.probe())),
   ];
 }
 
+/** Корни экранов ошибки: поздний ответ с ошибкой не заменяет экран «не отвечает» (V-40). */
+const failed = new WeakSet<object>();
+
 /**
  * S14. Ошибку запроса `panel:…` MSX рисует в панели (сетка 8×6), поэтому там «Повторить» перезапрашивает
  * панель, а не экран под ней.
  */
-export function errorScreen(ctx: AppContext, err: unknown, retryDataId?: string): MsxContentRoot {
+export function errorScreen(ctx: AppContext, err: unknown, retryDataId?: string, text?: string): MsxContentRoot {
   const panel = retryDataId !== undefined && isPanelId(retryDataId);
   const k = retryDataId === undefined ? undefined : parseDataId(retryDataId).k;
   const items = errorItems(ctx, err, {
@@ -79,8 +86,21 @@ export function errorScreen(ctx: AppContext, err: unknown, retryDataId?: string)
     offerLogin: true,
     width: panel ? PANEL_W : PAGE_W,
     gone: k === "item" || k === "season",
+    text,
   });
-  return { type: "pages", cache: false, reuse: false, headline: T.title, pages: [{ items }] };
+  const root: MsxContentRoot = { type: "pages", cache: false, reuse: false, headline: T.title, pages: [{ items }] };
+  failed.add(root);
+  return root;
+}
+
+export const isErrorScreen = (v: unknown): boolean => typeof v === "object" && v !== null && failed.has(v);
+
+/**
+ * V-40: данных экрана нет за срок (спец. §12) — S14 `KP-NET` «KinoPub не отвечает». `flag` — для `replace:` поздним
+ * ответом: MSX заменит только этот экран.
+ */
+export function slowScreen(ctx: AppContext, dataId: string, flag: string): MsxContentRoot {
+  return { ...errorScreen(ctx, new KpError("KP-NET", "deadline"), dataId, T.slow), flag };
 }
 
 export function placeholderScreen(ctx: AppContext, title: string): MsxContentRoot {

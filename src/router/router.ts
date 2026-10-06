@@ -1,13 +1,15 @@
 import { persistState } from "../app/context.ts";
 import type { AppContext, MsxInfo } from "../app/context.ts";
 import { Ring } from "../app/debug.ts";
+import { slotOf } from "../bridge/current.ts";
 import type { PluginApp } from "../bridge/host.ts";
 import { onFocus } from "../cache/prefetch.ts";
 import { KpError, toKpError } from "../core/errors.ts";
+import { replaceContent, replacePanel } from "../msx/actions.ts";
 import { resolvePlay } from "../playback/resolve.ts";
 import { probeOnReady, withProbe } from "../probe/lazy.ts";
 import { bookmarksScreen } from "../screens/bookmarks.ts";
-import { errorScreen, errorText } from "../screens/error.ts";
+import { errorScreen, errorText, isErrorScreen, slowScreen } from "../screens/error.ts";
 import { homeScreen, warmHome } from "../screens/home.ts";
 import { itemScreen, onItemAct } from "../screens/item.ts";
 import { listScreen, onExtend } from "../screens/list.ts";
@@ -22,6 +24,16 @@ import type { Msg, Route } from "./ids.ts";
 
 const TAG = "router";
 const RING = 200;
+
+/**
+ * V-40 (спец. §12): данных экрана или панели нет за столько — экран ошибки `KP-NET` «KinoPub не отвечает», а не
+ * спиннер до конца повторов §5.3 (5xx и `TypeError` — 9 с, зависание после ответов KinoPub — до 15 с).
+ */
+export const SCREEN_DEADLINE_MS = 6000;
+
+type Slot = "content" | "panel";
+/** Экран «не отвечает», показанный в слоте, и поздние данные для его `replace:` с моментом их прихода. */
+interface Slow { dataId: string; flag: string; late?: unknown; at?: number }
 
 /** Обработчик маршрута; таблица ниже — единственное место связи `dataId` с экранами (план §0.6.8, этап 16). */
 export type RouteTable = { [K in Route["k"]]: (ctx: AppContext, r: Extract<Route, { k: K }>) => unknown };
@@ -82,6 +94,10 @@ export class App implements PluginApp {
 
   private ctx: AppContext;
   private routes: RouteTable;
+  private slow: Partial<Record<Slot, Slow>> = {};
+  /** Номер последнего запроса слота: экран «не отвечает» показан, только если после него слот не запрашивали. */
+  private asked: Record<Slot, number> = { content: 0, panel: 0 };
+  private slowSeq = 0;
 
   /** `routes` — подмена обработчиков только для тестов маршрутизатора. */
   constructor(ctx: AppContext, routes?: Partial<RouteTable>) {
@@ -117,19 +133,19 @@ export class App implements PluginApp {
     if (dataId === "init") ctx.state.initCount += 1;
     ctx.current.onRequest(dataId);
     const r = parseDataId(dataId);
-    const resolve = RESOLVE.has(r.k);
+    const slot = slotOf(dataId);
     let out: unknown;
-    try {
-      if (!PUBLIC.has(r.k) && !ctx.auth.isLoggedIn()) {
-        out = await this.loginInstead(r, resolve);
-      } else {
-        const handler = this.routes[r.k] as (ctx: AppContext, r: Route) => unknown;
-        out = await handler(ctx, r);
-      }
-    } catch (e) {
-      const err = toKpError(e);
-      ctx.log.warn(TAG, "request_failed", { route: r.k, err: err.code, status: err.status, msg: err.message });
-      out = resolve ? { error: errorText(e).text } : errorScreen(ctx, e, dataId);
+    let n = 0;
+    if (slot !== undefined) {
+      out = this.takeLate(slot, dataId);
+      // Ответ на этот запрос заменит то, что показано в слоте.
+      this.slow[slot] = undefined;
+      n = ++this.asked[slot];
+    }
+    if (out === undefined) {
+      // Вход, «Диагностика» и resolve — со своими сроками: §5.3 п. 4, CNFR-15 и цепочка fallback §9.1.
+      const timed = slot !== undefined && !PUBLIC.has(r.k) && ctx.auth.isLoggedIn();
+      out = timed ? await this.timed(slot, n, dataId, r) : await this.route(r, dataId);
     }
     ctx.metrics.record(`screen:${r.k}`, ctx.clock.perf() - t0);
     if (r.k === "init") ctx.state.initAnsweredAt = ctx.clock.perf();
@@ -160,6 +176,71 @@ export class App implements PluginApp {
   }
 
   // --- Внутреннее ---
+
+  /** Ответ маршрута; исключение — экран ошибки, у resolve — `{ error }`. */
+  private async route(r: Route, dataId: string): Promise<unknown> {
+    const { ctx } = this;
+    const resolve = RESOLVE.has(r.k);
+    try {
+      if (!PUBLIC.has(r.k) && !ctx.auth.isLoggedIn()) return await this.loginInstead(r, resolve);
+      const handler = this.routes[r.k] as (ctx: AppContext, r: Route) => unknown;
+      return await handler(ctx, r);
+    } catch (e) {
+      const err = toKpError(e);
+      ctx.log.warn(TAG, "request_failed", { route: r.k, err: err.code, status: err.status, msg: err.message });
+      return resolve ? { error: errorText(e).text } : errorScreen(ctx, e, dataId);
+    }
+  }
+
+  /**
+   * V-40: ответ маршрута, а если его нет за `SCREEN_DEADLINE_MS` — экран «не отвечает» с уникальным флагом. Запрос не
+   * отменяется: его данные лягут в кэш, а пока этот экран показан и текущий — заменят его (`late`).
+   */
+  private timed(slot: Slot, n: number, dataId: string, r: Route): Promise<unknown> {
+    const { ctx } = this;
+    return new Promise((answer) => {
+      let flag: string | undefined;
+      let timer = ctx.clock.setTimeout(() => {
+        // Вердикт транспорта за те же 6 с (§5.3 п. 4) и кэш после него важнее: им — один шаг таймеров.
+        timer = ctx.clock.setTimeout(() => {
+          flag = `late_${++this.slowSeq}`;
+          if (this.asked[slot] === n) this.slow[slot] = { dataId, flag };
+          ctx.metrics.inc("screen:deadline");
+          ctx.log.warn(TAG, "deadline", { route: r.k });
+          answer(slowScreen(ctx, dataId, flag));
+        }, 0);
+      }, SCREEN_DEADLINE_MS);
+      void this.route(r, dataId).then((out) => {
+        if (flag === undefined) {
+          ctx.clock.clearTimeout(timer);
+          answer(out);
+        } else {
+          this.late(slot, dataId, flag, out);
+        }
+      });
+    });
+  }
+
+  /** Поздний ответ: ошибка ничего не меняет; данные заменяют экран «не отвечает», только если он показан и текущий. */
+  private late(slot: Slot, dataId: string, flag: string, out: unknown): void {
+    const { ctx } = this;
+    const s = this.slow[slot];
+    const shown = s?.flag === flag && (slot === "panel" || ctx.current.isCurrent(dataId));
+    const kind = isErrorScreen(out) ? "failed" : shown ? "replaced" : "not_current";
+    ctx.metrics.inc(`screen:late_${kind}`);
+    ctx.log.info(TAG, `late ${kind}`, { route: parseDataId(dataId).k });
+    if (kind !== "replaced" || s === undefined) return;
+    s.late = out;
+    s.at = ctx.clock.perf();
+    ctx.host.executeAction((slot === "panel" ? replacePanel : replaceContent)(flag, ctx.P, dataId));
+  }
+
+  /** Перезапрос по `replace:` (или «Повторить») сразу после поздних данных получает их, без второго похода в сеть. */
+  private takeLate(slot: Slot, dataId: string): unknown {
+    const s = this.slow[slot];
+    if (s?.dataId !== dataId || s.at === undefined) return undefined;
+    return this.ctx.clock.perf() - s.at <= SCREEN_DEADLINE_MS ? s.late : undefined;
+  }
 
   /**
    * Без токенов: контент — экран входа, и текущим считается `login`, чтобы вход по коду обновил его (этап 17

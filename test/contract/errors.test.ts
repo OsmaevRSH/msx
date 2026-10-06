@@ -2,7 +2,9 @@ import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { MsxContentRoot, MsxResolveResponse } from "../../src/msx/types.ts";
 import type { TrackerEvent } from "../../src/progress/tracker.ts";
-import { encodeListKey, ids } from "../../src/router/ids.ts";
+import { encodeListKey, ids, parseDataId } from "../../src/router/ids.ts";
+import { itemScreen } from "../../src/screens/item.ts";
+import { listScreen } from "../../src/screens/list.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import type { Scenario } from "../../tools/kpmock/scenario.ts";
 import { FakeClock } from "../helpers/fake-clock.ts";
@@ -42,11 +44,22 @@ async function make(o: TestAppOptions = {}): Promise<TestApp> {
 
 const logged = (t: TestApp, msg: string): number => t.ctx.log.entries().filter((e) => e.msg === msg).length;
 
+/**
+ * Экран, как его строит модуль экрана, без срока маршрутизатора (V-40, спец. §12): здесь проверяется, чем кончаются
+ * повторы §5.3, а они кончаются позже 6 с. Экран «не отвечает» через 6 с — test/router/deadline.test.ts.
+ */
+function screen(t: TestApp, dataId: string): Promise<MsxContentRoot> {
+  const r = parseDataId(dataId);
+  if (r.k === "list") return t.run(listScreen(t.ctx, r.key));
+  if (r.k === "item") return t.run(itemScreen(t.ctx, r.id));
+  throw new Error(`no screen for ${dataId}`);
+}
+
 describe("CC-13 end to end: errors without CORS and the network (contract)", () => {
   it("no_cors_errors + 429 on /v1/items → 3 attempts, one no-cors probe, list screen KP-429 (never KP-CORS), parallelism 1 for 30 s", async () => {
     const t = await make();
     t.mock.setScenario({ noCorsErrors: true, rules: [{ path: "^/v1/items$", status: 429 }] });
-    const list = (await t.request(ids.list(SERIALS))) as MsxContentRoot;
+    const list = await screen(t, ids.list(SERIALS));
     assert.equal(errorCode(list), "KP-429");
     assert.match(pageItems(list)[0]?.text ?? "", /^KinoPub сейчас не отвечает\. Повторите через минуту/);
     assertNoCorsVerdict([list]);
@@ -75,12 +88,12 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     // её отказа отдаёт кэш с `offline`; в пределах недели устаревший список отдаётся сразу, без сети (спец. §8.2).
     const b = await make({ mock: a.mock, storage, loggedIn: false, clock: new FakeClock(a.clock.now() + WEEK_MS + 86_400_000) });
     b.mock.setScenario({ rules: [{ path: ".*", drop: true }] });
-    const none = (await b.request(ids.list(MOVIES))) as MsxContentRoot;
+    const none = await screen(b, ids.list(MOVIES));
     assert.equal(errorCode(none), "KP-NET");
     assert.match(pageItems(none)[0]?.text ?? "", /^Нет связи с KinoPub\. Проверьте VPN/);
     assert.deepEqual(probes(b), [PROBE], "3 TypeErrors → one probe, it fails too → KP-NET");
 
-    const cached = (await b.request(ids.list(SERIALS))) as MsxContentRoot;
+    const cached = await screen(b, ids.list(SERIALS));
     assert.equal(errorCode(cached), undefined);
     assert.deepEqual(cached.items?.map((i) => i.kid), fresh.items?.map((i) => i.kid));
     assert.match(cached.extension ?? "", /нет связи/);
@@ -90,13 +103,13 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
   it("cors_off: after 3 TypeErrors the no-cors probe passes → the screen shows KP-429; no screen says KP-CORS, only CDG-01 does", async () => {
     const t = await make();
     t.mock.setScenario({ corsOff: true });
-    const list = (await t.request(ids.list(SERIALS))) as MsxContentRoot;
+    const list = await screen(t, ids.list(SERIALS));
     assert.equal(errorCode(list), "KP-429", "«ответ без CORS» is handled as 429 (§5.3 п. 2)");
     assert.equal(logged(t, "api_no_cors"), 1);
     assert.deepEqual(probes(t), [PROBE]);
 
     // Код второго экрана подряд проверяет тест BUG-29-1 ниже; здесь только «не KP-CORS».
-    const card = (await t.request(ids.item(FIX.SERIAL_SMALL))) as MsxContentRoot;
+    const card = await screen(t, ids.item(FIX.SERIAL_SMALL));
     assert.notEqual(errorCode(card), undefined);
     assertNoCorsVerdict([list, card]);
     const before = probes(t).length;
@@ -122,9 +135,9 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     it(`${name}: the second screen in a row is still KP-429, not KP-NET from an open breaker`, async () => {
       const t = await make();
       t.mock.setScenario(scenario);
-      const list = (await t.request(ids.list(SERIALS))) as MsxContentRoot;
+      const list = await screen(t, ids.list(SERIALS));
       assert.equal(errorCode(list), "KP-429");
-      const card = (await t.request(ids.item(FIX.SERIAL_SMALL))) as MsxContentRoot;
+      const card = await screen(t, ids.item(FIX.SERIAL_SMALL));
       assert.equal(errorCode(card), "KP-429", `log: ${t.ctx.log.entries().filter((e) => e.tag === "api").map((e) => e.msg).join("; ")}`);
     });
   }
