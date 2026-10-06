@@ -113,16 +113,17 @@ describe("CDG-05: a1, a2, hls2 start with TTFF", () => {
   it("a1 stopped before it started → ✗; a later Back before start does not undo a success", async () => {
     const t = await make();
     const tt = await title(t);
-    const props = await probePlay(t, "a1", tt, tt.s1e1);
-    load(t, props, 0, tt.s1e1.duration);
+    // Каждый запуск плитки — свой resolve: MSX приносит в `video:load` его свойства с новым nonce `kp:r` (фикс 34b).
+    const launch = async (): Promise<void> => load(t, await probePlay(t, "a1", tt, tt.s1e1), 0, tt.s1e1.duration);
+    await launch();
     player(t, "stop");
     assert.equal(check(t, "CDG-05").ok, false);
     assert.equal(check(t, "CDG-05").values.a1, false);
 
-    load(t, props, 0, tt.s1e1.duration);
+    await launch();
     player(t, "play", { position: 0 });
     player(t, "stop", { position: 5 });
-    load(t, props, 0, tt.s1e1.duration);
+    await launch();
     player(t, "stop");
     assert.equal(typeof check(t, "CDG-05").values.a1, "number");
   });

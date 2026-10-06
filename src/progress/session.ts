@@ -1,7 +1,12 @@
 import { numberFrom } from "./samples.ts";
 
-/** Наши маркеры в свойствах ответа resolve: по ним события плеера сопоставляются с сессией (спец. §9.2). */
-export const KP_PROPS = { item: "kp:i", mid: "kp:m", season: "kp:s", episode: "kp:e", duration: "kp:d", hasNext: "kp:n", probe: "kp:p" } as const;
+/**
+ * Наши маркеры в свойствах ответа resolve: по ним события плеера сопоставляются с сессией (спец. §9.2).
+ * `kp:r` — nonce запуска (фикс 34b): свой у каждого ответа resolve, поэтому различает запуски одного видео.
+ */
+export const KP_PROPS = {
+  item: "kp:i", mid: "kp:m", season: "kp:s", episode: "kp:e", duration: "kp:d", hasNext: "kp:n", probe: "kp:p", run: "kp:r",
+} as const;
 /** Стартовая позиция из ответа resolve (`screens/player.ts`, Plan B §9.7): число — «Продолжить», `none` — с начала. */
 const RESUME_PROP = "resume:position";
 
@@ -13,6 +18,8 @@ export interface PlaybackSession {
   duration: number;
   hasNext: boolean;
   probe?: string;
+  /** Nonce запуска (`kp:r`); нет — MSX его не вернул, запуски того же видео различает только окно (спец. §10.2). */
+  run?: string;
   loadedAt: number;
   started: boolean;
   /** Последняя позиция, которой можно верить (`judgePosition`). */
@@ -66,5 +73,11 @@ export function sessionFromProps(props: Record<string, unknown> | undefined, now
   };
   const probe = props[KP_PROPS.probe];
   if (typeof probe === "string" && probe !== "") s.probe = probe;
+  const run = props[KP_PROPS.run];
+  if (typeof run === "string" && run !== "") s.run = run;
   return s;
 }
+
+/** Тот же запуск: по nonce, если он есть у обоих (фикс 34b), иначе — то же видео. */
+export const sameRun = (a: PlaybackSession, b: PlaybackSession): boolean =>
+  a.run !== undefined && b.run !== undefined ? a.run === b.run : a.mid === b.mid;

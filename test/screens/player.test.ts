@@ -35,7 +35,7 @@ const URL = "https://u.ams-static-14.cdntogo.net/hls/TOKEN/2/46/DBCtPgEVqLdlY5qQ
 function resolved(over: Partial<ResolvedPlay> = {}): ResolvedPlay {
   return {
     url: URL, label: "Черное зеркало · 1 сезон, 2 серия", position: 1287, quality: "1080p", audio: "Кубик в Кубе",
-    mode: "hls1", step: 1, props: MIDDLE, ...over,
+    mode: "hls1", step: 1, props: MIDDLE, run: "r1", ...over,
   };
 }
 
@@ -87,7 +87,7 @@ const PERCENT = /^trigger:\d+%$/;
 const TICKS = /^trigger:\d+t$/;
 
 describe("buildResolveResponse: example of spec §9.2 (S1E2 with neighbours)", () => {
-  it("url, label and every key of the example with its value; plus only kp:n", async () => {
+  it("url, label and every key of the example with its value; plus only kp:n and the launch nonce kp:r", async () => {
     const t = await make();
     const res = buildResolveResponse(t.ctx, resolved());
     assert.equal(res.url, URL);
@@ -95,8 +95,9 @@ describe("buildResolveResponse: example of spec §9.2 (S1E2 with neighbours)", (
     assert.equal(res.error, undefined);
     const props = res.properties ?? {};
     for (const [k, v] of Object.entries(EXAMPLE)) assert.equal(props[k], v, k);
-    assert.deepEqual(Object.keys(props).sort(), [...Object.keys(EXAMPLE), "kp:n"].sort());
+    assert.deepEqual(Object.keys(props).sort(), [...Object.keys(EXAMPLE), "kp:n", "kp:r"].sort());
     assert.equal(props["kp:n"], "1");
+    assert.equal(props["kp:r"], "r1");
   });
 
   it("does not touch the mock: properties are built without network", async () => {
@@ -211,6 +212,7 @@ describe("contextPlayerProps and contextFields (CDG-06, decision Р-18)", () => 
     assert.equal(c["kp:e"], "{context:ke}");
     assert.equal(c["kp:d"], "{context:kd}");
     assert.equal(c["kp:n"], "{context:kn}");
+    assert.equal(c["kp:r"], undefined, "the launch nonce comes only from resolve (fix 34b)");
     assert.equal(c["button:next:action"], "{context:knextAction}");
     assert.equal(c["button:prev:action"], "{context:kprevAction}");
     assert.equal(c["trigger:complete"], "{context:kcomplete}");
@@ -266,7 +268,7 @@ describe("dynamicProps", () => {
   it("step 1 hls1: position and label «quality · audio» without the stream mode (V-27)", async () => {
     const t = await make();
     const d = dynamicProps(t.ctx, resolved());
-    assert.deepEqual(d, { "resume:position": "1287", "label:extension": "1080p · Кубик в Кубе" });
+    assert.deepEqual(d, { "resume:position": "1287", "label:extension": "1080p · Кубик в Кубе", "kp:r": "r1" });
   });
 
   it("position none → \"none\"", async () => {
@@ -322,12 +324,13 @@ describe("buildResolveResponse and playerPropsIn", () => {
     assert.equal(props["trigger:load"], "info:Предыдущий запуск не удался — пробую другой способ воспроизведения");
   });
 
-  it("item → only dynamic properties: no button:*, no kp:*, no triggers but trigger:load", async () => {
+  it("item → only dynamic properties: no button:*, of kp:* only the launch nonce, no triggers but trigger:load", async () => {
     const t = await make({ playerPropsIn: "item" });
     const res = buildResolveResponse(t.ctx, resolved({ step: 2 }));
     const props = res.properties ?? {};
     assert.deepEqual(keys(props, /^button:/), []);
-    assert.deepEqual(keys(props, /^kp:/), []);
+    // Nonce знает только resolve; не применит MSX свойства resolve — трекер возьмёт окно 10 с (фикс 34b).
+    assert.deepEqual(keys(props, /^kp:/), ["kp:r"]);
     assert.deepEqual(keys(props, /^trigger:/), ["trigger:load"]);
     assert.equal(props["resume:position"], "1287");
     assert.equal(res.url, URL);

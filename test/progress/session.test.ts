@@ -8,7 +8,7 @@ const PROPS = { "kp:i": "2001", "kp:m": "2001004", "kp:s": "1", "kp:e": "4", "kp
 
 describe("KP_PROPS", () => {
   it("names the kp:* markers of the resolve response", () => {
-    assert.deepEqual(KP_PROPS, { item: "kp:i", mid: "kp:m", season: "kp:s", episode: "kp:e", duration: "kp:d", hasNext: "kp:n", probe: "kp:p" });
+    assert.deepEqual(KP_PROPS, { item: "kp:i", mid: "kp:m", season: "kp:s", episode: "kp:e", duration: "kp:d", hasNext: "kp:n", probe: "kp:p", run: "kp:r" });
   });
 });
 
@@ -78,5 +78,11 @@ describe("sessionFromProps", () => {
   it("kp:p becomes the probe variant", () => {
     assert.equal(sessionFromProps({ ...PROPS, "kp:p": "hls2" }, NOW)?.probe, "hls2");
     assert.equal(sessionFromProps(PROPS, NOW)?.probe, undefined);
+  });
+
+  it("kp:r becomes the launch nonce (fix 34b); without it or with a non-string — none", () => {
+    assert.equal(sessionFromProps({ ...PROPS, "kp:r": "mjv0e9s1" }, NOW)?.run, "mjv0e9s1");
+    assert.equal(sessionFromProps(PROPS, NOW)?.run, undefined);
+    for (const v of ["", 7, true]) assert.equal(sessionFromProps({ ...PROPS, "kp:r": v }, NOW)?.run, undefined, String(v));
   });
 });

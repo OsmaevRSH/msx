@@ -5,7 +5,7 @@ import { toKpError } from "../core/errors.ts";
 import { refreshAfterPlayback } from "../screens/refresh.ts";
 import { MIN_POSITION, decideMarktime, decideWatched, isWatchedPosition, judgePosition } from "./rules.ts";
 import { positionFrom, propsFrom } from "./samples.ts";
-import { sessionFromProps } from "./session.ts";
+import { sameRun, sessionFromProps } from "./session.ts";
 import type { PlaybackSession } from "./session.ts";
 
 export type TrackerEvent =
@@ -25,17 +25,16 @@ const REFRESH_DELAY_MS = 2000;
 /** Конец серии без `ended`: позиция останавливается за секунды до длительности. */
 const END_SLACK_SEC = 3;
 /**
- * Этап 33c: после `stop` ещё приходят запоздалые снимки того же видео — `trigger:back` гонится с `eject`, тик
- * совпадает с выходом (в web MSX пришёл снимок 0 с сразу после `stop`). 10 с — запас на медленную очередь ТВ.
- * Законных данных окно не съедает: новый запуск начинается с `video:load`, который оно не задерживает, а первый
- * тик нового запуска приходит не раньше чем через `heartbeatTicks` с (60, в e2e — 10).
+ * Этап 33c: после `stop` приходят запоздалые снимки того же видео (`trigger:back` гонится с `eject`, тик совпадает с
+ * выходом; 10 с — запас на медленную очередь ТВ). Фикс 34b: окно — только для снимков без nonce `kp:r`.
  */
 const LATE_MS = 10_000;
+const RUNS_KEPT = 8;
 
 type MarkKind = "hb" | "pause" | "stop" | "snapshot";
 type SnapshotSource = "handleData" | "timer";
 interface Pending { s: PlaybackSession; pos: number; kind: MarkKind; timer: TimerId }
-/** Видео закрытой сессии и время закрытия: его снимки в окне `LATE_MS` — запоздалые. */
+/** Видео закрытой сессии и время закрытия: его снимки без nonce в окне `LATE_MS` — запоздалые. */
 interface Closed { itemId: number; mid: number; video: number; at: number }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -54,7 +53,7 @@ function unitOf(item: ItemDetail, season: number, video: number): MediaUnit | un
  * События плеера → прогресс в KinoPub (спец. §10, Plan B §9.2–9.4): сессия по свойствам `kp:*`, `marktime` по
  * правилам с склейкой снимков, «просмотрено» с 90 % через outbox со сверкой, перерисовка экрана после `stop`.
  * Этап 33c: сессию открывает явный старт, запоздалые снимки закрытой сессии и откаты без подтверждения
- * (`judgePosition`) прогресс не трогают.
+ * (`judgePosition`) прогресс не трогают. Фикс 34b: сессия — это запуск с nonce `kp:r` из ответа resolve.
  */
 export class ProgressTracker {
   private ctx: AppContext;
@@ -63,6 +62,9 @@ export class ProgressTracker {
   private pending: Pending | undefined;
   private refreshTimer: TimerId | undefined;
   private closed: Closed | undefined;
+  /** Nonce последних `RUNS_KEPT` закрытых запусков: их снимки и `video:load` — запоздалые без срока. */
+  private runs: string[] = [];
+  private runSeq: number;
   /** Был явный старт (`video:load` без `kp:*`, `video:play` без сессии): снимок с `kp:*` может открыть сессию. */
   private armed = false;
   /** Запросы прогресса сессии в полёте: после `stop` карточка помечается устаревшей, когда они завершатся. */
@@ -70,6 +72,7 @@ export class ProgressTracker {
 
   constructor(ctx: AppContext) {
     this.ctx = ctx;
+    this.runSeq = ctx.clock.now();
   }
 
   /** `handleEvent` с `video:*`. */
@@ -124,12 +127,22 @@ export class ProgressTracker {
     return this.current;
   }
 
+  /** Nonce запуска `kp:r` для ответа resolve (фикс 34b): старт плагина в мс + номер resolve, base36 — не повторится. */
+  newRun(): string {
+    return (++this.runSeq).toString(36);
+  }
+
   // --- События плеера ---
 
   private onLoad(ev: unknown): void {
+    const s = sessionFromProps(propsFrom(ev), this.ctx.clock.now());
+    // Повтор `video:load` текущего запуска сессию заново не начинает, запоздалый — закрытую не открывает.
+    if (s?.run !== undefined && (s.run === this.current?.run || this.runs.includes(s.run))) {
+      this.ctx.log.info(TAG, "load_ignored", { mid: s.mid, run: s.run });
+      return;
+    }
     this.cancelRefresh();
     this.ctx.heartbeat.stop();
-    const s = sessionFromProps(propsFrom(ev), this.ctx.clock.now());
     if (s !== undefined) {
       this.open(s);
       return;
@@ -209,23 +222,26 @@ export class ProgressTracker {
     this.close();
     this.current = s;
     this.armed = false;
-    this.ctx.log.info(TAG, "load", { item: s.itemId, mid: s.mid, season: s.season, video: s.video, probe: s.probe, peak: s.peak });
+    this.ctx.log.info(TAG, "load", { item: s.itemId, mid: s.mid, season: s.season, video: s.video, probe: s.probe, peak: s.peak, run: s.run });
     this.emit({ kind: "load", s });
   }
 
-  /** Сессия закрыта (`stop`) или вытеснена другой: её запоздалые снимки ещё `LATE_MS` не слушаем. */
+  /** Сессия закрыта (`stop`) или вытеснена новым запуском: её снимки с nonce больше не слушаем, без — `LATE_MS`. */
   private close(): void {
     const s = this.current;
     this.current = undefined;
-    if (s !== undefined) this.closed = { itemId: s.itemId, mid: s.mid, video: s.video, at: this.ctx.clock.now() };
+    if (s === undefined) return;
+    this.closed = { itemId: s.itemId, mid: s.mid, video: s.video, at: this.ctx.clock.now() };
+    if (s.run !== undefined && this.runs.push(s.run) > RUNS_KEPT) this.runs.shift();
   }
 
   private recentlyClosed(): boolean {
     return this.closed !== undefined && this.ctx.clock.now() - this.closed.at < LATE_MS;
   }
 
-  /** Снимок закрытого видео (или без `kp:*`: не отличить) в окне после закрытия сессии. */
+  /** С nonce — снимок закрытого запуска (фикс 34b); без — того же видео или без `kp:*` в окне после закрытия. */
   private isLate(fresh: PlaybackSession | undefined): boolean {
+    if (fresh?.run !== undefined) return this.runs.includes(fresh.run);
     const c = this.closed;
     if (c === undefined || !this.recentlyClosed()) return false;
     return fresh === undefined || (fresh.itemId === c.itemId && fresh.mid === c.mid && fresh.video === c.video);
@@ -237,7 +253,7 @@ export class ProgressTracker {
    */
   private sessionFor(fresh: PlaybackSession | undefined): PlaybackSession | undefined {
     const cur = this.current;
-    if (fresh === undefined || cur?.mid === fresh.mid) return cur;
+    if (fresh === undefined || (cur !== undefined && sameRun(cur, fresh))) return cur;
     if (this.ctx.flags.get().events !== "triggers" && (cur !== undefined || !this.armed)) {
       this.ctx.log.debug(TAG, "snapshot_without_start", { mid: fresh.mid, current: cur?.mid });
       return undefined;
