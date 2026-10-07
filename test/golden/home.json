@@ -901,5 +901,19 @@
         }
       ]
     }
-  ]
+  ],
+  "options": {
+    "headline": "Главная",
+    "template": {
+      "type": "control",
+      "layout": "0,0,8,1"
+    },
+    "items": [
+      {
+        "icon": "tune",
+        "label": "Секции главной",
+        "action": "[back|panel:request:interaction:panel:home@https://example.github.io/msx/app/index.html]"
+      }
+    ]
+  }
 }

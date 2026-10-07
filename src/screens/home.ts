@@ -3,11 +3,12 @@ import type { BookmarkFolder, HistoryEntry, ItemSummary, SerialWatching, User } 
 import type { ReqClass } from "../api/transport.ts";
 import { cacheKeys } from "../cache/repo.ts";
 import type { Got } from "../cache/swr.ts";
+import { OrderStore } from "../config/menu.ts";
 import { sleep } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
 import { KpError } from "../core/errors.ts";
 import { fmtDate } from "../core/format.ts";
-import { chain, contentAction } from "../msx/actions.ts";
+import { chain, contentAction, panelAction, replaceContent } from "../msx/actions.ts";
 import { guard } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentPage, MsxContentRoot } from "../msx/types.ts";
 import { NO_SUBSCRIPTION_TEXT } from "../playback/resolve.ts";
@@ -25,6 +26,7 @@ import { GRID, ROW, gridPreload, iconTile, shelfTile } from "./tiles.ts";
 // данные догружаются фоном, экран заменяется `replace:content:home`, только если изменилась его персональная часть,
 // набор полок или пометка «нет связи» (спец. §6.3). Показ, которого ждёт пользователь, — передний план; прогрев, фоновые
 // сверки и обновление подборок из кэша — `bg`, чтобы не отнимать слоты у действий пользователя (спец. §8.3–8.5).
+// Порядок и видимость полок — настройка «Секции главной» (S12, `kp.cfg.home`): скрытые полки не загружаются.
 
 const FLAG = "home";
 const DEADLINE_MS = 1500;
@@ -49,6 +51,8 @@ const T = {
   empty: "Пока здесь пусто",
   warning: "{ico:msx-yellow:warning}",
   offline: "{ico:msx-yellow:history} нет связи",
+  shelves: "Секции главной",
+  hidden: "Все секции главной скрыты",
 };
 
 type Kind = "continue" | "bookmarks" | "fresh" | "popular" | "hot";
@@ -58,10 +62,10 @@ const BG: ReqOpts = { cls: "bg" };
 interface Def { id: string; title: string; kind: Kind; type?: string }
 
 /**
- * Plan B S4: порядок — и на экране, и в очереди запросов холодной сборки (спец. §8.4 п. 2). Названия подборок — общие
- * с их списками «Показать все» (V-08).
+ * Plan B S4: порядок по умолчанию — и на экране, и в очереди запросов холодной сборки (спец. §8.4 п. 2). Названия
+ * подборок — общие с их списками «Показать все» (V-08). `id` — и префикс плиток, и запись в `kp.cfg.home`.
  */
-const DEFS: readonly Def[] = [
+export const SHELVES: readonly Def[] = [
   { id: "c", title: "Продолжить просмотр", kind: "continue" },
   { id: "fm", title: shelfTitle("fresh", "movie"), kind: "fresh", type: "movie" },
   { id: "fs", title: shelfTitle("fresh", "serial"), kind: "fresh", type: "serial" },
@@ -72,13 +76,32 @@ const DEFS: readonly Def[] = [
   { id: "hs", title: shelfTitle("hot", "serial"), kind: "hot", type: "serial" },
 ];
 
+/** Настройка «Секции главной» поверх `kp.cfg.home`. */
+export function homeStore(ctx: AppContext): OrderStore {
+  return new OrderStore(ctx.store, SHELVES.map((d) => d.id), [], "home");
+}
+
+/** Видимые полки в порядке пользователя. */
+const shown = (ctx: AppContext): Def[] => homeStore(ctx).shown().map((id) => SHELVES.find((d) => d.id === id)!);
+
+/**
+ * «Секции главной» изменены. Главная — текущий экран (панель открыта с неё): заменить её сразу; иначе MSX запросит её
+ * при показе (`cache: false`), а перерисовывается экран под панелью — настройки со сводкой строки.
+ */
+export function redrawHome(ctx: AppContext): string {
+  return ctx.current.isCurrent(ids.home()) ? replaceContent(FLAG, ctx.P, ids.home()) : "reload:content";
+}
+
 /**
  * Плитки без `layout`; `personal` — вклад полки в хеш (Plan B §7.7), `stale` — персональные данные устарели,
  * `offline` — данные из кэша, потому что KinoPub не ответил.
  */
 interface Shelf { def: Def; tiles: MsxContentItem[]; personal?: unknown; stale: boolean; offline: boolean }
-/** `stale` — устарели персональные данные полок или строка о подписке (или `user` ещё не пришёл). */
-interface Snap { shelves: Shelf[]; pending: boolean; stale: boolean; offline: boolean; err?: unknown }
+/**
+ * `stale` — устарели персональные данные полок или строка о подписке (или `user` ещё не пришёл); `none` — все полки
+ * скрыты настройкой.
+ */
+interface Snap { shelves: Shelf[]; pending: boolean; stale: boolean; offline: boolean; none: boolean; err?: unknown }
 
 type ShelfKind = "fresh" | "popular" | "hot";
 
@@ -200,16 +223,17 @@ function cached(ctx: AppContext, d: Def): boolean {
  */
 interface Loads { shelves: Promise<Shelf>[]; user: Promise<Got<User> | undefined> }
 
-function start(ctx: AppContext, o: ReqOpts): Loads {
+/** Загрузки видимых полок `defs` — скрытые «Секциями главной» у KinoPub не запрашиваются. */
+function start(ctx: AppContext, o: ReqOpts, defs = shown(ctx)): Loads {
   const src = net(ctx, o);
-  const shelves = DEFS.map((d) => loadShelf(ctx, d, src));
+  const shelves = defs.map((d) => loadShelf(ctx, d, src));
   return { shelves, user: ctx.repo.user(o).catch(() => undefined) };
 }
 
 /** Полки, отмеченные в `which`, только из кэша; без записи — `undefined`. Сеть не нужна: ответ в микрозадачах. */
-function fromCache(ctx: AppContext, which: boolean[]): Promise<(Shelf | undefined)[]> {
+function fromCache(ctx: AppContext, defs: Def[], which: boolean[]): Promise<(Shelf | undefined)[]> {
   const src = mem(ctx);
-  return Promise.all(DEFS.map((d, i) => (which[i] === true ? loadShelf(ctx, d, src).catch(() => undefined) : undefined)));
+  return Promise.all(defs.map((d, i) => (which[i] === true ? loadShelf(ctx, d, src).catch(() => undefined) : undefined)));
 }
 
 /**
@@ -236,7 +260,7 @@ function watch(loads: Loads): Watch {
   const snap = (old: (Shelf | undefined)[] = []): Snap => {
     const all = settled.flatMap((ok, i) => [ok ? done[i] : old[i]]).filter((s) => s !== undefined);
     const out: Snap = {
-      shelves: all.filter((s) => s.tiles.length > 0), pending: settled.includes(false),
+      shelves: all.filter((s) => s.tiles.length > 0), pending: settled.includes(false), none: settled.length === 0,
       stale: userStale || all.some((s) => s.stale), offline: all.some((s) => s.offline),
     };
     if (err !== undefined) out.err = err;
@@ -275,7 +299,11 @@ function headline(ctx: AppContext): string {
  * применяет, поэтому вид плиток — в каждой плитке.
  */
 function rootOf(ctx: AppContext, head: string, pages: MsxContentPage[], offline = false): MsxContentRoot {
-  const root: MsxContentRoot = { type: "list", flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: head, pages };
+  const root: MsxContentRoot = {
+    type: "list", flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: head, pages,
+    // Красная кнопка — «Секции главной» поверх главной: опции закрываются, изменения видны сразу (`redrawHome`).
+    options: { headline: T.title, template: { type: "control", layout: "0,0,8,1" }, items: [{ icon: "tune", label: T.shelves, action: chain(["back", openShelves(ctx)]) }] },
+  };
   if (offline) root.extension = T.offline;
   return root;
 }
@@ -302,15 +330,18 @@ function pagesOf(shelves: Shelf[]): MsxContentPage[] {
   });
 }
 
+const openShelves = (ctx: AppContext): string => panelAction(ctx.P, ids.panel("home"));
+
 /**
  * V-07: пока идёт загрузка, «Обновить» только перезапустил бы ожидание — фокус на самой строке «Загружаю», у неё
- * пустое действие. «Обновить» — у пустой главной, после срока ответа.
+ * пустое действие. «Обновить» — у пустой главной, после срока ответа; все полки скрыты — «Секции главной».
  */
-function message(state: "loading" | "empty"): MsxContentItem[] {
+function message(ctx: AppContext, state: "loading" | "empty" | "hidden"): MsxContentItem[] {
   if (state === "loading") return [{ type: "default", layout: `0,0,${WIDTH},2`, color: "msx-glass", headline: T.loading, action: chain([]) }];
+  const hidden = state === "hidden";
   return [
-    { type: "space", layout: `0,0,${WIDTH},4`, text: T.empty },
-    { type: "button", layout: `0,5,${WIDTH / 2},1`, label: T.refresh, action: RETRY_CONTENT },
+    { type: "space", layout: `0,0,${WIDTH},4`, text: hidden ? T.hidden : T.empty },
+    { type: "button", layout: `0,5,${WIDTH / 2},1`, label: hidden ? T.shelves : T.refresh, action: hidden ? openShelves(ctx) : RETRY_CONTENT },
   ];
 }
 
@@ -322,8 +353,8 @@ function render(ctx: AppContext, s: Snap): { root: MsxContentRoot; hash: string 
   const head = headline(ctx);
   let shelves = s.shelves;
   if (shelves.length === 0) {
-    const state = s.pending ? "loading" : s.err !== undefined ? "error" : "empty";
-    const items = state === "error" ? errorItems(ctx, s.err, { retry: RETRY_CONTENT, offerLogin: true, width: WIDTH }) : message(state);
+    const state = s.pending ? "loading" : s.err !== undefined ? "error" : s.none ? "hidden" : "empty";
+    const items = state === "error" ? errorItems(ctx, s.err, { retry: RETRY_CONTENT, offerLogin: true, width: WIDTH }) : message(ctx, state);
     return { root: rootOf(ctx, head, [{ items }]), hash: personalHash([head, state]) };
   }
   let root = rootOf(ctx, head, pagesOf(shelves), s.offline);
@@ -352,17 +383,18 @@ async function recompute(ctx: AppContext): Promise<string> {
 }
 
 export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
-  const hits = DEFS.map((d) => cached(ctx, d));
+  const defs = shown(ctx);
+  const hits = defs.map((d) => cached(ctx, d));
   const userHit = ctx.repo.peekUser() !== undefined;
   const t0 = ctx.clock.perf();
-  const loads = start(ctx, FG);
+  const loads = start(ctx, FG, defs);
   const w = watch(loads);
   // Полки из кэша — сразу, недостающие придут заменой; сеть ждём, только если из кэша показать нечего.
   const cachedLoads: Promise<unknown>[] = loads.shelves.filter((_, i) => hits[i]);
   if (userHit) cachedLoads.push(loads.user);
   await within(ctx.clock, cachedLoads, DEADLINE_MS);
   // X-1: запись старше stale-max, которую сеть не обновила к сроку, — из кэша; сверка заменит экран, если что-то изменится.
-  const old = await fromCache(ctx, w.settled.map((done, i) => !done && hits[i] === true));
+  const old = await fromCache(ctx, defs, w.settled.map((done, i) => !done && hits[i] === true));
   if (w.snap(old).shelves.length === 0) {
     await within(ctx.clock, [...loads.shelves, loads.user], Math.max(0, DEADLINE_MS - (ctx.clock.perf() - t0)));
   }
@@ -382,7 +414,7 @@ export async function homeScreen(ctx: AppContext): Promise<MsxContentRoot> {
   return root;
 }
 
-/** После `ready` (спец. §6.1, §8.3): полки обновляются через SWR, чтобы L2 был тёплым к открытию главной. */
+/** После `ready` (спец. §6.1, §8.3): видимые полки обновляются через SWR, чтобы L2 был тёплым к открытию главной. */
 export function warmHome(ctx: AppContext): void {
   void Promise.allSettled(start(ctx, BG).shelves);
 }

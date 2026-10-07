@@ -13,14 +13,32 @@
       "type": "space",
       "layout": "0,0,12,1",
       "offset": "0,0.5,0,-0.5",
+      "headline": "Меню и главная"
+    },
+    {
+      "id": "s_menu",
+      "label": "Порядок и видимость пунктов меню",
+      "extensionLabel": "По умолчанию",
+      "action": "panel:request:interaction:panel:menu@https://example.github.io/msx/app/index.html",
+      "focus": true
+    },
+    {
+      "id": "s_home",
+      "label": "Порядок и видимость секций главной",
+      "extensionLabel": "По умолчанию",
+      "action": "panel:request:interaction:panel:home@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
       "headline": "Воспроизведение"
     },
     {
       "id": "s_quality",
       "label": "Максимальное качество",
       "extensionLabel": "1080p",
-      "action": "panel:request:interaction:panel:setting:quality@https://example.github.io/msx/app/index.html",
-      "focus": true
+      "action": "panel:request:interaction:panel:setting:quality@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_audioLang",
@@ -87,18 +105,6 @@
       "label": "Выйти из KinoPub",
       "extensionLabel": "",
       "action": "panel:request:interaction:panel:setting:account@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "type": "space",
-      "layout": "0,0,12,1",
-      "offset": "0,0.5,0,-0.5",
-      "headline": "Меню"
-    },
-    {
-      "id": "s_menu",
-      "label": "Пункты меню",
-      "extensionLabel": "По умолчанию",
-      "action": "panel:request:interaction:panel:menu@https://example.github.io/msx/app/index.html"
     },
     {
       "type": "space",
@@ -178,7 +184,7 @@
           "offset": "0,1,0,0",
           "color": "transparent",
           "selection": {
-            "action": "focus:s_quality"
+            "action": "focus:s_menu"
           }
         }
       ]

@@ -112,6 +112,10 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("panel-menu", ids.panel("menu"));
   });
 
+  it("v1.13: the «Секции главной» panel", LIMIT, async () => {
+    await snap("panel-home", ids.panel("home"));
+  });
+
   it("v1.14: «Новинки» from the menu (the «Фильмы» tab) and its type panel", LIMIT, async () => {
     await snap("list-fresh", ids.list(encodeListKey({ src: "fresh" })));
     await snap("panel-type", ids.panel("type", encodeListKey({ src: "fresh" })));

@@ -16,7 +16,7 @@ import { errorScreen, errorText } from "./error.ts";
 import { genresOrStatic } from "./genres-static.ts";
 import { freshItem } from "./item.ts";
 import { SHELF_TYPES, isShelf, setShelfType, shelfType, shelfTypeTitle, sortChoices } from "./list-head.ts";
-import { menuPanel } from "./menu-edit.ts";
+import { orderPanel } from "./order-edit.ts";
 import { MODE_NAMES, audioName, countryName, dim, folderName, subsName } from "./panels-labels.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
 import { settingPanel } from "./settings.ts";
@@ -86,7 +86,8 @@ export async function panelScreen(ctx: AppContext, type: string, args: string[])
       case "loc": return await locPanel(ctx);
       case "seasons": return await seasonsPanel(ctx, int(args[0], 1), int(args[1], 0));
       case "setting": return await settingPanel(ctx, args[0] ?? "");
-      case "menu": return menuPanel(ctx);
+      case "menu":
+      case "home": return orderPanel(ctx, type);
       default: throw bad(type);
     }
   } catch (e) {

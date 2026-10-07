@@ -53,12 +53,12 @@ describe("settingsScreen (S12)", () => {
     assert.equal(s.compress, undefined);
     assert.deepEqual(s.template, { type: "control", layout: "0,0,12,1" });
     const groups = (s.items ?? []).filter((i) => i.type === "space");
-    assert.deepEqual(groups.map((g) => g.headline), ["Воспроизведение", "Это устройство KinoPub", "Аккаунт", "Меню", "Для опытных", "Диагностика"]);
+    assert.deepEqual(groups.map((g) => g.headline), ["Меню и главная", "Воспроизведение", "Это устройство KinoPub", "Аккаунт", "Для опытных", "Диагностика"]);
     // V-33: заголовок в нижней половине своей строки — вплотную к группе, без пустой полосы под ним.
     for (const g of groups) assert.deepEqual([g.layout, g.offset], ["0,0,12,1", "0,0.5,0,-0.5"]);
   });
 
-  it("V-33: technical rows are in «Для опытных»; «Выйти из KinoPub» is a row of «Аккаунт»", async () => {
+  it("V-33: technical rows are in «Для опытных»; «Выйти из KinoPub» is a row of «Аккаунт»; v1.13: the menu and home order first", async () => {
     const t = await make();
     const s = await screen(t);
     const byGroup: string[][] = [];
@@ -67,16 +67,17 @@ describe("settingsScreen (S12)", () => {
       else byGroup.at(-1)?.push(String(i.id).slice(2));
     }
     assert.deepEqual(byGroup, [
+      ["menu", "home"],
       ["quality", "audioLang", "audioType", "authors", "subs", "seek"],
       ["uhd", "device"],
       ["account", "logout"],
-      ["menu"],
       ["mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
       ["probe"],
     ]);
     assert.deepEqual(labels(s).filter((l) => l !== undefined), [
+      "Порядок и видимость пунктов меню", "Порядок и видимость секций главной",
       "Максимальное качество", "Язык озвучки", "Тип озвучки", "Любимые студии", "Субтитры по умолчанию", "Шаг перемотки",
-      "4K", "Название", "Подписка", "Выйти из KinoPub", "Пункты меню",
+      "4K", "Название", "Подписка", "Выйти из KinoPub",
       "Способ воспроизведения", "CDN-сервер", "Разрешить AC3", "HEVC", "Буфер старта", "Буфер продолжения", "Размер постеров", "Фоны карточек",
       "Проверки и журнал",
     ]);
@@ -90,7 +91,7 @@ describe("settingsScreen (S12)", () => {
       quality: "1080p", mode: "Авто", loc: "По умолчанию", audioLang: "Русский", audioType: "Любой", authors: "Нет",
       ac3: "Нет", subs: "Выключены", hevc: "Выкл", uhd: "Выкл", device: "kpmock TV",
       bufferInit: "4 с", bufferResume: "6 с", posterSize: "Средние", cardBackgrounds: "Выкл", seek: "10 с",
-      menu: "По умолчанию",
+      menu: "По умолчанию", home: "По умолчанию",
     };
     for (const [k, v] of Object.entries(want)) assert.equal(ext(s, k), v, k);
   });
@@ -101,6 +102,7 @@ describe("settingsScreen (S12)", () => {
     assert.equal(row(s, "quality").action, panelAction(P, ids.panel("setting", "quality")));
     assert.equal(row(s, "logout").action, panelAction(P, ids.panel("setting", "account")));
     assert.equal(row(s, "menu").action, panelAction(P, ids.panel("menu")));
+    assert.equal(row(s, "home").action, panelAction(P, ids.panel("home")));
     assert.equal(row(s, "account").enable, false);
     assert.equal(row(s, "account").action, undefined);
     assert.equal(row(s, "loc").action, panelAction(P, ids.panel("loc")));
