@@ -14,12 +14,12 @@ export const STATIC_MOVIE_GENRES: readonly Genre[] = Object.freeze([
   [4, "Фантастика"], [5, "Фэнтези"], [128, "Эксклюзив"], [21, "Эротика"],
 ].map(([id, title]) => Object.freeze({ id: id as number, title: title as string })));
 
-/** Типы, у которых жанры — как у фильмов; пустой тип — весь каталог. */
-const MOVIE_LIKE: ReadonlySet<string> = new Set(["", "movie", "serial", "3D"]);
+/** Типы, у которых жанры — как у фильмов; пустой тип — весь каталог. 3D меню пишет `3d` (как PWA и Kodi). */
+const MOVIE_LIKE: ReadonlySet<string> = new Set(["", "movie", "serial", "3d"]);
 
 /** Встроенные жанры для типа ключа списка (первый из `a,b`); для остальных типов — пусто. */
 export function staticGenres(type: string): Genre[] {
-  const first = type.split(",")[0];
+  const first = (type.split(",")[0] ?? "").toLowerCase();
   return MOVIE_LIKE.has(first) ? STATIC_MOVIE_GENRES.map((g) => ({ ...g })) : [];
 }
 

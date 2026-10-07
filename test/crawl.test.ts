@@ -137,6 +137,8 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "init", "home", "search", "item", "season", "play", "list:catalog", "panel:audio", "settings", "probe:",
       // v1.11: «Я смотрю», «Спорт», «Новинки», «История», подборки и их содержимое, «Пункты меню».
       "watching", "tv", "list:fresh", "list:history", "list:collections", "list:collection", "panel:menu",
+      // v1.14: панель вкладок полки и вкладка, выбранная в ней (не из «Показать все» главной).
+      "panel:type", "list:fresh:documovie",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }

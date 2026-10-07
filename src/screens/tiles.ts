@@ -112,12 +112,15 @@ export function posterTile(ctx: AppContext, it: TileSource): MsxContentItem {
   return posterTiles(ctx, [it])[0] as MsxContentItem;
 }
 
-/** Плитки подборок (шаблон без префетча): постер подборки, «N шт.» серым, переход в её список S5. */
+/**
+ * Плитки подборок (шаблон без префетча): постер подборки, переход в её список S5. «N шт.» серым — только если число
+ * тайтлов известно: живой API его не отдаёт, а «0 шт.» у полной подборки — неправда.
+ */
 export function collectionTiles(ctx: AppContext, items: readonly TileSource[]): MsxContentItem[] {
   const size = ctx.prefs.get().posterSize;
   return items.map((c) => ({
-    id: `c${c.id}`, kt: c.title, titleHeader: titleLines(c.title), titleFooter: `${c.count ?? 0} ${T.pcs}`, image: posterUrl(c.posters, size),
-    action: contentAction(ctx.P, ids.list(encodeListKey({ src: "collection", id: c.id }))),
+    id: `c${c.id}`, kt: c.title, titleHeader: titleLines(c.title), ...(c.count ? { titleFooter: `${c.count} ${T.pcs}` } : {}),
+    image: posterUrl(c.posters, size), action: contentAction(ctx.P, ids.list(encodeListKey({ src: "collection", id: c.id }))),
   }));
 }
 

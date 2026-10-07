@@ -160,6 +160,13 @@ describe("list items and pages", () => {
     const page = parsePage({ items: [LIST_ITEM] }, parseItemSummary);
     assert.deepEqual(page.pagination, { total: 1, current: 1, perpage: 1, totalItems: 1 });
   });
+
+  it("pagination without total_items: the count is known only on a single page, otherwise it is not made up", () => {
+    assert.deepEqual(parsePage({ items: [LIST_ITEM], pagination: { total: 3, current: 1, perpage: 1 } }, parseItemSummary).pagination,
+      { total: 3, current: 1, perpage: 1 });
+    assert.equal(parsePage({ items: [LIST_ITEM], pagination: { total: 1, current: 1 } }, parseItemSummary).pagination.totalItems, 1);
+    assert.equal(parsePage({ items: [], pagination: { total: 2, total_items: "0" } }, parseItemSummary).pagination.totalItems, 0);
+  });
 });
 
 describe("cards (research §6.3)", () => {
@@ -389,9 +396,13 @@ describe("garbage never throws", () => {
 });
 
 describe("v1.11 sections: collections, TV channels, history pages, the 3d type", () => {
-  it("parseCollection: research §6.1 shape; count; no id → skipped", () => {
-    const raw = { id: 7, title: "Семейные", watchers: 19, views: 123, count: 50, created: 1, updated: 2, posters: { small: "s", medium: "m", big: "b" } };
-    assert.deepEqual(parseCollection(raw), { id: 7, title: "Семейные", posters: { small: "s", medium: "m", big: "b" }, count: 50 });
+  it("parseCollection: the live shape has no count — none is made up (not 0); items_count or count when present; no id → skipped", () => {
+    // Доки «API 1.3» и снимок api2: id, title, watchers, views, created, updated, posters.
+    const raw = { id: 7, title: "Семейные", watchers: 19, views: 123, created: 1, updated: 2, posters: { small: "s", medium: "m", big: "b" } };
+    assert.deepEqual(parseCollection(raw), { id: 7, title: "Семейные", posters: { small: "s", medium: "m", big: "b" } });
+    assert.equal(parseCollection({ ...raw, items_count: "12" })?.count, 12);
+    assert.equal(parseCollection({ ...raw, count: 50 })?.count, 50);
+    for (const count of [0, null, "", "x"]) assert.equal(parseCollection({ ...raw, count })?.count, undefined, String(count));
     assert.equal(parseCollection({ title: "x" }), undefined);
     assert.deepEqual(parsePage({ items: [raw, null, { id: 0 }], pagination: { total: 1, current: 1, perpage: 25 } }, parseCollection).items.map((c) => c.id), [7]);
   });

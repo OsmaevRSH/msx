@@ -1,0 +1,45 @@
+{
+  "type": "list",
+  "headline": "Тип",
+  "cache": false,
+  "reuse": false,
+  "template": {
+    "type": "button",
+    "layout": "0,0,4,1"
+  },
+  "items": [
+    {
+      "label": "{ico:check} Фильмы",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:movie",
+      "focus": true
+    },
+    {
+      "label": "Сериалы",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:serial"
+    },
+    {
+      "label": "Док. фильмы",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:documovie"
+    },
+    {
+      "label": "Док. сериалы",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:docuserial"
+    },
+    {
+      "label": "Концерты",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:concert"
+    },
+    {
+      "label": "ТВ-шоу",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:tvshow"
+    },
+    {
+      "label": "3D",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:3d"
+    },
+    {
+      "label": "Все типы",
+      "action": "interaction:commit:message:act:panel:type:ZnJlc2g:all"
+    }
+  ]
+}

@@ -123,7 +123,7 @@ describe("kpmock catalog, items, media links, CDN", () => {
       });
     });
 
-    it("shelves: fresh by created_at, popular by views, hot by rating; same filters", async () => {
+    it("shelves: fresh by created_at, popular by views, hot by rating; type only — genre is ignored, a comma list is one feed", async () => {
       const fresh = await json<ListBody>("/v1/items/fresh?type=movie&perpage=30");
       assert.equal(fresh.items[0].id, 1000);
       const check = (items: ListItem[], f: (it: ListItem) => number): void => {
@@ -133,10 +133,25 @@ describe("kpmock catalog, items, media links, CDN", () => {
       assert.ok(fresh.items.every((it) => it.type === "movie"));
       const popular = await json<ListBody>("/v1/items/popular?type=serial&genre=23&perpage=30");
       check(popular.items, (it) => it.views);
-      assert.ok(popular.items.every((it) => it.type === "serial" && it.genres.some((g) => g.id === 23)));
-      const hot = await json<ListBody>("/v1/items/hot?perpage=7");
+      assert.ok(popular.items.every((it) => it.type === "serial"));
+      assert.ok(popular.items.some((it) => !it.genres.some((g) => g.id === 23)), "genre is not a shelf filter");
+      const total = async (type: string): Promise<number> => (await json<ListBody>(`/v1/items/hot?type=${type}`)).pagination.total_items;
+      const hot = await json<ListBody>("/v1/items/hot?type=movie,serial&perpage=7");
       assert.equal(hot.items.length, 7);
       check(hot.items, (it) => it.rating);
+      assert.equal(hot.pagination.total_items, (await total("movie")) + (await total("serial")));
+    });
+
+    it("shelves without type: HTTP 400 in the Yii format, as the live API (research kinopub-api §6.1); all, None, empty — an empty list", async () => {
+      for (const shelf of ["fresh", "popular", "hot"]) {
+        const r = await get(`/v1/items/${shelf}?perpage=7`);
+        assert.equal(r.status, 400, shelf);
+        assert.deepEqual(await r.json(), { name: "Bad Request", message: "Отсутствуют обязательные параметры: type", code: 0, status: 400 });
+      }
+      for (const type of ["all", "None", ""]) {
+        const b = await json<ListBody>(`/v1/items/fresh?type=${type}`);
+        assert.deepEqual([b.items.length, b.pagination.total_items], [0, 0], type);
+      }
     });
 
     it("search: case-insensitive title substring with pagination", async () => {

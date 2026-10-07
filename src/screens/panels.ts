@@ -15,7 +15,7 @@ import { type ListKey, decodeListKey, encodeListKey, ids, listFlag, msgs } from 
 import { errorScreen, errorText } from "./error.ts";
 import { genresOrStatic } from "./genres-static.ts";
 import { freshItem } from "./item.ts";
-import { sortChoices } from "./list-head.ts";
+import { SHELF_TYPES, isShelf, setShelfType, shelfType, shelfTypeTitle, sortChoices } from "./list-head.ts";
 import { menuPanel } from "./menu-edit.ts";
 import { MODE_NAMES, audioName, countryName, dim, folderName, subsName } from "./panels-labels.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
@@ -26,7 +26,7 @@ import { settingPanel } from "./settings.ts";
 // озвучка и качество перезапуском того же `mid` с текущей позиции в открытом плеере, субтитры — без перезапуска.
 
 const T = {
-  sort: "Сортировка", genre: "Жанр", allGenres: "Все жанры", audio: "Озвучка", quality: "Качество", auto: "Авто",
+  sort: "Сортировка", genre: "Жанр", type: "Тип", allGenres: "Все жанры", audio: "Озвучка", quality: "Качество", auto: "Авто",
   upTo: "до", subs: "Субтитры", subsOff: "Выключены", bookmarks: "Закладки", createFolder: "Создать папку „MSX“ и добавить",
   seasons: "Сезоны", mode: "Способ воспроизведения",
   modeTv: "Как в настройках", loc: "CDN-сервер", locDefault: "По умолчанию", none: "Нет вариантов",
@@ -77,6 +77,7 @@ export async function panelScreen(ctx: AppContext, type: string, args: string[])
     switch (type) {
       case "sort": return sortPanel(ctx, args[0]);
       case "genre": return await genrePanel(ctx, args[0]);
+      case "type": return typePanel(ctx, args[0]);
       case "audio": return await audioPanel(ctx, unitArgs(args));
       case "quality": return await qualityPanel(ctx, unitArgs(args));
       case "subs": return await subsPanel(ctx, unitArgs(args));
@@ -114,14 +115,22 @@ function sortPanel(ctx: AppContext, arg: string | undefined): MsxContentRoot {
   return choicePanel(ctx, T.sort, sorts.map((s) => ({ label: s.title, action: switchList(ctx, key, { ...k, sort: s.id }), current: s.id === cur })));
 }
 
+/** Жанр — только у каталога: полка его не применяет (research kinopub-api §6.1). */
 async function genrePanel(ctx: AppContext, arg: string | undefined): Promise<MsxContentRoot> {
-  const { key, k } = listArg(arg, ["catalog", "fresh", "popular", "hot"]);
+  const { key, k } = listArg(arg, ["catalog"]);
   const { genre: cur, ...all } = k;
   const rows: Row[] = [{ label: T.allGenres, action: switchList(ctx, key, all), current: !cur }];
   for (const g of await genresOrStatic(ctx, (k.type ?? "").split(",")[0])) {
     rows.push({ label: g.title, action: switchList(ctx, key, { ...k, genre: String(g.id) }), current: cur === String(g.id) });
   }
   return choicePanel(ctx, T.genre, rows, HALF);
+}
+
+/** Вкладки полки в две колонки; выбор запоминается (`act:panel:type:<ключ>:<тип>`), у пункта меню — тип из настроек. */
+function typePanel(ctx: AppContext, arg: string | undefined): MsxContentRoot {
+  const { key, k } = listArg(arg, ["fresh", "popular", "hot"]);
+  const cur = k.type || (isShelf(k.src) ? shelfType(ctx, k.src) : "");
+  return choicePanel(ctx, T.type, SHELF_TYPES.map((t) => ({ label: shelfTypeTitle(t), action: panelAct("type", key, t), current: t === cur })), HALF);
 }
 
 // --- S10: озвучка, качество, субтитры ---
@@ -267,9 +276,10 @@ async function seasonsPanel(ctx: AppContext, id: number | undefined, n: number |
 
 // --- Сообщения `act:panel:*` ---
 
-/** `act:panel:<name>:<args…>`: `audio`, `quality`, `subs`, `bm`, `mode`, `loc`. */
+/** `act:panel:<name>:<args…>`: `audio`, `quality`, `subs`, `bm`, `mode`, `loc`, `type`. */
 export async function onPanelAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
   switch (name) {
+    case "type": return chooseType(ctx, args);
     case "audio": return chooseAudio(ctx, args);
     case "quality": return chooseQuality(ctx, args);
     case "subs": return chooseSubs(ctx, args);
@@ -390,6 +400,20 @@ function chooseMode(ctx: AppContext, args: string[]): void {
   if (id === undefined || (mode !== "auto" && mode !== "hls1" && mode !== "hls2")) return badArgs(ctx, "mode", args);
   ctx.prefs.setTitle("mode", id, mode === "auto" ? undefined : mode);
   ctx.host.executeAction(BACK_RELOAD);
+}
+
+/** `type:<ключ>:<тип>`: вкладка полки запоминается для пункта меню; список заменяется по флагу открытого экрана. */
+function chooseType(ctx: AppContext, args: string[]): void {
+  const [key = "", t = ""] = args;
+  let k: ListKey | undefined;
+  try {
+    k = listArg(key, ["fresh", "popular", "hot"]).k;
+  } catch {
+    k = undefined;
+  }
+  if (k === undefined || !isShelf(k.src) || !(SHELF_TYPES as readonly string[]).includes(t)) return badArgs(ctx, "type", args);
+  setShelfType(ctx, k.src, t);
+  ctx.host.executeAction(switchList(ctx, key, { src: k.src, type: t }));
 }
 
 /** `loc:<code|default>`: параметр `loc` всех ссылок потока и субтитров этого ТВ (Plan B §5.14). */

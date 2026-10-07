@@ -278,7 +278,7 @@ describe("Repo", () => {
     await r.run(repo.item(1, { cls: "bg" }));
     await r.run(repo.item(12));
     await r.run(repo.listPage(CATALOG, 2, { cls: "bg" }));
-    await r.run(repo.listPage({ kind: "shelf", shelf: "hot" }, 1, { cls: "bg" }));
+    await r.run(repo.listPage({ kind: "shelf", shelf: "hot", type: "movie" }, 1, { cls: "bg" }));
     await r.run(repo.listPage(FOLDER1, 1, { cls: "bg" }));
     await r.run(repo.listPage({ kind: "similar", id: FIX.MOVIE_SIMPLE }, 1, { cls: "bg" }));
     await r.run(repo.listPage(CATALOG, 1));

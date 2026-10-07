@@ -100,7 +100,8 @@ export interface Pagination {
   total: number;
   current: number;
   perpage: number;
-  totalItems: number;
+  /** `total_items`; без него — только если всё на одной странице, иначе неизвестно. */
+  totalItems?: number;
 }
 
 export interface Page<T> {
@@ -146,10 +147,8 @@ export interface Titled {
   count?: number;
 }
 
-/** Подборка `/v1/collections` (research kinopub-api §6.1). */
-export interface Collection extends Titled {
-  count: number;
-}
+/** Подборка `/v1/collections` (research kinopub-api §6.1); числа тайтлов живой API не отдаёт — `count` нет. */
+export type Collection = Titled;
 
 /** Канал `/v1/tv`: прямой эфир HLS (`stream`), логотип 240×180 (research kinopub-api §7.4). */
 export interface TvChannel {

@@ -10,7 +10,9 @@ import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
-import { COLLECTION_SORT, DEFAULT_SORT, filterOptions, listExtension, listTitle, sectionGenre } from "./list-head.ts";
+import {
+  COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
+} from "./list-head.ts";
 import { GRID, ROW, collectionTiles, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 export { SORTS, listTitle } from "./list-head.ts";
@@ -68,7 +70,7 @@ type Edge = "up" | "down";
 
 const bad = (): KpError => new KpError("KP-BAD", "bad list key");
 
-/** Ключ списка → источник репозитория; пустые поля не передаются. */
+/** Ключ списка → источник репозитория; пустые поля не передаются. Полка — всегда с типом, без жанра (§6.1). */
 export function listSource(k: ListKey): ListSource {
   const type = k.type ? { type: k.type } : {};
   const genre = k.genre ? { genre: k.genre } : {};
@@ -78,7 +80,7 @@ export function listSource(k: ListKey): ListSource {
     case "fresh":
     case "popular":
     case "hot":
-      return { kind: "shelf", shelf: k.src, ...type, ...genre };
+      return { kind: "shelf", shelf: k.src, type: shelfQueryType(k.type || SHELF_TYPE) };
     case "folder":
       if (k.folder === undefined || k.folder <= 0) throw bad();
       return { kind: "folder", folder: k.folder };
@@ -93,19 +95,31 @@ export function listSource(k: ListKey): ListSource {
   }
 }
 
+/**
+ * Полка из меню («Новинки», «Популярное», «Горячее») приходит без типа: её вкладка — из настроек (`shelfType`), а список
+ * в памяти — под ключом с типом (`sk`), общим с «Показать все» главной. Экран при этом остаётся пунктом меню: флаг и
+ * перерисовка — по запрошенному ключу (`dataId`).
+ */
 export async function listScreen(ctx: AppContext, key: string): Promise<MsxContentRoot> {
   let st: ListEntry;
   let k: ListKey;
+  let sk = key;
   let src: ListSource;
   try {
     k = decodeListKey(key);
+    if (isShelf(k.src) && !k.type) {
+      k = { ...k, type: shelfType(ctx, k.src) };
+      sk = encodeListKey(k);
+    }
     src = listSource(k);
-    st = recall(ctx, key) ?? (await firstPage(ctx, key, k, src));
+    st = recall(ctx, sk) ?? (await firstPage(ctx, sk, k, src));
   } catch (e) {
     ctx.log.warn(TAG, "list_failed", { flag: listFlag(key), err: toKpError(e).code });
     return errorScreen(ctx, e, ids.list(key));
   }
-  const root = buildRoot(ctx, key, k, st);
+  if (sk === key) delete st.dataId;
+  else st.dataId = ids.list(key);
+  const root = buildRoot(ctx, key, sk, k, st);
   prefetchNext(ctx, src, st);
   return root;
 }
@@ -292,7 +306,8 @@ function prefetchNext(ctx: AppContext, src: ListSource, st: ListState): void {
   });
 }
 
-function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): MsxContentRoot {
+/** `key` — запрошенный ключ (флаг экрана и опции), `sk` — ключ списка в памяти (`extend`). */
+function buildRoot(ctx: AppContext, key: string, sk: string, k: ListKey, st: ListEntry): MsxContentRoot {
   const root: MsxContentRoot = {
     type: "list", flag: listFlag(key), cache: false, reuse: false, ...gridPreload(ctx), headline: st.headline ?? listTitle(k),
   };
@@ -307,7 +322,7 @@ function buildRoot(ctx: AppContext, key: string, k: ListKey, st: ListEntry): Msx
   // Плитка подборки ведёт в её список, а не на карточку: префетч карточки по фокусу ей не нужен.
   const coll = k.src === "collections";
   root.template = gridTemplate(ctx, false, !coll);
-  fill(ctx, root, key, st, coll);
+  fill(ctx, root, sk, st, coll);
   return root;
 }
 

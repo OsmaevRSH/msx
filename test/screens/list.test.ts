@@ -175,14 +175,14 @@ describe("listScreen (S5, CC-05)", () => {
     assert.ok(items(s).every((i) => i.live === undefined));
   });
 
-  it("shelf: «Новые фильмы» as on the home shelf (V-08), /v1/items/fresh, only the genre option", async () => {
+  it("shelf: «Новые фильмы» as on the home shelf (V-08), /v1/items/fresh?type=movie, only the type option on the red button", async () => {
     const t = await make();
     const key = encodeListKey({ src: "fresh", type: "movie" });
     const s: MsxContentRoot = await t.request(ids.list(key));
     assert.equal(s.headline, "Новые фильмы");
-    assert.match(s.extension ?? "", /^\{ico:msx-red:stop\} Все жанры · \d+ фильм(а|ов)?$/);
-    assert.deepEqual(options(s).map((i) => [i.id, i.label, i.action]), [
-      ["o_genre", "Жанр: все жанры", chain(["back", panelAction(TEST_P, ids.panel("genre", key))])],
+    assert.match(s.extension ?? "", /^\{ico:msx-red:stop\} Фильмы · \d+ фильм(а|ов)?$/);
+    assert.deepEqual(options(s).map((i) => [i.id, i.label, i.key, i.action]), [
+      ["o_type", "Тип: Фильмы", "red", chain(["cleanup", panelAction(TEST_P, ids.panel("type", key))])],
     ]);
     assert.equal(items(s).length, 48);
     assert.equal(pageCalls(t, 1, "/v1/items/fresh"), 1);
@@ -202,7 +202,7 @@ describe("listScreen (S5, CC-05)", () => {
     const t = await make();
     const key = catalogKey("movie", { genre: "9", sort: "-kinopoisk_rating" });
     const drama = await t.request(ids.list(key));
-    const total = (await t.run(t.ctx.repo.listPage(listSource(decodeListKey(key)), 1))).value.pagination.totalItems;
+    const total = (await t.run(t.ctx.repo.listPage(listSource(decodeListKey(key)), 1))).value.pagination.totalItems ?? 0;
     assert.ok(total > 4, `${total}`);
     assert.match(drama.extension ?? "", new RegExp(`^\\{ico:msx-red:stop\\} Рейтинг КП · Драма · ${total} фильм(а|ов)?$`));
     const concerts = await t.request(ids.list(CONCERTS));
@@ -381,7 +381,8 @@ describe("SORTS and listTitle (for the S6 panels)", () => {
 
   it("listSource maps the key; catalog sort defaults to -updated", () => {
     assert.deepEqual(listSource({ src: "catalog", type: "movie" }), { kind: "catalog", type: "movie", sort: "-updated" });
-    assert.deepEqual(listSource({ src: "hot", type: "serial", genre: "9" }), { kind: "shelf", shelf: "hot", type: "serial", genre: "9" });
+    assert.deepEqual(listSource({ src: "hot", type: "serial", genre: "9" }), { kind: "shelf", shelf: "hot", type: "serial" });
+    assert.deepEqual(listSource({ src: "fresh", type: "all" }), { kind: "shelf", shelf: "fresh", type: "movie,serial,concert,documovie,docuserial,tvshow" });
     assert.deepEqual(listSource({ src: "folder", folder: 7 }), { kind: "folder", folder: 7 });
     assert.deepEqual(listSource({ src: "similar", id: 5 }), { kind: "similar", id: 5 });
     assert.throws(() => listSource({ src: "similar" }), KpError);

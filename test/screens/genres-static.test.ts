@@ -16,7 +16,7 @@ describe("genres-static (research kinopub-api §6.4)", () => {
   });
 
   it("serves movies, serials, 3D and the whole catalog; the first type of a list decides", () => {
-    for (const type of ["movie", "serial", "3D", "", "movie,serial"]) assert.equal(staticGenres(type).length, 30, type);
+    for (const type of ["movie", "serial", "3D", "3d", "", "movie,serial"]) assert.equal(staticGenres(type).length, 30, type);
   });
 
   it("has nothing for documentaries, TV shows and concerts — their genres differ", () => {

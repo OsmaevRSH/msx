@@ -7,7 +7,7 @@ import { watchKey } from "../../tools/kpmock/state.ts";
 
 // kpmock для разделов v1.11: подборки, каналы эфира, фильтр качества, `type` без учёта регистра, «Я смотрю».
 
-interface Coll { id: number; title: string; watchers: number; views: number; count: number; created: number; updated: number; posters: Record<string, string> }
+interface Coll { id: number; title: string; watchers: number; views: number; created: number; updated: number; posters: Record<string, string> }
 interface Page<T> { status: number; items: T[]; pagination: { total: number; current: number; perpage: number; total_items: number } }
 interface Channel { id: number; title: string; name: string; logos: { s: string; m: string }; stream: string; playlist: string; status: null }
 
@@ -47,7 +47,8 @@ describe("kpmock: collections, TV channels, quality and the «Я смотрю» 
     assert.deepEqual(p1.items.map((c) => c.id), byUpdated.slice(0, 48));
     const c = p1.items[0]!;
     assert.deepEqual(Object.keys(c.posters).sort(), ["big", "medium", "small"], "collection posters have no wide");
-    assert.equal(c.count, allCollections().find((x) => x.id === c.id)?.items.length);
+    // Поля подборки — как у живого API: числа тайтлов нет (доки «API 1.3», снимок api2).
+    assert.deepEqual(Object.keys(c).sort(), ["created", "id", "posters", "title", "updated", "views", "watchers"]);
     for (const [sort, key] of [["-created", "created"], ["watchers-", "watchers"], ["-views", "views"]] as const) {
       const ids = (await json<Page<Coll>>(`/v1/collections/index?sort=${sort}&perpage=60`)).items.map((x) => x[key]);
       assert.deepEqual(ids, [...ids].sort((a, b) => b - a), sort);
@@ -64,6 +65,7 @@ describe("kpmock: collections, TV channels, quality and the «Я смотрю» 
     const v = await json<Page<{ id: number; type: string }> & { collection: Coll }>(`/v1/collections/view?id=${big.id}&page=2&perpage=48`);
     assert.equal(v.collection.id, big.id);
     assert.equal(v.collection.title, big.title);
+    assert.equal("count" in v.collection, false);
     assert.deepEqual(v.items.map((x) => x.id), big.items.slice(48));
     assert.equal(v.pagination.total_items, big.items.length);
     assert.equal((await get("/v1/collections/view?id=99999")).status, 404);

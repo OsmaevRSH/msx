@@ -7,17 +7,19 @@ import { NOT_FOUND, listItem, paginate, posters } from "./catalog.ts";
 
 // Подборки (research kinopub-api §6.1, отчёт v1.11): `/v1/collections` (= `/index`) — `sort` по `created`, `updated`,
 // `watchers`, `views`, `title`, `id` (минус префиксом или суффиксом, по умолчанию `updated-`), `title` от 3 символов,
-// `page`/`perpage`; `/v1/collections/view?id=` — подборка, её тайтлы и `pagination`.
+// `page`/`perpage`; `/v1/collections/view?id=` — подборка, её тайтлы и `pagination`. Числа тайтлов у подборки живой API
+// не отдаёт: поля подборки — `id`, `title`, `watchers`, `views`, `created`, `updated`, `posters` (доки «API 1.3»,
+// снимок api2 2026-08-16 в kinopub-apple-client `docs/providers/kinopub/collections.md`).
 
 type Key = (c: FxCollection) => number | string;
 const KEYS: Record<string, Key> = {
   created: (c) => c.created, updated: (c) => c.updated, watchers: (c) => c.watchers, views: (c) => c.views, title: (c) => c.title, id: (c) => c.id,
 };
 
-/** Постеры подборки — без `wide`, как у живого API. */
+/** Постеры подборки — без `wide`, без числа тайтлов, как у живого API. */
 function json(c: FxCollection, base: string): Record<string, unknown> {
   const { wide: _wide, ...p } = posters(base, c.id);
-  return { id: c.id, title: c.title, watchers: c.watchers, views: c.views, count: c.items.length, created: c.created, updated: c.updated, posters: p };
+  return { id: c.id, title: c.title, watchers: c.watchers, views: c.views, created: c.created, updated: c.updated, posters: p };
 }
 
 function sorted(raw: string | null): FxCollection[] {

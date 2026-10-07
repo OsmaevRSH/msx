@@ -153,11 +153,12 @@ export class KpApi {
     return parsePage(await this.call({ path: "/v1/items", query, cls }), parseListItem);
   }
 
-  async shelf(
-    kind: "fresh" | "popular" | "hot", q: { type?: string; genre?: string; page: number; perpage: number }, cls?: Cls,
-  ): Promise<Page<ItemSummary>> {
-    const query = { type: q.type, genre: q.genre, page: q.page, perpage: q.perpage };
-    return parsePage(await this.call({ path: `/v1/items/${kind}`, query, cls }), parseListItem);
+  /**
+   * Полка (research kinopub-api §6.1): `type` обязателен — без него HTTP 400 «Отсутствуют обязательные параметры: type»;
+   * несколько типов через запятую — одна лента. Жанра и сортировки у полки нет.
+   */
+  async shelf(kind: "fresh" | "popular" | "hot", q: { type: string; page: number; perpage: number }, cls?: Cls): Promise<Page<ItemSummary>> {
+    return parsePage(await this.call({ path: `/v1/items/${kind}`, query: { type: q.type, page: q.page, perpage: q.perpage }, cls }), parseListItem);
   }
 
   /** `field=title` — релевантный поиск по названию (research kinopub-api §6.1). */

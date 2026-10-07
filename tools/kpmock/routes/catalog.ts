@@ -127,6 +127,24 @@ const SHELVES: Record<string, SortKey> = {
   fresh: (it) => it.created_at, popular: (it) => it.views, hot: (it) => it.rating,
 };
 
+/**
+ * Ответ Yii2 на действие без обязательного параметра: HTTP 400 в старом формате ошибки (research kinopub-api §3, §9.1);
+ * текст — как у живого API на полке без `type` (kinopub-gui `internal/gui/discover.go:479`).
+ */
+export const missingParam = (name: string): HttpError =>
+  new HttpError(400, { name: "Bad Request", message: `Отсутствуют обязательные параметры: ${name}`, code: 0, status: 400 });
+
+/**
+ * Полка (research kinopub-api §6.1): `type` обязателен (доки «API 1.3» — без скобок, kinopub-gui `methods.go:147`),
+ * несколько через запятую — одна общая лента (ИЛИ); пустой, `all` и неизвестный тип — пустой список (Kodi #379).
+ * Других фильтров полка не применяет — `genre` и прочие игнорируются.
+ */
+function shelfItems(q: URLSearchParams): FxItem[] {
+  const type = q.get("type");
+  if (type === null) throw missingParam("type");
+  return type.trim() === "" ? [] : filtered(new URLSearchParams({ type }));
+}
+
 export function register(r: Router, s: MockState, base: () => string): void {
   r.add("GET", "/v1/items", (ctx) => {
     requireAuth(ctx);
@@ -137,7 +155,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
   for (const [shelf, key] of Object.entries(SHELVES)) {
     r.add("GET", `/v1/items/${shelf}`, (ctx) => {
       requireAuth(ctx);
-      return listResponse(ctx, sorted(filtered(ctx.query), key, true));
+      return listResponse(ctx, sorted(shelfItems(ctx.query), key, true));
     });
   }
 

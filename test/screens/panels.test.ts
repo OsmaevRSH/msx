@@ -136,12 +136,10 @@ describe("panelScreen: sort and genre (S6)", () => {
     assert.ok(t.mock.calls().some((c) => c.path === "/v1/genres" && new URLSearchParams(c.query).get("type") === "movie"));
   });
 
-  it("genre of a filtered shelf: the current genre is marked, «Все жанры» drops it", async () => {
+  it("genre is only for the catalog: a shelf does not filter by genre (research kinopub-api §6.1) — an error inside the panel", async () => {
     const t = await make();
-    const from: ListKey = { src: "hot", type: "serial", genre: "23" };
-    const s = await panel(t, "genre", encodeListKey(from));
-    assert.deepEqual(current(s), [`${CHECK}Мультфильм`]);
-    assert.equal(row(s, "Все жанры").action, switchList({ src: "hot", type: "serial" }, from));
+    assertPanelError(await panel(t, "genre", encodeListKey({ src: "hot", type: "serial", genre: "23" })), "KP-BAD");
+    assertPanelError(await panel(t, "type", encodeListKey(MOVIES)), "KP-BAD");
   });
 
   it("genre when /v1/genres is down: the built-in movie list replaces the error panel", async () => {

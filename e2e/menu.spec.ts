@@ -17,6 +17,14 @@ test.describe.configure({ mode: "serial" });
 
 let page: Page;
 const menuSelected = (p: Page) => p.locator("#appMainMenuItems .app-main-menu-item.selected");
+/** Красная кнопка ТВ: в web MSX у неё нет клавиши клавиатуры, поэтому — код пульта Samsung (`ColorF0Red`, 403). */
+async function red(p: Page): Promise<void> {
+  const cdp = await p.context().newCDPSession(p);
+  const key = { windowsVirtualKeyCode: 403, nativeVirtualKeyCode: 403, key: "ColorF0Red", code: "ColorF0Red" };
+  await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
+  await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
+  await cdp.detach();
+}
 
 test.beforeAll(async ({ browser }) => {
   await mock.reset();
@@ -147,4 +155,80 @@ test("E-20: «Пункты меню» — скрыть «Я смотрю» и п
   expect(await kp(page, (k) => k.ctx.store.get("cfg", "menu") ?? null)).toBeNull();
   await page.keyboard.press("Backspace");
   await expect(panel(page)).toBeHidden();
+});
+
+test("E-21: «Новинки» из меню — вкладка «Фильмы» с `type`; красная кнопка → «Тип» → «Сериалы» заменяет список и запоминается; «Подборки» без «0 шт.»", async () => {
+  const alias = encodeListKey({ src: "fresh" });
+  const serials = encodeListKey({ src: "fresh", type: "serial" });
+  const typeOf = (c: { query: string }): string | null => new URLSearchParams(c.query).get("type");
+  // После E-20 открыт экран «Просмотр и аккаунт»: в меню и вверх до «Новинок».
+  await page.keyboard.press("Backspace");
+  await expect(menuSelected(page)).toHaveText("Просмотр и аккаунт");
+  const c0 = (await mock.calls()).length;
+  const m0 = await mark(page);
+  for (let n = 0; n < 30 && (await menuSelected(page).innerText()) !== "Новинки"; n++) await page.keyboard.press("ArrowUp");
+  await expect(menuSelected(page)).toHaveText("Новинки");
+  await answered(page, ids.list(alias), m0);
+  await expectContent(page, /Фильмы · \d+ фильм/);
+  const fresh = (await mock.calls()).slice(c0).filter((c) => c.path === "/v1/items/fresh");
+  expect(fresh.map((c) => [typeOf(c), c.status]), "полка — всегда с типом, без 400").toContainEqual(["movie", 200]);
+  expect(fresh.filter((c) => c.status !== 200 || typeOf(c) !== "movie")).toEqual([]);
+
+  // Красная кнопка пульта Samsung (keyCode 403) — Option Shortcut: сразу панель вкладок, фокус на текущей.
+  await page.keyboard.press("ArrowRight");
+  await expect(selected(page)).toContainText(/Тестовый\s*фильм/);
+  const m1 = await mark(page);
+  await red(page);
+  await expect(panel(page)).toContainText("Док. сериалы");
+  const sel = panel(page).locator(".selected");
+  await expect(sel).toContainText("Фильмы");
+  await page.keyboard.press("ArrowRight");
+  await expect(sel).toContainText("Сериалы");
+  await page.keyboard.press("Enter");
+  await expect(panel(page)).toBeHidden();
+  await answered(page, ids.list(serials), m1);
+  await expectContent(page, /Сериалы · \d+ сериал/);
+  expect((await stats(page)).requests.at(-1)).toBe(ids.list(serials));
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "shelf"))).toEqual({ fresh: "serial" });
+
+  // «Поиск» и обратно — «Новинки» сериалами. После `replace:content` MSX до перезапуска запрашивает у пункта меню новый
+  // ключ (с типом); после перезапуска — ключ меню, и тип даёт `kp.cfg.shelf` (unit-тест «type panel»).
+  await page.keyboard.press("Backspace");
+  await expect(menuSelected(page)).toHaveText("Новинки");
+  const mSearch = await mark(page);
+  await page.keyboard.press("ArrowUp");
+  await expect(menuSelected(page)).toHaveText("Поиск");
+  await answered(page, ids.search(), mSearch);
+  const m2 = await mark(page);
+  await page.keyboard.press("ArrowDown");
+  await expect(menuSelected(page)).toHaveText("Новинки");
+  const shelf = [ids.list(alias), ids.list(serials)];
+  await until(page, (tl) => tl.some((e) => e.k === "res" && shelf.includes(e.v)), 10_000, "ответ «Новинок»", m2);
+  await expectContent(page, /Сериалы · \d+ сериал/);
+
+  // Тот же пункт через кнопку опций (F12 web MSX): опции закрываются (`cleanup`), над списком — только панель вкладок.
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("F12");
+  await expect(panel(page)).toContainText("Тип: Сериалы");
+  await page.keyboard.press("Enter");
+  await expect(panel(page)).toContainText("Док. сериалы");
+  await expect(sel).toContainText("Сериалы");
+  const m3 = await mark(page);
+  await page.keyboard.press("ArrowLeft");
+  await expect(sel).toContainText("Фильмы");
+  await page.keyboard.press("Enter");
+  await expect(panel(page), "после выбора панелей нет — и опций тоже").toBeHidden();
+  await answered(page, ids.list(encodeListKey({ src: "fresh", type: "movie" })), m3);
+  await expectContent(page, /Фильмы · \d+ фильм/);
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "shelf") ?? null), "«Фильмы» — умолчание, не хранится").toBeNull();
+  await page.keyboard.press("Backspace");
+  await expect(menuSelected(page)).toHaveText("Новинки");
+
+  // «Подборки»: числа тайтлов API не отдаёт — у плиток нет подписи «N шт.», и «0 шт.» тоже нет.
+  for (let n = 0; n < 30 && (await menuSelected(page).innerText()) !== "Подборки"; n++) await page.keyboard.press("ArrowDown");
+  await expect(menuSelected(page)).toHaveText("Подборки");
+  await expectContent(page, "Новые · 60 подборок");
+  await expectContent(page, "Тестовая");
+  await expect(content(page), "подпись количества у подборок").not.toContainText("шт.");
+  expect((await answer(page, ids.list(encodeListKey({ src: "collections" })))).items.every((i: { titleFooter?: string }) => i.titleFooter === undefined)).toBe(true);
 });

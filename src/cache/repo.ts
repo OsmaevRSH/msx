@@ -12,7 +12,7 @@ import type { Logger } from "../core/log.ts";
 import type { Got, Policy, SwrCache } from "./swr.ts";
 
 export type ListSource = { kind: "catalog"; type?: string; sort: string; genre?: string; quality?: string }
-  | { kind: "shelf"; shelf: "fresh" | "popular" | "hot"; type?: string; genre?: string }
+  | { kind: "shelf"; shelf: "fresh" | "popular" | "hot"; type: string }
   | { kind: "folder"; folder: number } | { kind: "similar"; id: number }
   | { kind: "history" } | { kind: "collections"; sort: string } | { kind: "collection"; id: number };
 
@@ -62,7 +62,7 @@ const opt = (s: string | undefined): string | undefined => (s === "" ? undefined
 function sourceJson(src: ListSource): string {
   switch (src.kind) {
     case "catalog": return JSON.stringify({ kind: src.kind, type: opt(src.type), sort: src.sort, genre: opt(src.genre), quality: opt(src.quality) });
-    case "shelf": return JSON.stringify({ kind: src.kind, shelf: src.shelf, type: opt(src.type), genre: opt(src.genre) });
+    case "shelf": return JSON.stringify({ kind: src.kind, shelf: src.shelf, type: src.type });
     case "folder": return JSON.stringify({ kind: src.kind, folder: src.folder });
     case "similar":
     case "collection": return JSON.stringify({ kind: src.kind, id: src.id });
@@ -202,7 +202,7 @@ export class Repo {
   shelf(kind: "fresh" | "popular" | "hot", type: string, opts?: { cls?: ReqClass }): Promise<Got<ItemSummary[]>> {
     const k = cacheKeys.shelf(kind, type);
     return this.cache.get(k, SHELF, this.loader(k, opts?.cls, async (c) =>
-      (await this.api.shelf(kind, { type: opt(type), page: 1, perpage: SHELF_SIZE }, c)).items));
+      (await this.api.shelf(kind, { type, page: 1, perpage: SHELF_SIZE }, c)).items));
   }
 
   /** Только L1/L2, без сети: подборку из кэша главная показывает сразу и обновляет фоном (спец. §8.4 п. 1). */
@@ -331,7 +331,7 @@ export class Repo {
       case "catalog":
         return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, quality: opt(src.quality), page, perpage: PER_PAGE }, cls);
       case "shelf":
-        return this.api.shelf(src.shelf, { type: opt(src.type), genre: opt(src.genre), page, perpage: PER_PAGE }, cls);
+        return this.api.shelf(src.shelf, { type: src.type, page, perpage: PER_PAGE }, cls);
       case "folder":
         return this.api.bookmarkFolder(src.folder, page, PER_PAGE, cls);
       case "history":

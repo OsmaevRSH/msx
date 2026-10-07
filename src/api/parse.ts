@@ -195,12 +195,12 @@ export function parseMediaLinks(x: unknown, mid?: number): MediaLinks {
   };
 }
 
+/** Без `total_items` число найденного известно, только когда всё на одной странице: его не выдумываем. */
 export function parsePagination(x: unknown, count: number): Pagination {
   const p = obj(x);
-  return {
-    total: Math.max(0, num(p.total, 1)), current: Math.max(1, num(p.current, 1)), perpage: num(p.perpage, count),
-    totalItems: num(p.total_items, num(p.totalItems, count)),
-  };
+  const out: Pagination = { total: Math.max(0, num(p.total, 1)), current: Math.max(1, num(p.current, 1)), perpage: num(p.perpage, count) };
+  put(out, "totalItems", optNum(p.total_items) ?? optNum(p.totalItems) ?? (out.total <= 1 ? count : undefined));
+  return out;
 }
 
 /** `items[]` + `pagination` (`total_items` → `totalItems`); `item` возвращает undefined для мусора. */
@@ -242,10 +242,15 @@ export function parseHistoryPage(x: unknown): Page<ItemSummary> {
   return { items: parseHistory(x).map((e) => e.item), pagination: parsePagination(obj(x).pagination, Array.isArray(raw) ? raw.length : 0) };
 }
 
-/** Подборка `/v1/collections` (research §6.1): постеры без `wide`, `count` — тайтлов в ней. */
+/**
+ * Подборка `/v1/collections` (research §6.1): постеры без `wide`. Числа тайтлов в ответе нет (доки «API 1.3», снимок
+ * api2); если сервер его всё же пришлёт (`items_count` у Apple-клиента, `count` у aqualhume) — берём, иначе `count` нет.
+ */
 export function parseCollection(x: unknown): Collection | undefined {
   const o = obj(x);
-  const c = { id: num(o.id), title: str(o.title), posters: parsePosters(o.posters), count: num(o.count) };
+  const c: Collection = { id: num(o.id), title: str(o.title), posters: parsePosters(o.posters) };
+  const n = optNum(o.items_count ?? o.count);
+  if (n !== undefined && n > 0) c.count = n;
   return c.id > 0 ? c : undefined;
 }
 

@@ -21,8 +21,8 @@ describe("KpApi against kpmock (contract)", () => {
       assert.ok(page.items.every((it) => typeof it.year === "number"));
       assert.equal(page.pagination.current, 2);
       assert.equal(page.pagination.perpage, 10);
-      assert.ok(page.pagination.totalItems > 20);
-      assert.equal(page.pagination.total, Math.ceil(page.pagination.totalItems / 10));
+      assert.ok((page.pagination.totalItems ?? 0) > 20);
+      assert.equal(page.pagination.total, Math.ceil((page.pagination.totalItems ?? 0) / 10));
       const c = env.calls("/v1/items")[0];
       assert.deepEqual([q(c).get("type"), q(c).get("sort"), q(c).get("page"), q(c).get("perpage")], ["movie", "-updated", "2", "10"]);
       assert.equal(q(c).has("genre"), false);
@@ -33,6 +33,7 @@ describe("KpApi against kpmock (contract)", () => {
       const shelf = await r.run(r.api.shelf("popular", { type: "serial", page: 1, perpage: 7 }));
       assert.equal(shelf.items.length, 7);
       assert.ok(shelf.items.every((it) => it.type === "serial"));
+      assert.deepEqual([...q(env.calls("/v1/items/popular")[0])].map(([n]) => n).sort(), ["access_token", "page", "perpage", "type"]);
       const found = await r.run(r.api.search("Простой", 1, 20));
       assert.deepEqual(found.items.map((it) => it.id), [FIX.MOVIE_SIMPLE]);
       const sc = env.calls("/v1/items/search")[0];
@@ -242,6 +243,15 @@ describe("KpApi against kpmock (contract)", () => {
       const r = env.rig();
       await assert.rejects(r.run(r.api.item(FIX.MOVIE_DELETED)), kp("KP-404", 404));
       await assert.rejects(r.run(r.api.search("", 1, 20)), kp("KP-BAD", 400));
+    });
+
+    it("a shelf without type → KP-BAD 400 with the Yii message (research §6.1): what the menu sections got before v1.14", async () => {
+      const r = env.rig();
+      await assert.rejects(r.run(r.api.raw("/v1/items/fresh", { page: 1, perpage: 48 })), (e: unknown) => {
+        kp("KP-BAD", 400)(e);
+        assert.equal((e as KpError).detail, "Отсутствуют обязательные параметры: type");
+        return true;
+      });
     });
 
     it("HTTP 200 with an error status in the body is an error", async () => {

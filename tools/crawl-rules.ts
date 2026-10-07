@@ -23,7 +23,9 @@ export function kindOf(dataId: string): string {
     case "probe": return `probe:${r.page ?? ""}`;
     case "list":
       try {
-        return `list:${decodeListKey(r.key).src}`;
+        // Вкладка полки — свой вид: обход доходит до каждой выбранной в панели типа (v1.14).
+        const k = decodeListKey(r.key);
+        return ["fresh", "popular", "hot"].includes(k.src) && k.type ? `list:${k.src}:${k.type}` : `list:${k.src}`;
       } catch {
         return "list:bad";
       }

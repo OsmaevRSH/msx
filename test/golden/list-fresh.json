@@ -1,0 +1,582 @@
+{
+  "type": "list",
+  "flag": "list_8a7db90f",
+  "cache": false,
+  "reuse": false,
+  "preload": "next",
+  "headline": "Новые фильмы",
+  "extension": "{ico:msx-red:stop} Фильмы · 203 фильма",
+  "options": {
+    "headline": "Тип",
+    "template": {
+      "type": "control",
+      "layout": "0,0,8,1"
+    },
+    "items": [
+      {
+        "id": "o_type",
+        "icon": "category",
+        "label": "Тип: Фильмы",
+        "key": "red",
+        "action": "[cleanup|panel:request:interaction:panel:type:ZnJlc2g@https://example.github.io/msx/app/index.html]"
+      }
+    ]
+  },
+  "template": {
+    "color": "msx-glass",
+    "imageHeight": 2.75,
+    "imageFiller": "cover",
+    "imageBoundary": true,
+    "round": true,
+    "truncation": "titleHeader",
+    "layout": "0,0,2,4",
+    "enumerate": false,
+    "selection": {
+      "headline": "{context:kt}",
+      "action": "interaction:commit:message:pf:{context:kid}"
+    }
+  },
+  "items": [
+    {
+      "id": "i1000",
+      "kid": "1000",
+      "kt": "Тестовый фильм 1000",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1000",
+      "titleFooter": "2003 · 7,4",
+      "image": "http://kpmock.invalid/poster/medium/1000.svg",
+      "action": "content:request:interaction:item:1000@https://example.github.io/msx/app/index.html",
+      "focus": true
+    },
+    {
+      "id": "i1003",
+      "kid": "1003",
+      "kt": "Тестовый фильм 1003",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1003",
+      "titleFooter": "2005 · 5,8",
+      "image": "http://kpmock.invalid/poster/medium/1003.svg",
+      "action": "content:request:interaction:item:1003@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1005",
+      "kid": "1005",
+      "kt": "Тестовый фильм 1005",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1005",
+      "titleFooter": "1994 · 8,0",
+      "image": "http://kpmock.invalid/poster/medium/1005.svg",
+      "action": "content:request:interaction:item:1005@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1009",
+      "kid": "1009",
+      "kt": "Тестовый фильм 1009",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1009",
+      "titleFooter": "2009 · 7,5",
+      "image": "http://kpmock.invalid/poster/medium/1009.svg",
+      "action": "content:request:interaction:item:1009@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1011",
+      "kid": "1011",
+      "kt": "Тестовый фильм 1011",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1011",
+      "titleFooter": "1998 · 9,7",
+      "image": "http://kpmock.invalid/poster/medium/1011.svg",
+      "action": "content:request:interaction:item:1011@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1013",
+      "kid": "1013",
+      "kt": "Тестовый фильм 1013",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1013",
+      "titleFooter": "2024 · 7,0",
+      "image": "http://kpmock.invalid/poster/medium/1013.svg",
+      "action": "content:request:interaction:item:1013@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1016",
+      "kid": "1016",
+      "kt": "Тестовый фильм 1016",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1016",
+      "titleFooter": "2026 · 5,4",
+      "image": "http://kpmock.invalid/poster/medium/1016.svg",
+      "action": "content:request:interaction:item:1016@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1019",
+      "kid": "1019",
+      "kt": "Тестовый фильм 1019",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1019",
+      "titleFooter": "1991 · 8,7",
+      "image": "http://kpmock.invalid/poster/medium/1019.svg",
+      "action": "content:request:interaction:item:1019@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1020",
+      "kid": "1020",
+      "kt": "Тестовый фильм 1020",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1020",
+      "titleFooter": "2004 · 9,8",
+      "image": "http://kpmock.invalid/poster/medium/1020.svg",
+      "action": "content:request:interaction:item:1020@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1023",
+      "kid": "1023",
+      "kt": "Тестовый фильм 1023",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1023",
+      "titleFooter": "2006 · 8,2",
+      "image": "http://kpmock.invalid/poster/medium/1023.svg",
+      "action": "content:request:interaction:item:1023@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1026",
+      "kid": "1026",
+      "kt": "Тестовый фильм 1026",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1026",
+      "titleFooter": "2008 · 6,6",
+      "image": "http://kpmock.invalid/poster/medium/1026.svg",
+      "action": "content:request:interaction:item:1026@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1029",
+      "kid": "1029",
+      "kt": "Тестовый фильм 1029",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1029",
+      "titleFooter": "2010 · 5,0",
+      "image": "http://kpmock.invalid/poster/medium/1029.svg",
+      "action": "content:request:interaction:item:1029@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1031",
+      "kid": "1031",
+      "kt": "Тестовый фильм 1031",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1031",
+      "titleFooter": "1999 · 7,2",
+      "image": "http://kpmock.invalid/poster/medium/1031.svg",
+      "action": "content:request:interaction:item:1031@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1033",
+      "kid": "1033",
+      "kt": "Тестовый фильм 1033",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1033",
+      "titleFooter": "2025 · 9,4",
+      "image": "http://kpmock.invalid/poster/medium/1033.svg",
+      "action": "content:request:interaction:item:1033@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1036",
+      "kid": "1036",
+      "kt": "Тестовый фильм 1036",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1036",
+      "titleFooter": "1990 · 7,8",
+      "image": "http://kpmock.invalid/poster/medium/1036.svg",
+      "action": "content:request:interaction:item:1036@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1038",
+      "kid": "1038",
+      "kt": "Тестовый фильм 1038",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1038",
+      "titleFooter": "2016 · 5,1",
+      "image": "http://kpmock.invalid/poster/medium/1038.svg",
+      "action": "content:request:interaction:item:1038@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1041",
+      "kid": "1041",
+      "kt": "Тестовый фильм 1041",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1041",
+      "titleFooter": "2018 · 8,4",
+      "image": "http://kpmock.invalid/poster/medium/1041.svg",
+      "action": "content:request:interaction:item:1041@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1044",
+      "kid": "1044",
+      "kt": "Тестовый фильм 1044",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1044",
+      "titleFooter": "2020 · 6,8",
+      "image": "http://kpmock.invalid/poster/medium/1044.svg",
+      "action": "content:request:interaction:item:1044@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1046",
+      "kid": "1046",
+      "kt": "Тестовый фильм 1046",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1046",
+      "titleFooter": "2009 · 9,0",
+      "image": "http://kpmock.invalid/poster/medium/1046.svg",
+      "action": "content:request:interaction:item:1046@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1049",
+      "kid": "1049",
+      "kt": "Тестовый фильм 1049",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1049",
+      "titleFooter": "2011 · 7,4",
+      "image": "http://kpmock.invalid/poster/medium/1049.svg",
+      "action": "content:request:interaction:item:1049@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1050",
+      "kid": "1050",
+      "kt": "Тестовый фильм 1050",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1050",
+      "titleFooter": "2024 · 8,5",
+      "image": "http://kpmock.invalid/poster/medium/1050.svg",
+      "action": "content:request:interaction:item:1050@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1053",
+      "kid": "1053",
+      "kt": "Тестовый фильм 1053",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1053",
+      "titleFooter": "2026 · 6,9",
+      "image": "http://kpmock.invalid/poster/medium/1053.svg",
+      "action": "content:request:interaction:item:1053@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1055",
+      "kid": "1055",
+      "kt": "Тестовый фильм 1055",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1055",
+      "titleFooter": "2015 · 9,1",
+      "image": "http://kpmock.invalid/poster/medium/1055.svg",
+      "action": "content:request:interaction:item:1055@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1059",
+      "kid": "1059",
+      "kt": "Тестовый фильм 1059",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1059",
+      "titleFooter": "1993 · 8,6",
+      "image": "http://kpmock.invalid/poster/medium/1059.svg",
+      "action": "content:request:interaction:item:1059@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1061",
+      "kid": "1061",
+      "kt": "Тестовый фильм 1061",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1061",
+      "titleFooter": "2019 · 5,9",
+      "image": "http://kpmock.invalid/poster/medium/1061.svg",
+      "action": "content:request:interaction:item:1061@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1063",
+      "kid": "1063",
+      "kt": "Тестовый фильм 1063",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1063",
+      "titleFooter": "2008 · 8,1",
+      "image": "http://kpmock.invalid/poster/medium/1063.svg",
+      "action": "content:request:interaction:item:1063@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1066",
+      "kid": "1066",
+      "kt": "Тестовый фильм 1066",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1066",
+      "titleFooter": "2010 · 6,5",
+      "image": "http://kpmock.invalid/poster/medium/1066.svg",
+      "action": "content:request:interaction:item:1066@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1069",
+      "kid": "1069",
+      "kt": "Тестовый фильм 1069",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1069",
+      "titleFooter": "2012 · 9,8",
+      "image": "http://kpmock.invalid/poster/medium/1069.svg",
+      "action": "content:request:interaction:item:1069@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1070",
+      "kid": "1070",
+      "kt": "Тестовый фильм 1070",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1070",
+      "titleFooter": "2025 · 6,0",
+      "image": "http://kpmock.invalid/poster/medium/1070.svg",
+      "action": "content:request:interaction:item:1070@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1073",
+      "kid": "1073",
+      "kt": "Тестовый фильм 1073",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1073",
+      "titleFooter": "1990 · 9,3",
+      "image": "http://kpmock.invalid/poster/medium/1073.svg",
+      "action": "content:request:interaction:item:1073@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1076",
+      "kid": "1076",
+      "kt": "Тестовый фильм 1076",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1076",
+      "titleFooter": "1992 · 7,7",
+      "image": "http://kpmock.invalid/poster/medium/1076.svg",
+      "action": "content:request:interaction:item:1076@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1079",
+      "kid": "1079",
+      "kt": "Тестовый фильм 1079",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1079",
+      "titleFooter": "1994 · 6,1",
+      "image": "http://kpmock.invalid/poster/medium/1079.svg",
+      "action": "content:request:interaction:item:1079@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1081",
+      "kid": "1081",
+      "kt": "Тестовый фильм 1081",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1081",
+      "titleFooter": "2020 · 8,3",
+      "image": "http://kpmock.invalid/poster/medium/1081.svg",
+      "action": "content:request:interaction:item:1081@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1083",
+      "kid": "1083",
+      "kt": "Тестовый фильм 1083",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1083",
+      "titleFooter": "2009 · 5,6",
+      "image": "http://kpmock.invalid/poster/medium/1083.svg",
+      "action": "content:request:interaction:item:1083@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1086",
+      "kid": "1086",
+      "kt": "Тестовый фильм 1086",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1086",
+      "titleFooter": "2011 · 8,9",
+      "image": "http://kpmock.invalid/poster/medium/1086.svg",
+      "action": "content:request:interaction:item:1086@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1088",
+      "kid": "1088",
+      "kt": "Тестовый фильм 1088",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1088",
+      "titleFooter": "2000 · 6,2",
+      "image": "http://kpmock.invalid/poster/medium/1088.svg",
+      "action": "content:request:interaction:item:1088@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1091",
+      "kid": "1091",
+      "kt": "Тестовый фильм 1091",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1091",
+      "titleFooter": "2002 · 9,5",
+      "image": "http://kpmock.invalid/poster/medium/1091.svg",
+      "action": "content:request:interaction:item:1091@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1094",
+      "kid": "1094",
+      "kt": "Тестовый фильм 1094",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1094",
+      "titleFooter": "2004 · 7,9",
+      "image": "http://kpmock.invalid/poster/medium/1094.svg",
+      "action": "content:request:interaction:item:1094@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1096",
+      "kid": "1096",
+      "kt": "Тестовый фильм 1096",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1096",
+      "titleFooter": "1993 · 5,2",
+      "image": "http://kpmock.invalid/poster/medium/1096.svg",
+      "action": "content:request:interaction:item:1096@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1099",
+      "kid": "1099",
+      "kt": "Тестовый фильм 1099",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1099",
+      "titleFooter": "1995 · 8,5",
+      "image": "http://kpmock.invalid/poster/medium/1099.svg",
+      "action": "content:request:interaction:item:1099@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1100",
+      "kid": "1100",
+      "kt": "Тестовый фильм 1100",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1100",
+      "titleFooter": "2008 · 9,6",
+      "image": "http://kpmock.invalid/poster/medium/1100.svg",
+      "action": "content:request:interaction:item:1100@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1103",
+      "kid": "1103",
+      "kt": "Тестовый фильм 1103",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1103",
+      "titleFooter": "2010 · 8,0",
+      "image": "http://kpmock.invalid/poster/medium/1103.svg",
+      "action": "content:request:interaction:item:1103@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1105",
+      "kid": "1105",
+      "kt": "Тестовый фильм 1105",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1105",
+      "titleFooter": "1999 · 5,3",
+      "image": "http://kpmock.invalid/poster/medium/1105.svg",
+      "action": "content:request:interaction:item:1105@https://example.github.io/msx/app/index.html",
+      "break": "context:end"
+    },
+    {
+      "id": "i1109",
+      "kid": "1109",
+      "kt": "Тестовый фильм 1109",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1109",
+      "titleFooter": "2014 · 9,7",
+      "image": "http://kpmock.invalid/poster/medium/1109.svg",
+      "action": "content:request:interaction:item:1109@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1111",
+      "kid": "1111",
+      "kt": "Тестовый фильм 1111",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1111",
+      "titleFooter": "2003 · 7,0",
+      "image": "http://kpmock.invalid/poster/medium/1111.svg",
+      "action": "content:request:interaction:item:1111@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1113",
+      "kid": "1113",
+      "kt": "Тестовый фильм 1113",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1113",
+      "titleFooter": "1992 · 9,2",
+      "image": "http://kpmock.invalid/poster/medium/1113.svg",
+      "action": "content:request:interaction:item:1113@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1116",
+      "kid": "1116",
+      "kt": "Тестовый фильм 1116",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1116",
+      "titleFooter": "1994 · 7,6",
+      "image": "http://kpmock.invalid/poster/medium/1116.svg",
+      "action": "content:request:interaction:item:1116@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "i1119",
+      "kid": "1119",
+      "kt": "Тестовый фильм 1119",
+      "titleHeader": "{col:msx-white}Тестовый{br}фильм 1119",
+      "titleFooter": "1996 · 6,0",
+      "image": "http://kpmock.invalid/poster/medium/1119.svg",
+      "action": "content:request:interaction:item:1119@https://example.github.io/msx/app/index.html",
+      "live": {
+        "type": "setup",
+        "action": "interaction:commit:message:extend:ZnJlc2h8dHlwZT1tb3ZpZQ:down:48"
+      }
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,1,12,5",
+      "items": [
+        {
+          "layout": "0,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i1000"
+          }
+        },
+        {
+          "layout": "2,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i1003"
+          }
+        },
+        {
+          "layout": "4,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i1005"
+          }
+        },
+        {
+          "layout": "6,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i1009"
+          }
+        },
+        {
+          "layout": "8,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i1011"
+          }
+        },
+        {
+          "layout": "10,0,2,1",
+          "offset": "0,0,0,0",
+          "selection": {
+            "action": "focus:i1013"
+          }
+        }
+      ],
+      "offset": "0,0,0,-1",
+      "template": {
+        "offset": "0,-1,0,0"
+      }
+    },
+    {
+      "position": "context:end",
+      "area": "0,0,12,4",
+      "offset": "0,0,0,-1",
+      "items": [
+        {
+          "layout": "0,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:i1105"
+          }
+        },
+        {
+          "layout": "2,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:i1109"
+          }
+        },
+        {
+          "layout": "4,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:i1111"
+          }
+        },
+        {
+          "layout": "6,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:i1113"
+          }
+        },
+        {
+          "layout": "8,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:i1116"
+          }
+        },
+        {
+          "layout": "10,4,2,1",
+          "offset": "0,-4,0,0",
+          "selection": {
+            "action": "focus:i1119"
+          }
+        }
+      ]
+    }
+  ]
+}

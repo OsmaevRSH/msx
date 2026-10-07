@@ -56,6 +56,8 @@ const LAST = new Set(["set:logout", "probe:logout"]);
 /** Сколько узлов одного вида обходить: краулеру нужна каждая разметка и каждое действие, а не каждый тайтл. */
 const CAPS: Record<string, number> = {
   item: 8, season: 8, play: 2, playEp: 3, probePlay: 6, extend: 3, searchInput: SEARCH_KEYS.size, pf: 2,
+  // Вкладки полки: «Фильмы» и «Сериалы» есть и на главной, третья — только из панели типа.
+  "act:panel:type": 3,
 };
 /**
  * Длинные сезоны SERIAL_LONG (100 и 200 серий, CNFR-16): их нет в каталоге mock, поэтому обход идёт к ним сразу от
@@ -318,6 +320,8 @@ class Crawler {
         if (want !== flag) this.fail(label(from), "flag", `${m}: open screen ${screen ?? "-"} has flag ${want ?? "-"}`);
         if (reload === undefined) this.addReq(id, from, false);
         else if (id === current) reload.add(id);
+        // Плагин заменил открытый экран другим (выбор вкладки полки): MSX его запросит.
+        else this.addReq(id, from, false);
         return;
       }
       if (prefix === "video:resolve:") this.addReq(startVariant(id), from, true);
