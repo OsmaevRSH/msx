@@ -3,7 +3,7 @@
   "flag": "settings",
   "cache": false,
   "reuse": false,
-  "headline": "Просмотр и аккаунт",
+  "headline": "Настройки",
   "template": {
     "type": "control",
     "layout": "0,0,12,1"

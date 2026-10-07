@@ -43,12 +43,12 @@ const deviceId = (t: TestApp): number => [...t.mock.state.devices.keys()][0] as 
 const device = (t: TestApp): Record<string, number> => t.mock.state.devices.get(deviceId(t))?.settings ?? {};
 
 describe("settingsScreen (S12)", () => {
-  it("«Просмотр и аккаунт»: 12×6 list of 12×1 control rows with group headers, flag «settings», not cached", async () => {
+  it("«Настройки»: 12×6 list of 12×1 control rows with group headers, flag «settings», not cached", async () => {
     const t = await make();
     const s = await screen(t);
     assert.equal(s.type, "list");
     assert.equal(s.flag, "settings");
-    assert.equal(s.headline, "Просмотр и аккаунт");
+    assert.equal(s.headline, "Настройки");
     assert.equal(s.cache, false);
     assert.equal(s.compress, undefined);
     assert.deepEqual(s.template, { type: "control", layout: "0,0,12,1" });
