@@ -1145,10 +1145,10 @@ Plan B включается, если:
 
 | Уровень | Итог на M2 |
 |---|---|
-| Unit, contract, golden (`npm test`) | 1692 теста, 0 todo (v1.13); стабильно при повторах |
-| Краулер (`npm run crawl`) | ~349 узлов (v1.12: «Я смотрю», «Спорт», «История», подборки, «Пункты меню»; v1.13: «Секции главной» с главной и из настроек) и ~2560 действий + проход `playerPropsIn: item` 120 узлов и ~2000 действий, 0 сбоев; правило `edges` — цели стражей (v1.10), действие `player:seek:±N` (v1.11), `video:<адрес>` эфира и `[replace:menu|reload:panel]` (v1.12), `[replace:content:home|reload:panel]` и `[reload:content|reload:panel]` (v1.13) |
-| E2E (`npm run e2e`) | 33 теста в web MSX (Chromium): smoke, CE-01…CE-07, E-02…E-21 и E-09b; WebM вместо HLS (Р-9) |
-| Бюджет (`npm run size`) | `app.js` 268 765 Б / 88 302 Б gzip локально (v1.12 — +4 128 Б gzip, v1.13 — +445 Б; бюджет с v1.9.2 — 288 000 Б / 92 160 Б gzip, запас ~3,8 КБ gzip), `probe.js` 35 251 Б / 13 937 Б gzip |
+| Unit, contract, golden (`npm test`) | 1699 тестов, 0 todo (v1.14); стабильно при повторах |
+| Краулер (`npm run crawl`) | ~347 узлов (v1.12: «Я смотрю», «Спорт», «История», подборки, «Пункты меню»; v1.13: «Секции главной» с главной и из настроек; v1.14: панель «Тип» и вкладки полок — вид `list:<полка>:<тип>`, замена экрана плагином на другой ключ) и ~2510 действий + проход `playerPropsIn: item` 120 узлов и ~2000 действий, 0 сбоев; правило `edges` — цели стражей (v1.10), действие `player:seek:±N` (v1.11), `video:<адрес>` эфира и `[replace:menu|reload:panel]` (v1.12), `[replace:content:home|reload:panel]` и `[reload:content|reload:panel]` (v1.13) |
+| E2E (`npm run e2e`) | 34 теста в web MSX (Chromium): smoke, CE-01…CE-07, E-02…E-22 и E-09b; WebM вместо HLS (Р-9) |
+| Бюджет (`npm run size`) | `app.js` 270 044 Б / 88 831 Б gzip локально (v1.12 — +4 128 Б gzip, v1.13 — +445 Б, v1.14 — +529 Б; бюджет с v1.9.2 — 288 000 Б / 92 160 Б gzip, запас ~3,2 КБ gzip), `probe.js` 35 251 Б / 13 937 Б gzip |
 
 Только на mock и в Chromium проверены: разбор ответов API (толерантный; отпечаток схемы настоящего API снимет web-пробник, §13), классификация ошибок и проба `no-cors` (сценарии `no_cors_errors`, `cors_off`, `hang`), лимитер и 429, refresh и ротация токенов, outbox, перерисовки MSX и поведение web MSX вместо Tizen: события плеера и тики, `localStorage`, `resume:position`, кнопки и триггеры плеера.
 
