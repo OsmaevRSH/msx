@@ -121,7 +121,7 @@ test("E-20: «Пункты меню» с первой строки настро�
   await page.keyboard.press("Backspace");
   await expect(menuSelected(page)).toHaveText("Спорт");
   await page.keyboard.press("ArrowDown");
-  await expect(menuSelected(page), "разделитель пропускается").toHaveText("Просмотр и аккаунт");
+  await expect(menuSelected(page), "разделитель пропускается").toHaveText("Настройки");
   await expectContent(page, "Воспроизведение");
   // Из меню в контент: фокус на первой строке настроек — порядке пунктов меню (v1.13), OK открывает панель.
   await page.keyboard.press("ArrowRight");
@@ -185,7 +185,7 @@ test("E-21: «Секции главной» — скрыть «Новые фил
 
   // Главная из меню: MSX запрашивает её заново (`cache: false`) — «Закладки» первыми, «Новых фильмов» нет и у KinoPub.
   await page.keyboard.press("Backspace");
-  await expect(menuSelected(page)).toHaveText("Просмотр и аккаунт");
+  await expect(menuSelected(page)).toHaveText("Настройки");
   const calls = (await mock.calls()).length;
   const m0 = await mark(page);
   for (let n = 0; n < 30 && (await menuSelected(page).innerText()) !== "Главная"; n++) await page.keyboard.press("ArrowDown");

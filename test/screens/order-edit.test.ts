@@ -74,10 +74,10 @@ describe("menu panel «Пункты меню»", () => {
     assert.ok(bytesOf(p) <= 16 * 1024, String(bytesOf(p)));
   });
 
-  it("«Просмотр и аккаунт» has a lock and only explains; hiding it via a message changes nothing", async () => {
+  it("«Настройки» has a lock and only explains; hiding it via a message changes nothing", async () => {
     const t = await make();
     const p = await panel(t);
-    assert.equal(byId(p, "m_settings")?.label, "{ico:lock} Просмотр и аккаунт");
+    assert.equal(byId(p, "m_settings")?.label, "{ico:lock} Настройки");
     assert.match(byId(p, "m_settings")?.action ?? "", /^info:/);
     onOrderAct(t.ctx, "menu", "hide", ["settings"]);
     assert.deepEqual(actions(t), []);

@@ -32,7 +32,7 @@ interface Spec {
 const SPECS: Record<OrderKey, Spec> = {
   menu: {
     headline: "Пункты меню", row: "Порядок и видимость пунктов меню", store: menuStore, label: (id) => sectionOf(id)?.label,
-    locked: "«Просмотр и аккаунт» всегда в меню", redraw: (ctx) => refreshMenu(ctx.P),
+    locked: "«Настройки» всегда в меню", redraw: (ctx) => refreshMenu(ctx.P),
   },
   home: {
     headline: "Секции главной", row: "Порядок и видимость секций главной", store: homeStore,

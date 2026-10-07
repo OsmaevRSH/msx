@@ -145,8 +145,8 @@
     },
     {
       "id": "settings",
-      "icon": "tune",
-      "label": "Просмотр и аккаунт",
+      "icon": "settings",
+      "label": "Настройки",
       "data": "request:interaction:settings@https://example.github.io/msx/app/index.html"
     },
     {

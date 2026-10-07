@@ -588,8 +588,8 @@
           "id": "m_settings",
           "type": "button",
           "layout": "0,3,5,1",
-          "label": "{ico:lock} Просмотр и аккаунт",
-          "action": "info:«Просмотр и аккаунт» всегда в меню"
+          "label": "{ico:lock} Настройки",
+          "action": "info:«Настройки» всегда в меню"
         },
         {
           "id": "u_settings",

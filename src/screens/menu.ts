@@ -10,7 +10,8 @@ import { errorText } from "./error.ts";
 import { UHD_QUALITY } from "./list-head.ts";
 
 // Меню S3 (спец. §7.1, §11; Plan B §8.3 S3). Строится без сети и без ожидания (CNFR-03). Порядок и видимость пунктов —
-// настройка «Пункты меню» (S12, `kp.cfg.menu`); «Просмотр и аккаунт» скрыть нельзя, «Настройки MSX» — всегда последние.
+// настройка «Пункты меню» (S12, `kp.cfg.menu`); «Настройки» скрыть нельзя, «Настройки MSX» — всегда последние. Пункт
+// настроек — «Настройки» с шестерёнкой (v1.14): «Просмотр и аккаунт» пользователь на ТВ не узнавал как настройки.
 
 const HEADLINE = "KinoPub";
 const EXTENSION = "{ico:msx-white:access-time} {now:time:hh:mm}";
@@ -21,7 +22,7 @@ export const MENU_FLAG = "menu";
 
 const T = {
   login: "Вход",
-  settings: "Просмотр и аккаунт",
+  settings: "Настройки",
   probe: "Диагностика",
   msxSettings: "Настройки MSX",
   bye: "Вы вышли из KinoPub",
@@ -66,7 +67,7 @@ export const SECTIONS: readonly Section[] = [
   s("s3d", "3d-rotation", "3D", cat("3d"), 3),
   s("uhd", "4k", "4K", list({ src: "catalog", sort: CATALOG_SORT, quality: UHD_QUALITY }), 3),
   s("sport", "sports-soccer", "Спорт", ids.tv, 3),
-  s("settings", "tune", T.settings, ids.settings, 4),
+  s("settings", "settings", T.settings, ids.settings, 4),
   s("probe", "build", T.probe, ids.probe, 4),
 ];
 

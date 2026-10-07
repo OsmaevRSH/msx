@@ -77,7 +77,7 @@ describe("buildMenu (S3)", () => {
       { icon: "4k", label: "4K", data: list({ src: "catalog", sort: "-updated", quality: "4" }) },
       { icon: "sports-soccer", label: "Спорт", data: req("tv") },
       { type: "separator" },
-      { icon: "tune", label: "Просмотр и аккаунт", data: req("settings") },
+      { icon: "settings", label: "Настройки", data: req("settings") },
       { icon: "build", label: "Диагностика", data: req("probe") },
       { type: "settings", label: "Настройки MSX" },
     ]);
@@ -101,18 +101,18 @@ describe("buildMenu (S3)", () => {
     assert.deepEqual(labels.slice(0, 5), ["Спорт", "—", "Я смотрю", "Поиск", "Каталог"]);
     assert.ok(!labels.includes("Главная") && !labels.includes("Новинки") && !labels.includes("Диагностика"));
     assert.equal(m.at(-1)?.type, "settings");
-    assert.equal(m.at(-2)?.label, "Просмотр и аккаунт");
+    assert.equal(m.at(-2)?.label, "Настройки");
     // Группа «Ещё» встречается дважды: «Спорт» первым пунктом (над ним разделителя нет), затем подборки — с подписью.
     assert.equal(m.filter((i) => i.label === "Ещё").length, 1);
     assert.equal(m.filter((i) => i.type === "separator" && i.label === "Каталог").length, 1);
     assert.equal(m[0]?.type, undefined, "no separator above the first item");
   });
 
-  it("«Просмотр и аккаунт» cannot be hidden even by a stored value", async () => {
+  it("«Настройки» cannot be hidden even by a stored value", async () => {
     const t = await make(true);
     t.ctx.store.set("cfg", "menu", { hidden: ["settings", "watching"] });
     const labels = buildMenu(t.ctx).menu.map((i) => i.label);
-    assert.ok(labels.includes("Просмотр и аккаунт"));
+    assert.ok(labels.includes("Настройки"));
     assert.ok(!labels.includes("Я смотрю"));
   });
 
