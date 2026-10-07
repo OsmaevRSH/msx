@@ -11,7 +11,8 @@ import {
 } from "./flows-kit.ts";
 
 // Меню v1.11 (спец. §11 S3, S12, S15, S16): «Я смотрю» и «Спорт» пультом из меню, подборки, «Пункты меню» — скрытый
-// пункт исчезает из меню MSX сразу, под открытой панелью (`[replace:menu|reload:panel]`). Одна сессия web MSX на файл.
+// пункт исчезает из меню MSX сразу, под открытой панелью (`[replace:menu|reload:panel]`). v1.13 (§11.1): обе настройки
+// порядка — первыми строками настроек, «Секции главной» меняют главную. Одна сессия web MSX на файл.
 
 test.describe.configure({ mode: "serial" });
 
@@ -103,7 +104,7 @@ test("E-19: «Подборки» — плитки подборок, подбор
   expect((await stats(page)).requests.at(-1)).toBe(coll);
 });
 
-test("E-20: «Пункты меню» — скрыть «Я смотрю» и поднять «Поиск» пультом: меню меняется сразу, «Сбросить» возвращает", async () => {
+test("E-20: «Пункты меню» с первой строки настроек — скрыть «Я смотрю» и поднять «Поиск» пультом: меню меняется сразу, «Сбросить» возвращает", async () => {
   // Настройки — корневой экран пункта меню: только там MSX выполняет `replace:menu`. `home` закрывает вложенные экраны
   // (подборку и «Подборки»), `cleanup` — системное «Меню» MSX; «Назад» с корня «Спорта» — в меню.
   await exec(page, chain(["home", "cleanup"]));
@@ -114,10 +115,10 @@ test("E-20: «Пункты меню» — скрыть «Я смотрю» и п
   await page.keyboard.press("ArrowDown");
   await expect(menuSelected(page), "разделитель пропускается").toHaveText("Просмотр и аккаунт");
   await expectContent(page, "Воспроизведение");
-  // Из меню в контент: `focus:` MSX выполняет только в нём.
+  // Из меню в контент: фокус на первой строке настроек — порядке пунктов меню (v1.13), OK открывает панель.
   await page.keyboard.press("ArrowRight");
-  await expect(selected(page)).toContainText("Максимальное качество");
-  await press(page, "s_menu", "Пункты меню");
+  await expect(selected(page)).toContainText("Порядок и видимость пунктов меню");
+  await page.keyboard.press("Enter");
   await expect(panel(page)).toContainText("Пункты меню");
   const sel = panel(page).locator(".selected");
   await expect(sel, "фокус на первом пункте").toContainText("Главная");
@@ -137,7 +138,7 @@ test("E-20: «Пункты меню» — скрыть «Я смотрю» и п
   await expect.poll(() => kp(page, (k) => (k.ctx.store.get("cfg", "menu")?.order ?? []).slice(0, 2)), { timeout: 5000 }).toEqual(["home", "search"]);
   await page.keyboard.press("Enter");
   await expect(page.locator("#appMainMenuItems .app-main-menu-item").first(), "«Поиск» первым пунктом меню").toHaveText("Поиск");
-  await expect(content(page), "экран настроек остался под панелью").toContainText("Пункты меню");
+  await expect(content(page), "экран настроек остался под панелью").toContainText("Порядок и видимость пунктов меню");
 
   await kp(page, (k) => k.ctx.host.executeAction("focus:m_reset"));
   await expect(sel).toContainText("Сбросить по умолчанию");
@@ -147,4 +148,68 @@ test("E-20: «Пункты меню» — скрыть «Я смотрю» и п
   expect(await kp(page, (k) => k.ctx.store.get("cfg", "menu") ?? null)).toBeNull();
   await page.keyboard.press("Backspace");
   await expect(panel(page)).toBeHidden();
+});
+
+test("E-21: «Секции главной» — скрыть «Новые фильмы» и поднять «Закладки» пультом: главная при показе такая же и без запроса скрытой полки; красная кнопка главной — «Сбросить» сразу", async () => {
+  // После E-20 открыты настройки, фокус — на первой строке; вторая — «Секции главной».
+  await expect(selected(page)).toContainText("Порядок и видимость пунктов меню");
+  await page.keyboard.press("ArrowDown");
+  await expect(selected(page)).toContainText("Порядок и видимость секций главной");
+  await page.keyboard.press("Enter");
+  await expect(panel(page)).toContainText("Секции главной");
+  const sel = panel(page).locator(".selected");
+  await expect(sel, "фокус на первой полке").toContainText("Продолжить просмотр");
+  await page.keyboard.press("ArrowDown");
+  await expect(sel).toContainText("Новые фильмы");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null), { timeout: 5000 }).toEqual({ hidden: ["fm"] });
+  await expect(sel, "фокус остался на той же строке").toContainText("Новые фильмы");
+  await expect(content(page), "сводка строки под панелью обновилась").toContainText("7 из 8");
+  // «Закладки» — двумя строками ниже: →, →, → (⤒) и OK — в начало.
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(sel).toContainText("Закладки");
+  for (let n = 0; n < 3; n++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => kp(page, (k) => k.ctx.store.get("cfg", "home")?.order?.[0] ?? null), { timeout: 5000 }).toBe("b");
+  await page.keyboard.press("Backspace");
+  await expect(panel(page)).toBeHidden();
+
+  // Главная из меню: MSX запрашивает её заново (`cache: false`) — «Закладки» первыми, «Новых фильмов» нет и у KinoPub.
+  await page.keyboard.press("Backspace");
+  await expect(menuSelected(page)).toHaveText("Просмотр и аккаунт");
+  const calls = (await mock.calls()).length;
+  const m0 = await mark(page);
+  for (let n = 0; n < 30 && (await menuSelected(page).innerText()) !== "Главная"; n++) await page.keyboard.press("ArrowDown");
+  await answered(page, ids.home(), m0);
+  const shelves = async (): Promise<string[]> =>
+    ((await answer(page, ids.home())).pages ?? []).map((p: { items: { type?: string; headline?: string }[] }) => p.items.find((i) => i.type === "space")?.headline ?? "");
+  expect(await shelves()).toEqual(["Закладки", "Продолжить просмотр", "Новые сериалы", "Популярные фильмы", "Популярные сериалы", "Горячее: фильмы", "Горячее: сериалы"]);
+  await expectContent(page, "Закладки");
+  const fresh = (await mock.calls()).slice(calls).filter((c) => c.path === "/v1/items/fresh");
+  expect(fresh.filter((c) => /(^|&)type=movie(&|$)/.test(c.query)), "скрытая полка не запрашивается").toEqual([]);
+
+  // Красная кнопка (в web MSX — F1) на главной → «Секции главной» → «Сбросить по умолчанию»: главная текущая —
+  // заменяется сразу, под панелью (`[replace:content:home|reload:panel]`).
+  await page.keyboard.press("ArrowRight");
+  await expect(selected(page), "фокус на полке «Закладки»").toContainText("Избранное");
+  await page.keyboard.press("F1");
+  await expect(panel(page).locator(".selected"), "опции главной").toContainText("Секции главной");
+  const m1 = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.panel("home"), m1);
+  await expect(sel).toContainText("Закладки");
+  await kp(page, (k) => k.ctx.host.executeAction("focus:m_reset"));
+  await expect(sel).toContainText("Сбросить по умолчанию");
+  const m2 = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.home(), m2);
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null)).toBeNull();
+  expect(await shelves(), "умолчание — сразу, панель ещё открыта").toEqual([
+    "Продолжить просмотр", "Новые фильмы", "Новые сериалы", "Закладки", "Популярные фильмы", "Популярные сериалы", "Горячее: фильмы", "Горячее: сериалы",
+  ]);
+  await expect(panel(page)).toBeVisible();
+  await page.keyboard.press("Backspace");
+  await expect(panel(page)).toBeHidden();
+  await expectContent(page, "Новые фильмы");
 });

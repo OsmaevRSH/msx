@@ -1,0 +1,254 @@
+{
+  "type": "list",
+  "headline": "Секции главной",
+  "cache": false,
+  "reuse": false,
+  "pages": [
+    {
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,8,1",
+          "text": "OK — показать или скрыть, {ico:arrow-upward} {ico:arrow-downward} — переместить, {ico:vertical-align-top} — в начало"
+        },
+        {
+          "id": "m_c",
+          "type": "button",
+          "layout": "0,1,5,1",
+          "label": "{ico:check-box} Продолжить просмотр",
+          "action": "interaction:commit:message:act:home:hide:c",
+          "focus": true
+        },
+        {
+          "id": "u_c",
+          "type": "button",
+          "layout": "5,1,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:c"
+        },
+        {
+          "id": "d_c",
+          "type": "button",
+          "layout": "6,1,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:c"
+        },
+        {
+          "id": "t_c",
+          "type": "button",
+          "layout": "7,1,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:c"
+        },
+        {
+          "id": "m_fm",
+          "type": "button",
+          "layout": "0,2,5,1",
+          "label": "{ico:check-box} Новые фильмы",
+          "action": "interaction:commit:message:act:home:hide:fm"
+        },
+        {
+          "id": "u_fm",
+          "type": "button",
+          "layout": "5,2,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:fm"
+        },
+        {
+          "id": "d_fm",
+          "type": "button",
+          "layout": "6,2,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:fm"
+        },
+        {
+          "id": "t_fm",
+          "type": "button",
+          "layout": "7,2,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:fm"
+        },
+        {
+          "id": "m_fs",
+          "type": "button",
+          "layout": "0,3,5,1",
+          "label": "{ico:check-box} Новые сериалы",
+          "action": "interaction:commit:message:act:home:hide:fs"
+        },
+        {
+          "id": "u_fs",
+          "type": "button",
+          "layout": "5,3,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:fs"
+        },
+        {
+          "id": "d_fs",
+          "type": "button",
+          "layout": "6,3,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:fs"
+        },
+        {
+          "id": "t_fs",
+          "type": "button",
+          "layout": "7,3,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:fs"
+        },
+        {
+          "id": "m_b",
+          "type": "button",
+          "layout": "0,4,5,1",
+          "label": "{ico:check-box} Закладки",
+          "action": "interaction:commit:message:act:home:hide:b"
+        },
+        {
+          "id": "u_b",
+          "type": "button",
+          "layout": "5,4,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:b"
+        },
+        {
+          "id": "d_b",
+          "type": "button",
+          "layout": "6,4,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:b"
+        },
+        {
+          "id": "t_b",
+          "type": "button",
+          "layout": "7,4,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:b"
+        },
+        {
+          "id": "m_pm",
+          "type": "button",
+          "layout": "0,5,5,1",
+          "label": "{ico:check-box} Популярные фильмы",
+          "action": "interaction:commit:message:act:home:hide:pm"
+        },
+        {
+          "id": "u_pm",
+          "type": "button",
+          "layout": "5,5,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:pm"
+        },
+        {
+          "id": "d_pm",
+          "type": "button",
+          "layout": "6,5,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:pm"
+        },
+        {
+          "id": "t_pm",
+          "type": "button",
+          "layout": "7,5,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:pm"
+        }
+      ]
+    },
+    {
+      "items": [
+        {
+          "id": "m_ps",
+          "type": "button",
+          "layout": "0,0,5,1",
+          "label": "{ico:check-box} Популярные сериалы",
+          "action": "interaction:commit:message:act:home:hide:ps"
+        },
+        {
+          "id": "u_ps",
+          "type": "button",
+          "layout": "5,0,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:ps"
+        },
+        {
+          "id": "d_ps",
+          "type": "button",
+          "layout": "6,0,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:ps"
+        },
+        {
+          "id": "t_ps",
+          "type": "button",
+          "layout": "7,0,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:ps"
+        },
+        {
+          "id": "m_hm",
+          "type": "button",
+          "layout": "0,1,5,1",
+          "label": "{ico:check-box} Горячее: фильмы",
+          "action": "interaction:commit:message:act:home:hide:hm"
+        },
+        {
+          "id": "u_hm",
+          "type": "button",
+          "layout": "5,1,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:hm"
+        },
+        {
+          "id": "d_hm",
+          "type": "button",
+          "layout": "6,1,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:hm"
+        },
+        {
+          "id": "t_hm",
+          "type": "button",
+          "layout": "7,1,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:hm"
+        },
+        {
+          "id": "m_hs",
+          "type": "button",
+          "layout": "0,2,5,1",
+          "label": "{ico:check-box} Горячее: сериалы",
+          "action": "interaction:commit:message:act:home:hide:hs"
+        },
+        {
+          "id": "u_hs",
+          "type": "button",
+          "layout": "5,2,1,1",
+          "icon": "arrow-upward",
+          "action": "interaction:commit:message:act:home:up:hs"
+        },
+        {
+          "id": "d_hs",
+          "type": "button",
+          "layout": "6,2,1,1",
+          "icon": "arrow-downward",
+          "action": "interaction:commit:message:act:home:down:hs"
+        },
+        {
+          "id": "t_hs",
+          "type": "button",
+          "layout": "7,2,1,1",
+          "icon": "vertical-align-top",
+          "action": "interaction:commit:message:act:home:top:hs"
+        },
+        {
+          "id": "m_reset",
+          "type": "button",
+          "layout": "0,3,8,1",
+          "icon": "restore",
+          "label": "Сбросить по умолчанию",
+          "action": "interaction:commit:message:act:home:reset"
+        }
+      ]
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { setTimeout as realSleep } from "node:timers/promises";
 import type { User } from "../../src/api/models.ts";
 import { cacheKeys } from "../../src/cache/repo.ts";
 import { RETRY_CONTENT } from "../../src/screens/error.ts";
-import { commitMsg, contentAction, replaceContent } from "../../src/msx/actions.ts";
+import { chain, commitMsg, contentAction, panelAction, replaceContent } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids, msgs } from "../../src/router/ids.ts";
 import { homeScreen, warmHome } from "../../src/screens/home.ts";
@@ -424,6 +424,16 @@ describe("homeScreen: conditional redraw (спец. §6.3, D-40)", () => {
     assert.deepEqual(actions(t), []);
   });
 
+  it("«Секции главной» changed while the home is shown → the background recheck replaces it (the hash covers the shelves)", async () => {
+    const t = await make();
+    await staleHome(t);
+    t.ctx.store.set("cfg", "home", { hidden: ["b"] });
+    await t.clock.advance(RECHECK_MS);
+    await until(() => actions(t).length > 0, "replace");
+    assert.deepEqual(actions(t), [REPLACE]);
+    assert.deepEqual(headers(await open(t)), ALL.filter((h) => h !== "Закладки"));
+  });
+
   it("the user moved on to item:1 → no actions", async () => {
     const t = await make();
     await staleHome(t, () => slower(t));
@@ -638,6 +648,54 @@ describe("homeScreen: request class (спец. §8.3, §8.5)", () => {
     await persisted(t);
     assert.ok(classes(t).length >= HOME_KEYS.length);
     assert.deepEqual([...new Set(classes(t))], ["bg"]);
+  });
+});
+
+describe("homeScreen: «Секции главной» (kp.cfg.home; спец. §11 S4, S12)", () => {
+  const asked = (t: TestApp, re: RegExp): string[] => t.mock.calls().map((c) => c.path).filter((p) => re.test(p));
+  const SHELF_API = /^\/v1\/(items\/(fresh|popular|hot)|history|bookmarks|watching\/)/;
+
+  it("the stored order: «Закладки» moved first, the rest in the default order", async () => {
+    const t = await make();
+    t.ctx.store.set("cfg", "home", { order: ["b", "c", "fm", "fs", "pm", "ps", "hm", "hs"] });
+    const s = await open(t);
+    assert.deepEqual(headers(s), ["Закладки", ...ALL.filter((h) => h !== "Закладки")]);
+    // Стражи края — у новой первой полки.
+    assert.ok(s.pages?.[0]?.items.some((i) => i.selection?.action === "focus:b1"));
+  });
+
+  it("hidden shelves are neither shown nor asked from KinoPub: no history and watching without «Продолжить», no popular and hot", async () => {
+    const t = await make();
+    t.ctx.store.set("cfg", "home", { hidden: ["c", "pm", "ps", "hm", "hs"] });
+    const s = await t.run(homeScreen(t.ctx));
+    assert.deepEqual(headers(s), ["Новые фильмы", "Новые сериалы", "Закладки"]);
+    assert.deepEqual(asked(t, /^\/v1\/(history|watching\/|items\/(popular|hot))/), []);
+    assert.deepEqual([...new Set(asked(t, SHELF_API))].sort(), ["/v1/bookmarks", "/v1/items/fresh"]);
+  });
+
+  it("warmHome warms only the shown shelves", async () => {
+    const t = await make();
+    t.ctx.store.set("cfg", "home", { hidden: ["fm", "fs", "b", "pm", "ps"] });
+    warmHome(t.ctx);
+    await drive(t, () => ["movie", "serial"].every((type) => t.ctx.cache.peek(cacheKeys.shelf("hot", type)) !== undefined), "hot shelves");
+    assert.deepEqual(asked(t, /^\/v1\/(bookmarks|items\/(fresh|popular))/), []);
+    assert.ok(asked(t, /^\/v1\/history$/).length > 0, "«Продолжить» is shown");
+  });
+
+  it("every shelf hidden: no shelf asked, a hint and the «Секции главной» button instead of «Пусто»", async () => {
+    const t = await make();
+    t.ctx.store.set("cfg", "home", { hidden: ["c", "fm", "fs", "b", "pm", "ps", "hm", "hs"] });
+    const s = await t.run(homeScreen(t.ctx));
+    assert.deepEqual(asked(t, SHELF_API), []);
+    const all = items(s);
+    assert.deepEqual(all.map((i) => [i.type, i.text ?? i.label]), [["space", "Все секции главной скрыты"], ["button", "Секции главной"]]);
+    assert.equal(all[1]?.action, panelAction(P, ids.panel("home")));
+  });
+
+  it("red button over the home: «Секции главной» closes the options and opens panel:home", async () => {
+    const t = await make();
+    const s = await open(t);
+    assert.deepEqual(s.options?.items?.map((i) => [i.label, i.action]), [["Секции главной", chain(["back", panelAction(P, ids.panel("home"))])]]);
   });
 });
 

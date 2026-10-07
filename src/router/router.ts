@@ -15,7 +15,7 @@ import { itemScreen, onItemAct } from "../screens/item.ts";
 import { listScreen, onExtend } from "../screens/list.ts";
 import { loginScreen, onLoginAct } from "../screens/login.ts";
 import { buildMenu } from "../screens/menu.ts";
-import { onMenuAct } from "../screens/menu-edit.ts";
+import { onOrderAct } from "../screens/order-edit.ts";
 import { onPanelAct, panelScreen } from "../screens/panels.ts";
 import { onSearchInput, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
@@ -320,7 +320,8 @@ export class App implements PluginApp {
         this.spawn(what, () => onSettingsAct(ctx, name, args));
         return;
       case "menu":
-        this.spawn(what, () => onMenuAct(ctx, name, args));
+      case "home":
+        this.spawn(what, () => onOrderAct(ctx, module, name, args));
         return;
       case "probe":
         this.spawn(what, () => withProbe(ctx, (m) => m.onProbeAct(ctx, name, args)));

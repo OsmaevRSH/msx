@@ -23,7 +23,7 @@ export type Route =
 export type PlayRoute = Extract<Route, { k: "play" } | { k: "playEp" }>;
 
 export type SearchControl = "back" | "clear" | "space" | "lang";
-export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu";
+export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu" | "home";
 
 export type Msg =
   | { k: "extend"; key: string }
@@ -42,7 +42,7 @@ export interface ListKey {
 const SIMPLE = new Set(["init", "login", "home", "search", "settings", "bookmarks", "dev", "watching", "tv"]);
 const VARIANTS: readonly ProbeVariant[] = ["a1", "a2", "hls2", "props", "ticks", "autonext"];
 const CONTROLS: readonly SearchControl[] = ["back", "clear", "space", "lang"];
-const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu"];
+const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu", "home"];
 const SOURCES: readonly ListKey["src"][] = ["catalog", "fresh", "popular", "hot", "folder", "similar", "history", "collections", "collection"];
 const KEY_FIELDS = ["type", "sort", "genre", "folder", "id", "quality"] as const;
 const NUM_FIELDS = new Set<string>(["folder", "id"]);
