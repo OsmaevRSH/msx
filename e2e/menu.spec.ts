@@ -7,7 +7,7 @@ import {
   content, exec, expectContent, kp, login, menuItem, mock, msxMenuDialog, newMsxPage, noNotification, openMsx, press, stats,
 } from "./fixtures.ts";
 import {
-  answer, answered, attachDiagnostics, closePlayer, evs, installTimeline, isPf, mark, open, panel, selected, until, videoTime,
+  answer, answered, attachDiagnostics, closePlayer, evs, installTimeline, isPf, mark, open, panel, red, selected, until, videoTime,
 } from "./flows-kit.ts";
 
 // Меню v1.11 (спец. §11 S3, S12, S15, S16): «Я смотрю» и «Спорт» пультом из меню, подборки, «Пункты меню» — скрытый
@@ -18,15 +18,6 @@ test.describe.configure({ mode: "serial" });
 
 let page: Page;
 const menuSelected = (p: Page) => p.locator("#appMainMenuItems .app-main-menu-item.selected");
-/** Красная кнопка ТВ: в web MSX у неё нет клавиши клавиатуры, поэтому — код пульта Samsung (`ColorF0Red`, 403). */
-async function red(p: Page): Promise<void> {
-  const cdp = await p.context().newCDPSession(p);
-  const key = { windowsVirtualKeyCode: 403, nativeVirtualKeyCode: 403, key: "ColorF0Red", code: "ColorF0Red" };
-  await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
-  await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
-  await cdp.detach();
-}
-
 test.beforeAll(async ({ browser }) => {
   await mock.reset();
   page = await newMsxPage(browser);

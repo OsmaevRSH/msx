@@ -11,6 +11,15 @@ import type { MockCall } from "./fixtures.ts";
 export interface Tl { i: number; t: number; k: "req" | "res" | "msg" | "act" | "ev"; v: string; n?: number; pos?: number; s?: { mid: number; season: number; video: number } }
 
 export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Красная кнопка ТВ: в web MSX у неё нет клавиши клавиатуры (F1 — опции), поэтому — код пульта Samsung (`ColorF0Red`, 403). */
+export async function red(p: Page): Promise<void> {
+  const cdp = await p.context().newCDPSession(p);
+  const key = { windowsVirtualKeyCode: 403, nativeVirtualKeyCode: 403, key: "ColorF0Red", code: "ColorF0Red" };
+  await cdp.send("Input.dispatchKeyEvent", { type: "rawKeyDown", ...key });
+  await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", ...key });
+  await cdp.detach();
+}
 export const selected = (p: Page) => content(p).locator(".app-main-content-item.selected");
 export const panel = (p: Page) => p.locator("#appPanelContent");
 export const isPf = (e: Tl): boolean => e.k === "msg" && e.v.startsWith("pf:");

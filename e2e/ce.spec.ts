@@ -228,14 +228,14 @@ test("CE-03: клавиатура поиска — ввод, стирание, �
   await expect(selected(page)).toHaveText("м");
   await page.keyboard.press("Enter");
   await typed(msgs.searchInput("м"));
-  // «⌫» — клавиша Delete (key "delete" у «Стереть»): раньше, чем истекут 500 мс дебаунса «ам».
+  // «⌫» — клавиша Delete (key "delete" у «Стереть»): раньше, чем истекут 300 мс дебаунса «ам».
   await page.keyboard.press("Delete");
   await typed(msgs.searchControl("back"));
   await expectContent(page, "а_");
-  // К «Раскладка: RU» (V-29): вправо до управляющей колонки (9 шагов от «м» — «Пробел»), вниз на две кнопки.
-  for (let n = 0; n < 9; n++) await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("ArrowDown");
+  // К «Раскладка: RU» (V-29): вниз через «ч» и «3» в ряд управления под цифрами («Стереть»), вправо на три кнопки.
+  for (let n = 0; n < 3; n++) await page.keyboard.press("ArrowDown");
+  await expect(selected(page)).toContainText("Стереть");
+  for (let n = 0; n < 3; n++) await page.keyboard.press("ArrowRight");
   await expect(selected(page)).toContainText("Раскладка: RU");
   await page.keyboard.press("Enter");
   await typed(msgs.searchControl("lang"));
@@ -259,7 +259,7 @@ test("CE-03: клавиатура поиска — ввод, стирание, �
 
   const search = (await mock.calls()).slice(calls0).filter((c) => c.path === "/v1/items/search");
   expect(search.map((c) => new URLSearchParams(c.query).get("q")), "один запрос к API — на итоговую строку").toEqual(["а12"]);
-  expect(search[0].t - lastKeyAt, "запрос после паузы ввода 500 мс").toBeGreaterThanOrEqual(500);
+  expect(search[0].t - lastKeyAt, "запрос после паузы ввода 300 мс").toBeGreaterThanOrEqual(300);
 });
 
 test("CE-06: догрузка пришла после ухода в карточку — карточка не перерисована, список уже расширен", async () => {

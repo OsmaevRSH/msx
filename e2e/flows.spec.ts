@@ -7,14 +7,14 @@ import { FIX, findItem } from "../tools/kpmock/fixtures.ts";
 import { P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press, stats } from "./fixtures.ts";
 import {
   ITEM_PATH, acts, answer, answered, attachDiagnostics, callCount, callsSince, closePlayer, evs, focusPlayerButton, installTimeline, isPf, kpWith, mark,
-  msxPos, open, otherTvMarktime, panel, playing, refreshes, resAfter, seek, selected, sleep, switchAudio, timeline, until, videoPaused, videoTime,
+  msxPos, open, otherTvMarktime, panel, playing, red, refreshes, resAfter, seek, selected, sleep, switchAudio, timeline, until, videoPaused, videoTime,
   watchCalls,
 } from "./flows-kit.ts";
 import type { Tl } from "./flows-kit.ts";
 
 // Пользовательские сценарии Plan B §12.6 E-03…E-14 на клиентской схеме (этап 34, спец. §14.4): одна сессия web MSX на
 // файл, навигация пультом, `exec` — короткий путь к экрану. E-01 нет (сопряжения нет), E-02 — в smoke, E-04 — это CE-02.
-// Порядок: навигация и главная до просмотров (E-03, E-13), списки и поиск (E-12, E-05, E-06, E-07), карточки (E-14),
+// Порядок: навигация и главная до просмотров (E-03, E-13), списки и поиск (E-12, E-05, E-06, E-07, E-23), карточки (E-14),
 // плеер (E-08, E-10, E-09, E-15), ошибки последними (E-11: лимитер после 429 ещё 30 с держит параллельность 1).
 
 test.describe.configure({ mode: "serial" });
@@ -247,6 +247,64 @@ test("E-07: поиск → «Назад» в расширенный список
     (await callsSince(from, /^\/v1\/items$/)).filter((c) => c.q.get("type") === "serial" && c.q.get("sort") === "-updated").map((c) => c.q.get("page"));
   expect(await pages(0), "порция 3 из mock").toContain("3");
   await expect.poll(() => pages(c0), { message: "после догрузки — фоном следующая порция", timeout: 5000 }).toContain("4");
+});
+
+test("E-23: поиск «тес» — подсказки справа, пульт → в колонку и обратно, OK → карточка; «Назад», «Очистить» → недавний запрос", async () => {
+  await open(page, ids.search());
+  await press(page, "k_clear", "Очистить");
+  await expectContent(page, "Наберите название");
+  await kp(page, (k) => k.ctx.store.remove("cfg", "recent"));
+  const c0 = await callCount();
+  const queries = async (): Promise<string[]> => (await callsSince(c0, /^\/v1\/items\/search$/)).map((c) => `${c.q.get("q")}:${c.q.get("page")}:${c.q.get("perpage")}`);
+  for (const ch of "тес") await exec(page, commitMsg(msgs.searchInput(ch)));
+  await expectContent(page, "тес_");
+  // Подсказки — первые 6 тайтлов того же ответа, что сетка: один запрос на строку.
+  await expect(content(page).locator(".app-main-content-item", { hasText: /Тестов/ }).first()).toBeVisible();
+  const hints = await kp(page, (k) => k.ctx.state.search.hints.map((it: any) => it.id) as number[]);
+  expect(hints).toHaveLength(6);
+  expect(await kp(page, (k) => k.ctx.state.search.items.slice(0, 6).map((it: any) => it.id) as number[])).toEqual(hints);
+  expect(await queries(), "один запрос на итоговую строку — и подсказкам, и сетке").toEqual(["тес:1:48"]);
+
+  // «й» — правый край верхнего ряда букв: «вправо» — первая подсказка, «влево» — обратно, «вверх» на ней — ни с места.
+  await exec(page, "focus:k10_1");
+  await expect(selected(page)).toHaveText("й");
+  await page.keyboard.press("ArrowRight");
+  const first = (await kp(page, (k) => k.ctx.state.search.hints[0].title as string)).split(" / ")[0];
+  await expect(selected(page), "фокус в колонке подсказок").toContainText(first);
+  await page.keyboard.press("ArrowLeft");
+  await expect(selected(page), "обратно на клавиатуру").toHaveText("й");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowUp");
+  await sleep(400);
+  await expect(selected(page), "страж: «вверх» на первой подсказке не уводит по кругу").toContainText(first);
+
+  const m = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.item(hints[0]), m);
+  await expectContent(page, first);
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "recent"))).toEqual(["тес"]);
+
+  const back = await mark(page);
+  await page.keyboard.press("Backspace");
+  await answered(page, ids.search(), back);
+  await expectContent(page, "тес_");
+  await press(page, "k_clear", "Очистить");
+  await expectContent(page, "Очистить историю");
+  await expect(content(page).locator(".app-main-content-item", { hasText: /^\s*тес\s*$/ }), "недавний запрос в колонке").toBeVisible();
+  // OK на недавнем — строка в поле, ответ из кэша: второго запроса «тес» нет.
+  await exec(page, "focus:s0");
+  await page.keyboard.press("Enter");
+  await expectContent(page, "тес_");
+  await expect(content(page).locator(".app-main-content-item", { hasText: /Тестов/ }).first()).toBeVisible();
+  expect(await queries()).toEqual(["тес:1:48"]);
+
+  // Красная кнопка под недавними — «Очистить историю» (Option Shortcut): колонка пуста, запросов к API нет.
+  await press(page, "k_clear", "Очистить");
+  await expectContent(page, "Очистить историю");
+  await red(page);
+  await expect.poll(() => kp(page, (k) => k.ctx.store.get("cfg", "recent") ?? null), { timeout: 5000 }).toBeNull();
+  await expect(content(page)).not.toContainText("Очистить историю");
+  expect(await queries()).toEqual(["тес:1:48"]);
 });
 
 test("E-14: устаревшая карточка A → сразу «Похожие» → B — A не подменяет B", async () => {
