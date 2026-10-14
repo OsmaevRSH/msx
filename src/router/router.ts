@@ -63,8 +63,13 @@ const ROUTES: RouteTable = {
   unknown: (ctx) => errorScreen(ctx, new KpError("KP-BAD", "unknown route")),
 };
 
-/** Без входа доступны только эти маршруты (и `unknown` — он сразу экран ошибки). */
+/** Маршруты без срока экрана V-40 и без входа (`unknown` — сразу экран ошибки). */
 const PUBLIC = new Set<Route["k"]>(["init", "login", "probe", "dev", "unknown"]);
+/**
+ * Без входа доступны `PUBLIC` и «Настройки» (v1.16): без входа это только «Для разработчика» без запросов к API
+ * (`settingsScreen`); со входом у них прежний срок экрана.
+ */
+const GUEST = new Set<Route["k"]>([...PUBLIC, "settings"]);
 /** Ответ для `video:resolve:…`: ошибка — `{ error }`, а не экран. */
 const RESOLVE = new Set<Route["k"]>(["play", "playEp", "probePlay"]);
 
@@ -190,7 +195,7 @@ export class App implements PluginApp {
     const { ctx } = this;
     const resolve = RESOLVE.has(r.k);
     try {
-      if (!PUBLIC.has(r.k) && !ctx.auth.isLoggedIn()) return await this.loginInstead(r, resolve);
+      if (!GUEST.has(r.k) && !ctx.auth.isLoggedIn()) return await this.loginInstead(r, resolve);
       const handler = this.routes[r.k] as (ctx: AppContext, r: Route) => unknown;
       return await handler(ctx, r);
     } catch (e) {

@@ -613,37 +613,9 @@
           "action": "interaction:commit:message:act:menu:top:settings"
         },
         {
-          "id": "m_probe",
-          "type": "button",
-          "layout": "0,4,5,1",
-          "label": "{ico:check-box} Диагностика",
-          "action": "interaction:commit:message:act:menu:hide:probe"
-        },
-        {
-          "id": "u_probe",
-          "type": "button",
-          "layout": "5,4,1,1",
-          "icon": "arrow-upward",
-          "action": "interaction:commit:message:act:menu:up:probe"
-        },
-        {
-          "id": "d_probe",
-          "type": "button",
-          "layout": "6,4,1,1",
-          "icon": "arrow-downward",
-          "action": "interaction:commit:message:act:menu:down:probe"
-        },
-        {
-          "id": "t_probe",
-          "type": "button",
-          "layout": "7,4,1,1",
-          "icon": "vertical-align-top",
-          "action": "interaction:commit:message:act:menu:top:probe"
-        },
-        {
           "id": "m_reset",
           "type": "button",
-          "layout": "0,5,8,1",
+          "layout": "0,4,8,1",
           "icon": "restore",
           "label": "Сбросить по умолчанию",
           "action": "interaction:commit:message:act:menu:reset"

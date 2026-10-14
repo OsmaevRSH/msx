@@ -10,8 +10,10 @@ import { errorText } from "./error.ts";
 import { UHD_QUALITY } from "./list-head.ts";
 
 // Меню S3 (спец. §7.1, §11; Plan B §8.3 S3). Строится без сети и без ожидания (CNFR-03). Порядок и видимость пунктов —
-// настройка «Пункты меню» (S12, `kp.cfg.menu`); «Настройки» скрыть нельзя, «Настройки MSX» — всегда последние. Пункт
-// настроек — «Настройки» с шестерёнкой (v1.14): «Просмотр и аккаунт» пользователь на ТВ не узнавал как настройки.
+// настройка «Пункты меню» (S12, `kp.cfg.menu`); «Настройки» скрыть нельзя. Пункт настроек — «Настройки» с шестерёнкой
+// (v1.14): «Просмотр и аккаунт» пользователь на ТВ не узнавал как настройки. v1.16: пункт настроек один — «Диагностика»
+// и системные настройки MSX стали строками группы «Для разработчика» в «Настройках»: пункт MSX `type: settings` MSX
+// подписывает сам («Настройки», нашу подпись не показывает), и в конце меню было «Настройки, Диагностика, Настройки».
 
 const HEADLINE = "KinoPub";
 const EXTENSION = "{ico:msx-white:access-time} {now:time:hh:mm}";
@@ -23,8 +25,6 @@ export const MENU_FLAG = "menu";
 const T = {
   login: "Вход",
   settings: "Настройки",
-  probe: "Диагностика",
-  msxSettings: "Настройки MSX",
   bye: "Вы вышли из KinoPub",
 };
 
@@ -68,7 +68,6 @@ export const SECTIONS: readonly Section[] = [
   s("uhd", "4k", "4K", list({ src: "catalog", sort: CATALOG_SORT, quality: UHD_QUALITY }), 3),
   s("sport", "sports-soccer", "Спорт", ids.tv, 3),
   s("settings", "settings", T.settings, ids.settings, 4),
-  s("probe", "build", T.probe, ids.probe, 4),
 ];
 
 /** Пункт, который нельзя скрыть: без него не вернуть скрытое. */
@@ -127,10 +126,18 @@ function sections(ctx: AppContext): MsxMenuItem[] {
   return out;
 }
 
+/**
+ * Без входа — «Вход» и «Настройки»: в настройках без входа «Диагностика» и системные настройки MSX (проблемы со входом
+ * разбирают там). Прежние id «Диагностики» и пункта MSX (`probe`, `msx_settings`) в сохранённых «Пунктах меню»
+ * отбрасываются при чтении, как любые чужие (`OrderStore`).
+ */
 export function buildMenu(ctx: AppContext): MsxMenuRoot {
-  const msxSettings: MsxMenuItem = { id: "msx_settings", type: "settings", label: T.msxSettings };
+  const settings = sectionOf(LOCKED)!;
   const menu: MsxMenuItem[] = !ctx.auth.isLoggedIn()
-    ? [{ id: "login", icon: "login", label: T.login, data: req(ctx.P, ids.login()) }, { id: "probe", icon: "build", label: T.probe, data: req(ctx.P, ids.probe()) }, msxSettings]
-    : [...sections(ctx), msxSettings];
+    ? [
+      { id: "login", icon: "login", label: T.login, data: req(ctx.P, ids.login()) },
+      { id: settings.id, icon: settings.icon, label: settings.label, data: req(ctx.P, settings.dataId()) },
+    ]
+    : sections(ctx);
   return { headline: HEADLINE, extension: EXTENSION, dictionary: DICTIONARY, flag: MENU_FLAG, cache: true, menu };
 }

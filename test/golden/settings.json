@@ -146,14 +146,14 @@
       "id": "s_bufferResume",
       "label": "Буфер продолжения",
       "extensionLabel": "6 с",
-      "action": "panel:request:interaction:panel:setting:bufferResume@https://example.github.io/msx/app/index.html",
-      "break": "context:end"
+      "action": "panel:request:interaction:panel:setting:bufferResume@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_posterSize",
       "label": "Размер постеров",
       "extensionLabel": "Средние",
-      "action": "panel:request:interaction:panel:setting:posterSize@https://example.github.io/msx/app/index.html"
+      "action": "panel:request:interaction:panel:setting:posterSize@https://example.github.io/msx/app/index.html",
+      "break": "context:end"
     },
     {
       "id": "s_cardBackgrounds",
@@ -165,13 +165,19 @@
       "type": "space",
       "layout": "0,0,12,1",
       "offset": "0,0.5,0,-0.5",
-      "headline": "Диагностика"
+      "headline": "Для разработчика"
     },
     {
       "id": "s_probe",
-      "label": "Проверки и журнал",
+      "label": "Диагностика",
       "extensionLabel": "",
       "action": "content:request:interaction:probe@https://example.github.io/msx/app/index.html"
+    },
+    {
+      "id": "s_msx",
+      "label": "Системные настройки MSX",
+      "extensionLabel": "",
+      "action": "settings"
     }
   ],
   "inserts": [
@@ -199,7 +205,7 @@
           "offset": "0,-1,0,0",
           "color": "transparent",
           "selection": {
-            "action": "focus:s_probe"
+            "action": "focus:s_msx"
           }
         }
       ]

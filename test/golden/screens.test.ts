@@ -106,6 +106,8 @@ describe("golden JSON of the key screens (stage 32)", () => {
   it("voice-over panel of MOVIE_AUDIO12, settings, «Диагностика»", LIMIT, async () => {
     await snap("panel-audio-movie-audio12", ids.panel("audio", FIX.MOVIE_AUDIO12, A12_MID, "c"));
     await snap("settings", ids.settings());
+    // v1.16: без входа — только «Для разработчика».
+    await snap("settings-logged-out", ids.settings(), {});
     await snap("probe", ids.probe());
   });
 
