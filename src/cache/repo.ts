@@ -214,6 +214,12 @@ export class Repo {
     return this.cache.get(cacheKeys.search(q, page), SEARCH, () => this.api.search(q, page, PER_PAGE));
   }
 
+  /** Первая порция поиска без сети — только свежая (5 мин, без пометки): стирание и недавний запрос отвечают сразу. */
+  peekSearch(q: string): Page<ItemSummary> | undefined {
+    const got = this.cache.peek<Page<ItemSummary>>(cacheKeys.search(q, 1));
+    return got !== undefined && !got.stale && this.clock.now() - got.fetchedAt < SEARCH.ttlMs ? got.value : undefined;
+  }
+
   /**
    * Без `freshWithinMs`/`waitMs` — обычный SWR. С ними (resolve, Plan B D-41): запись старше `freshWithinMs` или
    * помеченная устаревшей обновляется, и обновление ждётся не дольше `waitMs`; не успело — кэш, обновление идёт фоном.

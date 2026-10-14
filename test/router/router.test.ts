@@ -205,7 +205,7 @@ describe("App.handleData and handleEvent", () => {
 
   it("messages are counted by kind; an unexpanded {context:kid} counts as pf_raw", async () => {
     const t = await make({ loggedIn: true });
-    for (const m of ["pf:1001", "pf:1002", "pf:{context:kid}", "extend:abc", "extend:search", "search:input:м", "search:control:back", "garbage"]) {
+    for (const m of ["pf:1001", "pf:1002", "pf:{context:kid}", "extend:abc", "extend:search", "search:input:м", "search:control:back", "search:recent:0", "garbage"]) {
       assert.doesNotThrow(() => t.app.handleData({ message: m }));
     }
     const c = t.ctx.metrics.summary().counters;
@@ -214,7 +214,24 @@ describe("App.handleData and handleEvent", () => {
     assert.equal(c["msg:extend"], 2);
     assert.equal(c["msg:searchInput"], 1);
     assert.equal(c["msg:searchControl"], 1);
+    assert.equal(c["msg:searchRecent"], 1);
     assert.equal(c["msg:unknown"], 2);
+  });
+
+  it("a title requested right after the search screen puts the query into the recent ones (S7); after another screen — not", async () => {
+    const t = await make({ loggedIn: true });
+    const recent = (): unknown => t.ctx.store.get("cfg", "recent");
+    t.ctx.state.search.query = "тест ";
+    await t.request("item:1000");
+    assert.equal(recent(), undefined, "the search screen was not open");
+    await t.request("search");
+    await t.request("item:1000");
+    assert.deepEqual(recent(), ["тест"]);
+    t.ctx.state.search.query = "фи";
+    await t.request("item:1001");
+    await t.request("home");
+    await t.request("item:1001");
+    assert.deepEqual(recent(), ["тест"]);
   });
 
   it("video snapshots and video events do not throw", async () => {

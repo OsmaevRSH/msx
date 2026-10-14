@@ -94,6 +94,9 @@ describe("parseMessage: round trip of every message (§0.6.7)", () => {
     [msgs.searchControl("clear"), { k: "searchControl", c: "clear" }],
     [msgs.searchControl("space"), { k: "searchControl", c: "space" }],
     [msgs.searchControl("lang"), { k: "searchControl", c: "lang" }],
+    [msgs.searchControl("forget"), { k: "searchControl", c: "forget" }],
+    [msgs.searchRecent(0), { k: "searchRecent", n: 0 }],
+    [msgs.searchRecent(5), { k: "searchRecent", n: 5 }],
     [msgs.pf(1001), { k: "pf", id: 1001 }],
     [msgs.act("item", "watched", 1, 0, 1, 1), { k: "act", module: "item", name: "watched", args: ["1", "0", "1", "1"] }],
     [msgs.act("login", "new"), { k: "act", module: "login", name: "new", args: [] }],
@@ -111,6 +114,7 @@ describe("parseMessage: round trip of every message (§0.6.7)", () => {
     assert.equal(msgs.extend("abc"), "extend:abc");
     assert.equal(msgs.searchInput("а"), "search:input:а");
     assert.equal(msgs.searchControl("clear"), "search:control:clear");
+    assert.equal(msgs.searchRecent(2), "search:recent:2");
     assert.equal(msgs.pf("{context:kid}"), "pf:{context:kid}");
     assert.equal(msgs.act("item", "watched", 1, 0, 1, 1), "act:item:watched:1:0:1:1");
   });
@@ -123,6 +127,7 @@ describe("parseMessage: round trip of every message (§0.6.7)", () => {
     for (const raw of [
       "", "hello", "extend:", "search:input:", "search:control:up", "pf:", "pf:abc", "pf:{context:kid}", "pf:0",
       "act:", "act:item", "act:item:", "act:other:x", "watched",
+      "search:recent:", "search:recent:x", "search:recent:01", "search:recent:-1", "search:recent:1:2", "search:recent:тест",
     ]) {
       assert.deepEqual(parseMessage(raw), { k: "unknown", raw }, raw);
     }

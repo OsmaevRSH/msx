@@ -270,9 +270,13 @@ export function answerIssues(dataId: string, answer: unknown): Issue[] {
 
 const KB = 1024;
 
-/** CNFR-16 = Plan B NFR-11: меню 6 КБ, главная 48, карточка 20, панель 16, resolve 6, списки, серии и прочее 32. */
-export function sizeLimit(dataId: string): number {
+/**
+ * CNFR-16 = Plan B NFR-11: меню 6 КБ, главная 48, карточка 20, панель 16, resolve 6, списки, серии и прочее 32. Поиск
+ * без сетки результатов (`answer` без `items`) — 8 КБ: клавиатура с подсказками перерисовывается на каждое нажатие (S7).
+ */
+export function sizeLimit(dataId: string, answer?: unknown): number {
   const k = parseDataId(dataId).k;
+  if (k === "search" && isObj(answer) && answer.items === undefined) return 8 * KB;
   if (k === "init" || RESOLVE_KINDS.has(k)) return 6 * KB;
   if (isPanelId(dataId)) return 16 * KB;
   if (k === "item") return 20 * KB;

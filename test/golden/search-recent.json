@@ -1,0 +1,437 @@
+{
+  "type": "list",
+  "compress": true,
+  "flag": "search",
+  "cache": false,
+  "reuse": false,
+  "preload": "next",
+  "headline": "Поиск",
+  "pages": [
+    {
+      "template": {
+        "type": "button"
+      },
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,11,1",
+          "color": "msx-glass",
+          "headline": "{ico:search} _"
+        },
+        {
+          "type": "space",
+          "layout": "11,0,5,1",
+          "text": "Наберите название"
+        },
+        {
+          "id": "k0_1",
+          "layout": "0,1,1,1",
+          "label": "а",
+          "action": "interaction:commit:message:search:input:а"
+        },
+        {
+          "id": "k1_1",
+          "layout": "1,1,1,1",
+          "label": "б",
+          "action": "interaction:commit:message:search:input:б"
+        },
+        {
+          "id": "k2_1",
+          "layout": "2,1,1,1",
+          "label": "в",
+          "action": "interaction:commit:message:search:input:в"
+        },
+        {
+          "id": "k3_1",
+          "layout": "3,1,1,1",
+          "label": "г",
+          "action": "interaction:commit:message:search:input:г"
+        },
+        {
+          "id": "k4_1",
+          "layout": "4,1,1,1",
+          "label": "д",
+          "action": "interaction:commit:message:search:input:д"
+        },
+        {
+          "id": "k5_1",
+          "layout": "5,1,1,1",
+          "label": "е",
+          "action": "interaction:commit:message:search:input:е"
+        },
+        {
+          "id": "k6_1",
+          "layout": "6,1,1,1",
+          "label": "ё",
+          "action": "interaction:commit:message:search:input:ё"
+        },
+        {
+          "id": "k7_1",
+          "layout": "7,1,1,1",
+          "label": "ж",
+          "action": "interaction:commit:message:search:input:ж"
+        },
+        {
+          "id": "k8_1",
+          "layout": "8,1,1,1",
+          "label": "з",
+          "action": "interaction:commit:message:search:input:з"
+        },
+        {
+          "id": "k9_1",
+          "layout": "9,1,1,1",
+          "label": "и",
+          "action": "interaction:commit:message:search:input:и"
+        },
+        {
+          "id": "k10_1",
+          "layout": "10,1,1,1",
+          "label": "й",
+          "action": "interaction:commit:message:search:input:й"
+        },
+        {
+          "layout": "0,2,1,1",
+          "label": "к",
+          "action": "interaction:commit:message:search:input:к"
+        },
+        {
+          "layout": "1,2,1,1",
+          "label": "л",
+          "action": "interaction:commit:message:search:input:л"
+        },
+        {
+          "layout": "2,2,1,1",
+          "label": "м",
+          "action": "interaction:commit:message:search:input:м"
+        },
+        {
+          "layout": "3,2,1,1",
+          "label": "н",
+          "action": "interaction:commit:message:search:input:н"
+        },
+        {
+          "layout": "4,2,1,1",
+          "label": "о",
+          "action": "interaction:commit:message:search:input:о"
+        },
+        {
+          "layout": "5,2,1,1",
+          "label": "п",
+          "action": "interaction:commit:message:search:input:п"
+        },
+        {
+          "layout": "6,2,1,1",
+          "label": "р",
+          "action": "interaction:commit:message:search:input:р"
+        },
+        {
+          "layout": "7,2,1,1",
+          "label": "с",
+          "action": "interaction:commit:message:search:input:с"
+        },
+        {
+          "layout": "8,2,1,1",
+          "label": "т",
+          "action": "interaction:commit:message:search:input:т"
+        },
+        {
+          "layout": "9,2,1,1",
+          "label": "у",
+          "action": "interaction:commit:message:search:input:у"
+        },
+        {
+          "layout": "10,2,1,1",
+          "label": "ф",
+          "action": "interaction:commit:message:search:input:ф"
+        },
+        {
+          "layout": "0,3,1,1",
+          "label": "х",
+          "action": "interaction:commit:message:search:input:х"
+        },
+        {
+          "layout": "1,3,1,1",
+          "label": "ц",
+          "action": "interaction:commit:message:search:input:ц"
+        },
+        {
+          "layout": "2,3,1,1",
+          "label": "ч",
+          "action": "interaction:commit:message:search:input:ч"
+        },
+        {
+          "layout": "3,3,1,1",
+          "label": "ш",
+          "action": "interaction:commit:message:search:input:ш"
+        },
+        {
+          "layout": "4,3,1,1",
+          "label": "щ",
+          "action": "interaction:commit:message:search:input:щ"
+        },
+        {
+          "layout": "5,3,1,1",
+          "label": "ъ",
+          "action": "interaction:commit:message:search:input:ъ"
+        },
+        {
+          "layout": "6,3,1,1",
+          "label": "ы",
+          "action": "interaction:commit:message:search:input:ы"
+        },
+        {
+          "layout": "7,3,1,1",
+          "label": "ь",
+          "action": "interaction:commit:message:search:input:ь"
+        },
+        {
+          "layout": "8,3,1,1",
+          "label": "э",
+          "action": "interaction:commit:message:search:input:э"
+        },
+        {
+          "layout": "9,3,1,1",
+          "label": "ю",
+          "action": "interaction:commit:message:search:input:ю"
+        },
+        {
+          "layout": "10,3,1,1",
+          "label": "я",
+          "action": "interaction:commit:message:search:input:я"
+        },
+        {
+          "layout": "0,4,1,1",
+          "label": "1",
+          "action": "interaction:commit:message:search:input:1",
+          "key": "1"
+        },
+        {
+          "layout": "1,4,1,1",
+          "label": "2",
+          "action": "interaction:commit:message:search:input:2",
+          "key": "2"
+        },
+        {
+          "layout": "2,4,1,1",
+          "label": "3",
+          "action": "interaction:commit:message:search:input:3",
+          "key": "3"
+        },
+        {
+          "layout": "3,4,1,1",
+          "label": "4",
+          "action": "interaction:commit:message:search:input:4",
+          "key": "4"
+        },
+        {
+          "layout": "4,4,1,1",
+          "label": "5",
+          "action": "interaction:commit:message:search:input:5",
+          "key": "5"
+        },
+        {
+          "layout": "5,4,1,1",
+          "label": "6",
+          "action": "interaction:commit:message:search:input:6",
+          "key": "6"
+        },
+        {
+          "layout": "6,4,1,1",
+          "label": "7",
+          "action": "interaction:commit:message:search:input:7",
+          "key": "7"
+        },
+        {
+          "layout": "7,4,1,1",
+          "label": "8",
+          "action": "interaction:commit:message:search:input:8",
+          "key": "8"
+        },
+        {
+          "layout": "8,4,1,1",
+          "label": "9",
+          "action": "interaction:commit:message:search:input:9",
+          "key": "9"
+        },
+        {
+          "layout": "9,4,1,1",
+          "label": "0",
+          "action": "interaction:commit:message:search:input:0",
+          "key": "0"
+        },
+        {
+          "id": "k_back",
+          "layout": "0,5,3,1",
+          "label": "{ico:backspace} Стереть",
+          "action": "interaction:commit:message:search:control:back",
+          "key": "delete"
+        },
+        {
+          "id": "k_space",
+          "layout": "3,5,2,1",
+          "label": "{ico:space-bar} Пробел",
+          "action": "interaction:commit:message:search:control:space"
+        },
+        {
+          "id": "k_clear",
+          "layout": "5,5,3,1",
+          "label": "{ico:clear} Очистить",
+          "action": "interaction:commit:message:search:control:clear"
+        },
+        {
+          "id": "k_lang",
+          "layout": "8,5,3,1",
+          "label": "{ico:language} Раскладка: RU",
+          "action": "interaction:commit:message:search:control:lang"
+        },
+        {
+          "id": "s0",
+          "type": "control",
+          "layout": "11,1,5,1",
+          "icon": "history",
+          "label": "тест",
+          "action": "interaction:commit:message:search:recent:0"
+        },
+        {
+          "type": "space",
+          "layout": "11,2,5,1",
+          "text": "{ico:msx-red:stop} Очистить историю"
+        },
+        {
+          "layout": "0,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k0_1"
+          }
+        },
+        {
+          "layout": "1,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k1_1"
+          }
+        },
+        {
+          "layout": "2,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k2_1"
+          }
+        },
+        {
+          "layout": "3,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k3_1"
+          }
+        },
+        {
+          "layout": "4,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k4_1"
+          }
+        },
+        {
+          "layout": "5,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k5_1"
+          }
+        },
+        {
+          "layout": "6,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k6_1"
+          }
+        },
+        {
+          "layout": "7,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k7_1"
+          }
+        },
+        {
+          "layout": "8,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k8_1"
+          }
+        },
+        {
+          "layout": "9,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k9_1"
+          }
+        },
+        {
+          "layout": "10,0,1,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:k10_1"
+          }
+        },
+        {
+          "layout": "11,0,5,1",
+          "offset": "0,1,0,-1",
+          "selection": {
+            "action": "focus:s0"
+          }
+        },
+        {
+          "layout": "0,6,3,1",
+          "offset": "0,-1,0,-1",
+          "selection": {
+            "action": "focus:k_back"
+          }
+        },
+        {
+          "layout": "3,6,2,1",
+          "offset": "0,-1,0,-1",
+          "selection": {
+            "action": "focus:k_space"
+          }
+        },
+        {
+          "layout": "5,6,3,1",
+          "offset": "0,-1,0,-1",
+          "selection": {
+            "action": "focus:k_clear"
+          }
+        },
+        {
+          "layout": "8,6,3,1",
+          "offset": "0,-1,0,-1",
+          "selection": {
+            "action": "focus:k_lang"
+          }
+        },
+        {
+          "layout": "11,2,5,1",
+          "offset": "0,-1,0,-1",
+          "selection": {
+            "action": "focus:s0"
+          }
+        }
+      ]
+    }
+  ],
+  "options": {
+    "headline": "Поиск",
+    "template": {
+      "type": "control",
+      "layout": "0,0,8,1"
+    },
+    "items": [
+      {
+        "icon": "delete",
+        "label": "Очистить историю",
+        "key": "red",
+        "action": "[cleanup|interaction:commit:message:search:control:forget]"
+      }
+    ]
+  }
+}

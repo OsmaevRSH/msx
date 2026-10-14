@@ -32,6 +32,7 @@ import { Overlay } from "../progress/overlay.ts";
 import { ProgressTracker } from "../progress/tracker.ts";
 import { App } from "../router/router.ts";
 import { loggedOutAction } from "../screens/menu.ts";
+import { forgetQueries } from "../screens/recent.ts";
 import { OVERLAY_KEY, persistState } from "./context.ts";
 import type { AppContext, AppState } from "./context.ts";
 
@@ -112,6 +113,8 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
     ctx.state.login?.stop();
     ctx.state.login = undefined;
     repo.forgetDevice();
+    // Недавние запросы поиска личные: после выхода их не видит тот, кто войдёт следующим.
+    forgetQueries(store);
     ctx.host.executeAction(loggedOutAction(ctx.P, reason));
   };
   ctx.tracker.addListener((e) => onTrackerEvent(ctx, e));

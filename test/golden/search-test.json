@@ -8,6 +8,9 @@
   "headline": "Поиск",
   "extension": "{ico:search} «тест» · 505 результатов",
   "header": {
+    "template": {
+      "type": "button"
+    },
     "items": [
       {
         "type": "space",
@@ -18,293 +21,239 @@
       {
         "type": "space",
         "layout": "11,0,5,1",
-        "alignment": "right",
         "text": "Найдено: 505"
       },
       {
         "id": "k0_1",
-        "type": "button",
         "layout": "0,1,1,1",
         "label": "а",
         "action": "interaction:commit:message:search:input:а"
       },
       {
         "id": "k1_1",
-        "type": "button",
         "layout": "1,1,1,1",
         "label": "б",
         "action": "interaction:commit:message:search:input:б"
       },
       {
         "id": "k2_1",
-        "type": "button",
         "layout": "2,1,1,1",
         "label": "в",
         "action": "interaction:commit:message:search:input:в"
       },
       {
         "id": "k3_1",
-        "type": "button",
         "layout": "3,1,1,1",
         "label": "г",
         "action": "interaction:commit:message:search:input:г"
       },
       {
         "id": "k4_1",
-        "type": "button",
         "layout": "4,1,1,1",
         "label": "д",
         "action": "interaction:commit:message:search:input:д"
       },
       {
         "id": "k5_1",
-        "type": "button",
         "layout": "5,1,1,1",
         "label": "е",
         "action": "interaction:commit:message:search:input:е"
       },
       {
         "id": "k6_1",
-        "type": "button",
         "layout": "6,1,1,1",
         "label": "ё",
         "action": "interaction:commit:message:search:input:ё"
       },
       {
         "id": "k7_1",
-        "type": "button",
         "layout": "7,1,1,1",
         "label": "ж",
         "action": "interaction:commit:message:search:input:ж"
       },
       {
         "id": "k8_1",
-        "type": "button",
         "layout": "8,1,1,1",
         "label": "з",
         "action": "interaction:commit:message:search:input:з"
       },
       {
         "id": "k9_1",
-        "type": "button",
         "layout": "9,1,1,1",
         "label": "и",
         "action": "interaction:commit:message:search:input:и"
       },
       {
         "id": "k10_1",
-        "type": "button",
         "layout": "10,1,1,1",
         "label": "й",
         "action": "interaction:commit:message:search:input:й"
       },
       {
-        "type": "button",
         "layout": "0,2,1,1",
         "label": "к",
         "action": "interaction:commit:message:search:input:к"
       },
       {
-        "type": "button",
         "layout": "1,2,1,1",
         "label": "л",
         "action": "interaction:commit:message:search:input:л"
       },
       {
-        "type": "button",
         "layout": "2,2,1,1",
         "label": "м",
         "action": "interaction:commit:message:search:input:м"
       },
       {
-        "type": "button",
         "layout": "3,2,1,1",
         "label": "н",
         "action": "interaction:commit:message:search:input:н"
       },
       {
-        "type": "button",
         "layout": "4,2,1,1",
         "label": "о",
         "action": "interaction:commit:message:search:input:о"
       },
       {
-        "type": "button",
         "layout": "5,2,1,1",
         "label": "п",
         "action": "interaction:commit:message:search:input:п"
       },
       {
-        "type": "button",
         "layout": "6,2,1,1",
         "label": "р",
         "action": "interaction:commit:message:search:input:р"
       },
       {
-        "type": "button",
         "layout": "7,2,1,1",
         "label": "с",
         "action": "interaction:commit:message:search:input:с"
       },
       {
-        "type": "button",
         "layout": "8,2,1,1",
         "label": "т",
         "action": "interaction:commit:message:search:input:т"
       },
       {
-        "type": "button",
         "layout": "9,2,1,1",
         "label": "у",
         "action": "interaction:commit:message:search:input:у"
       },
       {
-        "type": "button",
         "layout": "10,2,1,1",
         "label": "ф",
         "action": "interaction:commit:message:search:input:ф"
       },
       {
-        "type": "button",
         "layout": "0,3,1,1",
         "label": "х",
         "action": "interaction:commit:message:search:input:х"
       },
       {
-        "type": "button",
         "layout": "1,3,1,1",
         "label": "ц",
         "action": "interaction:commit:message:search:input:ц"
       },
       {
-        "type": "button",
         "layout": "2,3,1,1",
         "label": "ч",
         "action": "interaction:commit:message:search:input:ч"
       },
       {
-        "type": "button",
         "layout": "3,3,1,1",
         "label": "ш",
         "action": "interaction:commit:message:search:input:ш"
       },
       {
-        "type": "button",
         "layout": "4,3,1,1",
         "label": "щ",
         "action": "interaction:commit:message:search:input:щ"
       },
       {
-        "type": "button",
         "layout": "5,3,1,1",
         "label": "ъ",
         "action": "interaction:commit:message:search:input:ъ"
       },
       {
-        "type": "button",
         "layout": "6,3,1,1",
         "label": "ы",
         "action": "interaction:commit:message:search:input:ы"
       },
       {
-        "type": "button",
         "layout": "7,3,1,1",
         "label": "ь",
         "action": "interaction:commit:message:search:input:ь"
       },
       {
-        "type": "button",
         "layout": "8,3,1,1",
         "label": "э",
         "action": "interaction:commit:message:search:input:э"
       },
       {
-        "type": "button",
         "layout": "9,3,1,1",
         "label": "ю",
         "action": "interaction:commit:message:search:input:ю"
       },
       {
-        "type": "button",
         "layout": "10,3,1,1",
         "label": "я",
         "action": "interaction:commit:message:search:input:я"
       },
       {
-        "id": "k0_4",
-        "type": "button",
         "layout": "0,4,1,1",
         "label": "1",
         "action": "interaction:commit:message:search:input:1",
         "key": "1"
       },
       {
-        "id": "k1_4",
-        "type": "button",
         "layout": "1,4,1,1",
         "label": "2",
         "action": "interaction:commit:message:search:input:2",
         "key": "2"
       },
       {
-        "id": "k2_4",
-        "type": "button",
         "layout": "2,4,1,1",
         "label": "3",
         "action": "interaction:commit:message:search:input:3",
         "key": "3"
       },
       {
-        "id": "k3_4",
-        "type": "button",
         "layout": "3,4,1,1",
         "label": "4",
         "action": "interaction:commit:message:search:input:4",
         "key": "4"
       },
       {
-        "id": "k4_4",
-        "type": "button",
         "layout": "4,4,1,1",
         "label": "5",
         "action": "interaction:commit:message:search:input:5",
         "key": "5"
       },
       {
-        "id": "k5_4",
-        "type": "button",
         "layout": "5,4,1,1",
         "label": "6",
         "action": "interaction:commit:message:search:input:6",
         "key": "6"
       },
       {
-        "id": "k6_4",
-        "type": "button",
         "layout": "6,4,1,1",
         "label": "7",
         "action": "interaction:commit:message:search:input:7",
         "key": "7"
       },
       {
-        "id": "k7_4",
-        "type": "button",
         "layout": "7,4,1,1",
         "label": "8",
         "action": "interaction:commit:message:search:input:8",
         "key": "8"
       },
       {
-        "id": "k8_4",
-        "type": "button",
         "layout": "8,4,1,1",
         "label": "9",
         "action": "interaction:commit:message:search:input:9",
         "key": "9"
       },
       {
-        "id": "k9_4",
-        "type": "button",
         "layout": "9,4,1,1",
         "label": "0",
         "action": "interaction:commit:message:search:input:0",
@@ -312,32 +261,76 @@
       },
       {
         "id": "k_back",
-        "type": "button",
-        "layout": "12,1,4,1",
+        "layout": "0,5,3,1",
         "label": "{ico:backspace} Стереть",
         "action": "interaction:commit:message:search:control:back",
         "key": "delete"
       },
       {
         "id": "k_space",
-        "type": "button",
-        "layout": "12,2,4,1",
+        "layout": "3,5,2,1",
         "label": "{ico:space-bar} Пробел",
         "action": "interaction:commit:message:search:control:space"
       },
       {
         "id": "k_clear",
-        "type": "button",
-        "layout": "12,3,4,1",
+        "layout": "5,5,3,1",
         "label": "{ico:clear} Очистить",
         "action": "interaction:commit:message:search:control:clear"
       },
       {
         "id": "k_lang",
-        "type": "button",
-        "layout": "12,4,4,1",
+        "layout": "8,5,3,1",
         "label": "{ico:language} Раскладка: RU",
         "action": "interaction:commit:message:search:control:lang"
+      },
+      {
+        "id": "s0",
+        "type": "control",
+        "layout": "11,1,5,1",
+        "icon": "movie",
+        "label": "{txt:msx-white-soft:2003} Тестовый фильм 1000",
+        "action": "content:request:interaction:item:1000@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "id": "s1",
+        "type": "control",
+        "layout": "11,2,5,1",
+        "icon": "tv",
+        "label": "{txt:msx-white-soft:2016} Тестовый сериал 1001",
+        "action": "content:request:interaction:item:1001@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "id": "s2",
+        "type": "control",
+        "layout": "11,3,5,1",
+        "icon": "public",
+        "label": "{txt:msx-white-soft:1992} Тестовый документальный фильм…",
+        "action": "content:request:interaction:item:1002@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "id": "s3",
+        "type": "control",
+        "layout": "11,4,5,1",
+        "icon": "movie",
+        "label": "{txt:msx-white-soft:2005} Тестовый фильм 1003",
+        "action": "content:request:interaction:item:1003@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "id": "s4",
+        "type": "control",
+        "layout": "11,5,5,1",
+        "icon": "tv",
+        "label": "{txt:msx-white-soft:2018} Тестовый сериал 1004",
+        "action": "content:request:interaction:item:1004@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "id": "s5",
+        "type": "control",
+        "layout": "11,6,5,1",
+        "icon": "movie",
+        "label": "{txt:msx-white-soft:1994} Тестовый фильм 1005",
+        "action": "content:request:interaction:item:1005@https://example.github.io/msx/app/index.html"
       },
       {
         "layout": "0,0,1,1",
@@ -417,10 +410,10 @@
         }
       },
       {
-        "layout": "12,0,4,1",
+        "layout": "11,0,5,1",
         "offset": "0,1,0,-1",
         "selection": {
-          "action": "focus:k_back"
+          "action": "focus:s0"
         }
       },
       {

@@ -1,16 +1,19 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
-import type { SearchState } from "../../src/app/context.ts";
+import { persistState } from "../../src/app/context.ts";
+import { contentAction } from "../../src/msx/actions.ts";
 import { fmtCount } from "../../src/core/format.ts";
 import type { MsxContentItem, MsxContentPage, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids } from "../../src/router/ids.ts";
 import { LAYOUTS, keyboardPage } from "../../src/screens/keyboard.ts";
+import type { SearchView } from "../../src/screens/keyboard.ts";
+import { recentQueries, rememberQuery } from "../../src/screens/recent.ts";
 import { onSearchInput, searchScreen } from "../../src/screens/search.ts";
 import { gridTemplate, posterTiles } from "../../src/screens/tiles.ts";
 import { catalog } from "../../tools/kpmock/fixtures.ts";
 import type { CallRecord } from "../../tools/kpmock/server.ts";
-import { createTestApp } from "../helpers/harness.ts";
+import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
 let apps: TestApp[] = [];
@@ -38,7 +41,7 @@ const RELOAD = "reload:content";
 const EXTEND_LIVE = { type: "setup", action: "interaction:commit:message:extend:search" };
 const matches = (q: string): number => catalog().filter((it) => !it.deleted && it.title.toLowerCase().includes(q)).length;
 
-const st = (t: TestApp): SearchState => t.ctx.state.search;
+const st = (t: TestApp): SearchView => t.ctx.state.search;
 const send = (t: TestApp, msg: string): void => t.app.handleData({ message: msg });
 const type = (t: TestApp, chars: string): void => {
   for (const ch of chars) send(t, `search:input:${ch}`);
@@ -61,7 +64,7 @@ async function until(pred: () => boolean): Promise<void> {
   while (!pred()) await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-/** Пауза ввода: таймер 500 мс срабатывает, ответ API разобран. */
+/** Пауза ввода: таймер 300 мс срабатывает, ответ API разобран. */
 async function settle(t: TestApp): Promise<void> {
   await t.clock.advance(500);
   await t.run(until(() => st(t).status !== "loading" && (st(t) as { loading?: unknown }).loading === undefined));
@@ -80,7 +83,7 @@ describe("searchScreen (S7, CC-06)", () => {
     assert.equal(t.ctx.current.get(), "search");
   });
 
-  it("«м», «а», «т» 100 ms apart → three reload:content at once, one GET 500 ms after the last letter, then reload", async () => {
+  it("«м», «а», «т» 100 ms apart → three reload:content at once, one GET 300 ms after the last letter, then reload", async () => {
     const t = await opened();
     type(t, "м");
     assert.equal(reloads(t), 1);
@@ -92,7 +95,7 @@ describe("searchScreen (S7, CC-06)", () => {
     await t.clock.advance(100);
     type(t, "т");
     assert.deepEqual([reloads(t), st(t).query], [3, "мат"]);
-    await t.clock.advance(499);
+    await t.clock.advance(299);
     assert.equal(searches(t).length, 0);
     await t.clock.advance(1);
     await t.run(until(() => st(t).status !== "loading"));
@@ -147,7 +150,8 @@ describe("searchScreen (S7, CC-06)", () => {
     assert.equal(st(t).seq, seq);
     assert.equal(reloads(t), 3);
     const s: MsxContentRoot = await t.request(ids.search());
-    const labels = kb(s).items.filter((i) => i.type === "button" && i.layout?.endsWith(",1,1")).map((i) => i.label).join("");
+    // Клавиши — кнопки из шаблона страницы, без своего `type`; стражи — с `selection`.
+    const labels = kb(s).items.filter((i) => i.type === undefined && i.selection === undefined && i.layout?.endsWith(",1,1")).map((i) => i.label).join("");
     assert.equal(labels, `${LAYOUTS.en}1234567890`);
     // Кнопка цифры с key "1": клавиша пульта выполняет то же действие.
     const one = kb(s).items.find((i) => i.key === "1");
@@ -381,5 +385,228 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     const s = await searchScreen(t.ctx);
     assert.equal(t.mock.calls().length, before);
     assert.equal(line(s), "{ico:search} фи_ | Ищу…");
+  });
+});
+
+const col = (s: MsxContentRoot): MsxContentItem[] => kb(s).items.filter((i) => /^s\d$/.test(i.id ?? ""));
+const recentOf = (t: TestApp): string[] => recentQueries(t.ctx.store);
+/** Пауза ввода между буквами — дольше 300 мс: каждая строка ищется. */
+async function typeSlow(t: TestApp, chars: string): Promise<void> {
+  for (const ch of chars) {
+    type(t, ch);
+    await settle(t);
+  }
+}
+
+describe("suggestions while typing (S7): the first 6 titles of the same answer", () => {
+  it("one GET per pause gives both the column and the grid: 6 suggestions = the first 6 results", async () => {
+    const t = await opened();
+    type(t, "тест");
+    await settle(t);
+    assert.equal(searches(t).length, 1);
+    const s: MsxContentRoot = await t.request(ids.search());
+    const first6 = st(t).items.slice(0, 6);
+    assert.deepEqual(col(s).map((i) => i.action), first6.map((it) => contentAction(TEST_P, ids.item(it.id))));
+    assert.deepEqual(items(s).slice(0, 6).map((i) => i.kid), first6.map((it) => String(it.id)));
+    assert.equal(searches(t).length, 1, "the screen itself asks nothing");
+  });
+
+  it("typing on: the grid goes at once (a light redraw), the suggestions stay until the new answer replaces them", async () => {
+    const t = await opened();
+    type(t, "тес");
+    await settle(t);
+    const before = col(await t.request(ids.search())).map((i) => i.label);
+    type(t, "т");
+    assert.equal(st(t).status, "loading");
+    const typing: MsxContentRoot = await t.request(ids.search());
+    assert.equal(typing.items, undefined, "no grid while the new query is searched");
+    assert.deepEqual(col(typing).map((i) => i.label), before);
+    assert.ok(Buffer.byteLength(JSON.stringify(typing), "utf8") <= 8 * 1024);
+    await settle(t);
+    assert.deepEqual(searches(t).map((q) => q.get("q")), ["тес", "тест"]);
+    assert.deepEqual(col(await t.request(ids.search())).length, 6);
+  });
+
+  it("a 5-letter word typed with pauses: one GET per prefix from 2 letters, perpage 48 page 1 — nothing else", async () => {
+    const t = await opened();
+    await typeSlow(t, "тесто");
+    assert.deepEqual(searches(t).map((q) => [q.get("q"), q.get("page"), q.get("perpage"), q.get("field")]), [
+      ["те", "1", "48", "title"], ["тес", "1", "48", "title"], ["тест", "1", "48", "title"], ["тесто", "1", "48", "title"],
+    ]);
+    assert.equal(t.mock.calls().filter((c) => c.path.startsWith("/v1/items")).length, 4);
+  });
+
+  it("erasing back to an already found query answers from the cache: no pause, no request, one redraw with results", async () => {
+    const t = await opened();
+    await typeSlow(t, "тест");
+    const n = searches(t).length;
+    t.host.clearActions();
+    ctl(t, "back");
+    assert.deepEqual([st(t).query, st(t).status, st(t).timer], ["тес", "ready", undefined]);
+    assert.equal(reloads(t), 1);
+    const s: MsxContentRoot = await t.request(ids.search());
+    assert.equal(col(s).length, 6);
+    assert.ok(items(s).length > 0);
+    await t.clock.advance(1000);
+    assert.equal(searches(t).length, n);
+  });
+
+  it("below 2 letters the suggestions go; an empty field shows the recent queries instead", async () => {
+    const t = await opened();
+    rememberQuery(t.ctx.store, "матрица");
+    type(t, "те");
+    await settle(t);
+    ctl(t, "back");
+    assert.equal(st(t).hints, undefined);
+    assert.deepEqual(col(await t.request(ids.search())), []);
+    ctl(t, "back");
+    assert.deepEqual(col(await t.request(ids.search())).map((i) => i.label), ["матрица"]);
+  });
+
+  it("nothing found or an error — no suggestions", async () => {
+    const t = await opened();
+    type(t, "мат");
+    await settle(t);
+    assert.deepEqual([st(t).status, st(t).hints], ["empty", []]);
+    type(t, "фи".slice(0, 0));
+    ctl(t, "clear");
+    t.mock.setScenario({ rules: [{ path: ".*", drop: true }] });
+    type(t, "фи");
+    await settle(t);
+    assert.deepEqual([st(t).status, st(t).hints], ["error", undefined]);
+    assert.deepEqual(col(await t.request(ids.search())), []);
+  });
+
+  it("a stale answer never becomes the suggestions of a newer query", async () => {
+    const t = await opened();
+    t.mock.setScenario({ delayMs: 50 });
+    type(t, "фи");
+    await t.clock.advance(300);
+    await t.run(until(() => searches(t).length === 1));
+    type(t, "л");
+    await settle(t);
+    assert.ok((st(t).hints ?? []).length > 0);
+    assert.ok((st(t).hints ?? []).every((it) => it.title.toLowerCase().includes("фил")));
+  });
+});
+
+describe("recent queries (S7, kp.cfg.recent)", () => {
+  it("opening a title from search (a suggestion or a tile) remembers the query, trimmed; from elsewhere — nothing", async () => {
+    const t = await opened();
+    type(t, "тест");
+    ctl(t, "space");
+    await settle(t);
+    const s: MsxContentRoot = await t.request(ids.search());
+    const action = col(s)[0]?.action ?? "";
+    await t.request(action.slice("content:request:interaction:".length, -`@${TEST_P}`.length));
+    assert.deepEqual(recentOf(t), ["тест"]);
+    await t.request(ids.item(1001));
+    assert.deepEqual(recentOf(t), ["тест"], "item → item is not a search");
+    await t.request(ids.home());
+    await t.request(ids.search());
+    ctl(t, "clear");
+    type(t, "фи");
+    await settle(t);
+    await t.request(ids.item(Number(items(await t.request(ids.search()))[0]?.kid)));
+    assert.deepEqual(recentOf(t), ["фи", "тест"]);
+  });
+
+  it("a one-letter query is not remembered", async () => {
+    const t = await opened();
+    type(t, "ф");
+    await t.request(ids.item(1000));
+    assert.deepEqual(recentOf(t), []);
+  });
+
+  it("OK on a recent query: it goes into the field and is searched at once; the column keeps the recent rows until the answer", async () => {
+    const t = await opened();
+    for (const q of ["фил", "тест"]) rememberQuery(t.ctx.store, q);
+    t.host.clearActions();
+    send(t, "search:recent:1");
+    assert.deepEqual([st(t).query, st(t).status, reloads(t)], ["фил", "loading", 1]);
+    const waiting: MsxContentRoot = await t.request(ids.search());
+    assert.equal(line(waiting), "{ico:search} фил_ | Ищу…");
+    assert.deepEqual(col(waiting).map((i) => [i.id, i.label]), [["s0", "тест"], ["s1", "фил"]], "same rows: the focus stays");
+    await t.clock.advance(0);
+    await t.run(until(() => st(t).status !== "loading"));
+    assert.deepEqual(searches(t).map((q) => q.get("q")), ["фил"]);
+    assert.equal(reloads(t), 2);
+    const s: MsxContentRoot = await t.request(ids.search());
+    assert.equal(col(s).length, 6);
+    assert.equal(col(s)[0]?.icon === "history", false);
+  });
+
+  it("a recent query found less than 5 min ago — straight from the cache, no request", async () => {
+    const t = await opened();
+    await typeSlow(t, "тест");
+    await t.request(ids.item(Number(st(t).items[0]?.id)));
+    await t.request(ids.search());
+    ctl(t, "clear");
+    const n = searches(t).length;
+    t.host.clearActions();
+    send(t, "search:recent:0");
+    assert.deepEqual([st(t).query, st(t).status, reloads(t)], ["тест", "ready", 1]);
+    await t.clock.advance(1000);
+    assert.equal(searches(t).length, n);
+  });
+
+  it("a row number past the list does nothing", async () => {
+    const t = await opened();
+    rememberQuery(t.ctx.store, "тест");
+    send(t, "search:recent:3");
+    assert.deepEqual([st(t).query, reloads(t)], ["", 0]);
+  });
+
+  it("«Очистить историю»: the red button of the screen options, then the empty column; no options without recent queries", async () => {
+    const t = await opened();
+    const empty: MsxContentRoot = await t.request(ids.search());
+    assert.equal(empty.options, undefined);
+    rememberQuery(t.ctx.store, "тест");
+    const s: MsxContentRoot = await t.request(ids.search());
+    assert.deepEqual(s.options, {
+      headline: "Поиск", template: { type: "control", layout: "0,0,8,1" },
+      items: [{ icon: "delete", label: "Очистить историю", key: "red", action: "[cleanup|interaction:commit:message:search:control:forget]" }],
+    });
+    t.host.clearActions();
+    ctl(t, "forget");
+    assert.deepEqual(recentOf(t), []);
+    assert.equal(reloads(t), 1);
+    const after: MsxContentRoot = await t.request(ids.search());
+    assert.deepEqual([col(after), after.options], [[], undefined]);
+  });
+
+  it("with a query typed the options are gone (the column shows suggestions, not the history)", async () => {
+    const t = await opened();
+    rememberQuery(t.ctx.store, "тест");
+    type(t, "фи");
+    const s: MsxContentRoot = await t.request(ids.search());
+    assert.equal(s.options, undefined);
+  });
+
+  it("logout forgets the recent queries", async () => {
+    const t = await opened();
+    rememberQuery(t.ctx.store, "тест");
+    await t.run(t.ctx.auth.logout());
+    assert.deepEqual(recentOf(t), []);
+  });
+
+  it("the log never carries the query text: typing, results, opening a title, a recent query, clearing", async () => {
+    const t = await opened();
+    await typeSlow(t, "тест");
+    send(t, "extend:search");
+    await t.run(until(() => st(t).items.length > 48));
+    await t.request(ids.item(Number(st(t).items[0]?.id)));
+    await t.request(ids.search());
+    ctl(t, "clear");
+    send(t, "search:recent:0");
+    await settle(t);
+    ctl(t, "clear");
+    ctl(t, "forget");
+    persistState(t.ctx, true);
+    const logs = JSON.stringify(t.ctx.log.entries());
+    for (const q of ["тест", "тес", "те"]) assert.ok(!logs.includes(q), `«${q}» in the log`);
+    assert.ok(logs.includes("\"recent\"") && logs.includes("recent_cleared"), "the events are logged, without the text");
+    const stored = JSON.stringify(t.ctx.store.get("l2", "log"));
+    assert.ok(!stored.includes("тест"));
   });
 });

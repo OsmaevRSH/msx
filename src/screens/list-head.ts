@@ -66,6 +66,8 @@ const T = {
 };
 
 const OPTION: MsxContentItem = { type: "control", layout: "0,0,8,1" };
+/** Опции экрана строками `control` 8×1: красная кнопка списков и полок (S5), главной (S4) и поиска (S7). */
+export const controlOptions = (headline: string, items: MsxContentItem[]): MsxContentRoot => ({ headline, template: OPTION, items });
 
 export const SORTS: { id: string; title: string }[] = [
   { id: "-updated", title: "Обновлённые" },
@@ -204,13 +206,13 @@ export function filterOptions(ctx: AppContext, key: string, k: ListKey, genre: s
   if (isShelf(k.src)) {
     const label = `${T.type}: ${shelfTypeTitle(k.type ?? "")}`;
     const action = chain(["cleanup", panelAction(ctx.P, ids.panel("type", key))]);
-    return { headline: T.type, template: OPTION, items: [{ id: "o_type", icon: "category", label, key: "red", action }] };
+    return controlOptions(T.type, [{ id: "o_type", icon: "category", label, key: "red", action }]);
   }
   const items: MsxContentItem[] = [];
   const open = (type: string): string => chain(["back", panelAction(ctx.P, ids.panel(type, key))]);
   if (sorted(k)) items.push({ id: "o_sort", icon: "sort", label: `${T.sort}: ${sortOf(k)?.title ?? ""}`, action: open("sort") });
   if (k.src !== "collections") items.push({ id: "o_genre", icon: "category", label: `${T.genre}: ${genreOf(k, genre) ?? T.allGenres}`, action: open("genre") });
-  return { headline: k.src === "catalog" ? T.sortGenre : T.sort, template: OPTION, items };
+  return controlOptions(k.src === "catalog" ? T.sortGenre : T.sort, items);
 }
 
 /** Сортировки панели S6 для ключа списка и текущая. */

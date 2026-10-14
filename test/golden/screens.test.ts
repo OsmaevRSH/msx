@@ -89,13 +89,18 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("season-serial-big-1", ids.season(FIX.SERIAL_BIG, 1));
   });
 
-  it("search «тест» typed on the keyboard", LIMIT, async () => {
+  it("search «тест» typed on the keyboard: suggestions and results; then the empty field with the recent query", LIMIT, async () => {
     const t = await make({ loggedIn: true });
     await t.request(ids.search());
     for (const ch of "тест") t.app.handleData({ message: msgs.searchInput(ch) });
     await t.run(sleep(t.clock, 2_000));
     assert.equal(t.ctx.state.search.status, "ready");
     golden(t, "search-test", ids.search(), await t.request(ids.search()));
+    // Тайтл из подсказки открыт — «тест» в недавних; «Очистить» — пустое поле с недавними и опцией «Очистить историю».
+    await t.request(ids.item(t.ctx.state.search.items[0]?.id ?? 0));
+    await t.request(ids.search());
+    t.app.handleData({ message: msgs.searchControl("clear") });
+    golden(t, "search-recent", ids.search(), await t.request(ids.search()));
   });
 
   it("voice-over panel of MOVIE_AUDIO12, settings, «Диагностика»", LIMIT, async () => {

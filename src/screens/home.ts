@@ -16,7 +16,7 @@ import { encodeListKey, ids } from "../router/ids.ts";
 import { buildContinue } from "./continue.ts";
 import { RETRY_CONTENT, errorItems } from "./error.ts";
 import { MAX_BYTES, bytes } from "./list.ts";
-import { shelfTitle } from "./list-head.ts";
+import { controlOptions, shelfTitle } from "./list-head.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import { GRID, ROW, gridPreload, iconTile, shelfTile } from "./tiles.ts";
 
@@ -302,7 +302,7 @@ function rootOf(ctx: AppContext, head: string, pages: MsxContentPage[], offline 
   const root: MsxContentRoot = {
     type: "list", flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: head, pages,
     // Красная кнопка — «Секции главной» поверх главной: опции закрываются, изменения видны сразу (`redrawHome`).
-    options: { headline: T.title, template: { type: "control", layout: "0,0,8,1" }, items: [{ icon: "tune", label: T.shelves, action: chain(["back", openShelves(ctx)]) }] },
+    options: controlOptions(T.title, [{ icon: "tune", label: T.shelves, action: chain(["back", openShelves(ctx)]) }]),
   };
   if (offline) root.extension = T.offline;
   return root;

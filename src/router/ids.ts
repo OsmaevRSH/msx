@@ -22,13 +22,16 @@ export type Route =
 
 export type PlayRoute = Extract<Route, { k: "play" } | { k: "playEp" }>;
 
-export type SearchControl = "back" | "clear" | "space" | "lang";
+/** `forget` — «Очистить историю»: недавние запросы (`screens/recent.ts`). */
+export type SearchControl = "back" | "clear" | "space" | "lang" | "forget";
 export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu" | "home";
 
 export type Msg =
   | { k: "extend"; key: string }
   | { k: "searchInput"; ch: string }
   | { k: "searchControl"; c: SearchControl }
+  /** Строка `n` недавних запросов: номер, а не текст — сообщения попадают в журнал и `__kp.stats()`. */
+  | { k: "searchRecent"; n: number }
   | { k: "pf"; id: number }
   | { k: "act"; module: string; name: string; args: string[] }
   | { k: "unknown"; raw: string };
@@ -41,7 +44,7 @@ export interface ListKey {
 
 const SIMPLE = new Set(["init", "login", "home", "search", "settings", "bookmarks", "dev", "watching", "tv"]);
 const VARIANTS: readonly ProbeVariant[] = ["a1", "a2", "hls2", "props", "ticks", "autonext"];
-const CONTROLS: readonly SearchControl[] = ["back", "clear", "space", "lang"];
+const CONTROLS: readonly SearchControl[] = ["back", "clear", "space", "lang", "forget"];
 const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu", "home"];
 const SOURCES: readonly ListKey["src"][] = ["catalog", "fresh", "popular", "hot", "folder", "similar", "history", "collections", "collection"];
 const KEY_FIELDS = ["type", "sort", "genre", "folder", "id", "quality"] as const;
@@ -139,6 +142,10 @@ function message(m: string): Msg | undefined {
       if (parts[1] === "control" && parts.length === 3 && CONTROLS.includes(parts[2] as SearchControl)) {
         return { k: "searchControl", c: parts[2] as SearchControl };
       }
+      if (parts[1] === "recent" && parts.length === 3) {
+        const n = uint(parts[2]);
+        return n === undefined ? undefined : { k: "searchRecent", n };
+      }
       return undefined;
     case "pf": {
       const id = parts.length === 2 ? pos(parts[1]) : undefined;
@@ -190,6 +197,7 @@ export const msgs = {
   extend: (key: string): string => `extend:${key}`,
   searchInput: (ch: string): string => `search:input:${ch}`,
   searchControl: (c: string): string => `search:control:${c}`,
+  searchRecent: (n: number): string => `search:recent:${n}`,
   pf: (id: number | string): string => `pf:${id}`,
   act: (module: string, name: string, ...args: (string | number)[]): string => join(["act", module, name, ...args]),
 };

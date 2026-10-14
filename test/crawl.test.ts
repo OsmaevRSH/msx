@@ -122,6 +122,8 @@ describe("crawl rules", () => {
     assert.equal(sizeLimit("list:x"), 32 * 1024);
     assert.equal(sizeLimit("season:1:1"), 32 * 1024);
     assert.equal(sizeLimit("search"), 32 * 1024);
+    assert.equal(sizeLimit("search", { type: "list", template: {}, items: tiles }), 32 * 1024);
+    assert.equal(sizeLimit("search", { type: "list", pages: [{ items: [] }] }), 8 * 1024, "the keyboard alone is redrawn on every key");
     assert.equal(sizeLimit("init"), 6 * 1024);
     assert.equal(sizeLimit("panel:audio:1:2:c"), 16 * 1024);
     assert.equal(sizeLimit("play:1:start"), 6 * 1024);

@@ -2,19 +2,23 @@ import type { AppContext } from "../app/context.ts";
 import type { ItemSummary, Page } from "../api/models.ts";
 import { toKpError } from "../core/errors.ts";
 import { fmtCount } from "../core/format.ts";
-import { commitMsg } from "../msx/actions.ts";
+import { chain, commitMsg } from "../msx/actions.ts";
 import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentRoot } from "../msx/types.ts";
 import { ids, msgs } from "../router/ids.ts";
 import type { Msg, SearchControl } from "../router/ids.ts";
-import { KEY_CHARS, keyboardPage } from "./keyboard.ts";
+import { KEY_CHARS, keyboardPage, recentShown } from "./keyboard.ts";
 import type { SearchView } from "./keyboard.ts";
 import { MAX_BYTES, WINDOW, bytes } from "./list.ts";
+import { controlOptions } from "./list-head.ts";
+import { RECENT_MAX, forgetQueries, recentQueries, rememberQuery } from "./recent.ts";
 import { GRID_DECOMPRESSED, ROW, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 // Поиск S7 (спец. §3.4, §6.3, §11 S7): строка запроса живёт в памяти плагина. Каждое нажатие сразу
-// перерисовывает экран (ввод пришёл с текущего экрана), запрос к API — через 500 мс после последнего
-// нажатия и от 2 символов. Результаты и догрузка перерисовываются только у текущего экрана (CD-16, CE-06).
+// перерисовывает экран (ввод пришёл с текущего экрана), запрос к API — через 300 мс после последнего
+// нажатия и от 2 символов. Один ответ (первая порция 48) — и подсказки колонки (первые 6), и сетка результатов:
+// второго запроса на ту же строку нет, а стирание к уже найденной строке отвечает из кэша без паузы и сети.
+// Результаты и догрузка перерисовываются только у текущего экрана (CD-16, CE-06).
 
 const TAG = "search";
 const FLAG = "search";
@@ -26,9 +30,9 @@ const MAX_RESULTS = WINDOW;
 const PAGE = ROW;
 const MIN_CHARS = 2;
 const MAX_CHARS = 32;
-/** CNFR-10: результат ≤ 1,5 с после последней буквы. */
-const DEBOUNCE_MS = 500;
-const T = { headline: "Поиск", query: "{ico:search}" };
+/** CNFR-10: подсказки и результат ≤ 1,5 с после последней буквы; пауза короче — подсказки успевают за вводом. */
+const DEBOUNCE_MS = 300;
+const T = { headline: "Поиск", query: "{ico:search}", forget: "Очистить историю" };
 const RESULTS = ["результат", "результата", "результатов"] as const;
 
 /**
@@ -46,6 +50,10 @@ export async function searchScreen(ctx: AppContext): Promise<MsxContentRoot> {
   // `header` — страница над шаблонными элементами; без результатов клавиатура — единственная страница.
   if (s.items.length === 0) {
     root.pages = [keyboardPage(ctx, s)];
+    // Под недавними запросами — «Очистить историю»: опции экрана, красная кнопка выполняет сразу (Option Shortcut).
+    if (recentShown(ctx, s).length > 0) {
+      root.options = controlOptions(T.headline, [{ icon: "delete", label: T.forget, key: "red", action: chain(["cleanup", commitMsg(msgs.searchControl("forget"))]) }]);
+    }
     return root;
   }
   // V-09: в результатах клавиатура уходит вверх, а `headline` MSX у экрана из меню не показывает — запрос в `extension`.
@@ -67,7 +75,7 @@ export async function searchScreen(ctx: AppContext): Promise<MsxContentRoot> {
   }
 }
 
-/** `search:input:*`, `search:control:*` и `extend:search` (спец. §3.4). */
+/** `search:input:*`, `search:control:*`, `search:recent:*` и `extend:search` (спец. §3.4). */
 export function onSearchInput(ctx: AppContext, m: Msg): void {
   const s: SearchEntry = ctx.state.search;
   switch (m.k) {
@@ -77,6 +85,9 @@ export function onSearchInput(ctx: AppContext, m: Msg): void {
     case "searchControl":
       control(ctx, s, m.c);
       return;
+    case "searchRecent":
+      pick(ctx, s, m.n);
+      return;
     case "extend":
       if (m.key === EXTEND_KEY) {
         extend(ctx, s).catch((e: unknown) => ctx.log.warn(TAG, "extend_failed", { err: toKpError(e).code }));
@@ -85,6 +96,17 @@ export function onSearchInput(ctx: AppContext, m: Msg): void {
     default:
       return;
   }
+}
+
+/**
+ * Из поиска открыт тайтл (подсказка или плитка; вызывает маршрутизатор): строка — в недавние запросы. В журнал —
+ * только длина и число недавних, текст запроса личный.
+ */
+export function rememberSearch(ctx: AppContext): void {
+  const q = norm(ctx.state.search.query);
+  if (q.length < MIN_CHARS) return;
+  rememberQuery(ctx.store, q);
+  ctx.log.info(TAG, "recent", { len: q.length, n: recentQueries(ctx.store).length });
 }
 
 // --- Внутреннее ---
@@ -115,42 +137,84 @@ function control(ctx: AppContext, s: SearchEntry, c: SearchControl): void {
       s.lang = s.lang === "ru" ? "en" : "ru";
       ctx.host.executeAction("reload:content");
       return;
+    case "forget":
+      ctx.log.info(TAG, "recent_cleared", { n: recentQueries(ctx.store).length });
+      forgetQueries(ctx.store);
+      delete s.recent;
+      ctx.host.executeAction("reload:content");
+      return;
   }
 }
 
 /**
- * Применить новую строку: экран перерисовывается сразу (спец. §6.3), прежние результаты и таймер сбрасываются.
- * Если запрос для API не изменился (пробел в конце), результаты и ожидание остаются.
+ * Недавний запрос `n` — в поле, поиск сразу, без паузы ввода (найденное в кэше — без сети). Пока ответа нет, колонка
+ * остаётся недавними (`recent`): строки на тех же местах, фокус пульта не перескакивает на клавиатуру.
+ */
+function pick(ctx: AppContext, s: SearchEntry, n: number): void {
+  const q = recentQueries(ctx.store)[n];
+  if (q === undefined) return;
+  s.query = q;
+  if (!restart(ctx, s, 0) && s.status === "loading") s.recent = true;
+  ctx.host.executeAction("reload:content");
+}
+
+/**
+ * Применить новую строку: экран перерисовывается сразу (спец. §6.3), прежние результаты и таймер сбрасываются, а
+ * подсказки остаются до ответа на новую строку. Если запрос для API не изменился (пробел в конце), результаты и
+ * ожидание остаются.
  */
 function edit(ctx: AppContext, s: SearchEntry, next: string | undefined): void {
   if (next === undefined || next === s.query) return;
   const same = norm(next) === norm(s.query);
   s.query = next;
-  if (!same) restart(ctx, s);
+  if (!same) restart(ctx, s, DEBOUNCE_MS);
   ctx.host.executeAction("reload:content");
 }
 
-function restart(ctx: AppContext, s: SearchEntry): void {
+/**
+ * Новый поиск по `s.query` через `wait` мс; свежая первая порция из кэша применяется сразу — тогда `true`. Короче
+ * 2 символов — без запроса и без подсказок.
+ */
+function restart(ctx: AppContext, s: SearchEntry, wait: number): boolean {
   s.seq += 1;
   if (s.timer !== undefined) ctx.clock.clearTimeout(s.timer);
   delete s.timer;
   delete s.error;
   delete s.total;
   delete s.capped;
+  delete s.recent;
   s.items = [];
   s.page = 0;
   s.totalPages = 0;
   s.done = true;
-  if (norm(s.query).length < MIN_CHARS) {
+  const q = norm(s.query);
+  if (q.length < MIN_CHARS) {
     s.status = "short";
-    return;
+    delete s.hints;
+    return false;
+  }
+  const cached = ctx.repo.peekSearch(q);
+  if (cached !== undefined) {
+    found(s, cached);
+    ctx.log.info(TAG, "results_cached", { len: q.length, total: s.total, done: s.done });
+    return true;
   }
   s.status = "loading";
   const seq = s.seq;
   s.timer = ctx.clock.setTimeout(() => {
     delete s.timer;
     first(ctx, s, seq).catch((e: unknown) => ctx.log.warn(TAG, "search_failed", { err: toKpError(e).code }));
-  }, DEBOUNCE_MS);
+  }, wait);
+  return false;
+}
+
+/** Первая порция: результаты, число найденного и подсказки колонки — первые 6 из того же ответа. */
+function found(s: SearchEntry, page: Page<ItemSummary>): void {
+  apply(s, page, 1);
+  s.total = page.pagination.totalItems;
+  s.status = s.items.length > 0 ? "ready" : "empty";
+  s.hints = s.items.slice(0, RECENT_MAX);
+  delete s.recent;
 }
 
 /** Первая порция после паузы ввода; ответ на устаревший запрос (`seq` сменился) отбрасывается. */
@@ -160,9 +224,7 @@ async function first(ctx: AppContext, s: SearchEntry, seq: number): Promise<void
   try {
     const page = (await ctx.repo.search(q, 1)).value;
     if (s.seq !== seq) return;
-    apply(s, page, 1);
-    s.total = page.pagination.totalItems;
-    s.status = s.items.length > 0 ? "ready" : "empty";
+    found(s, page);
     ctx.metrics.record("search:first", ctx.clock.perf() - t0);
     // Сам запрос в журнал не пишется: журнал попадает в отчёт пробника.
     ctx.log.info(TAG, "results", { len: q.length, total: s.total, done: s.done });
@@ -170,6 +232,8 @@ async function first(ctx: AppContext, s: SearchEntry, seq: number): Promise<void
     if (s.seq !== seq) return;
     s.status = "error";
     s.error = toKpError(e).code;
+    delete s.hints;
+    delete s.recent;
     ctx.log.warn(TAG, "search_failed", { len: q.length, err: s.error });
   }
   if (ctx.current.isCurrent(ids.search())) ctx.host.executeAction("reload:content");

@@ -3,6 +3,7 @@ import type { Flags } from "../src/config/flags.ts";
 import { sleep } from "../src/core/clock.ts";
 import type { LogEntry } from "../src/core/log.ts";
 import { ids, isPanelId, parseDataId, parseMessage } from "../src/router/ids.ts";
+import { rememberQuery } from "../src/screens/recent.ts";
 import { createTestApp } from "../test/helpers/harness.ts";
 import { FIX } from "./kpmock/fixtures.ts";
 import type { TestApp } from "../test/helpers/harness.ts";
@@ -64,6 +65,11 @@ const CAPS: Record<string, number> = {
  * `init`, а дальше — по переходам между частями сезона.
  */
 const SEEDS = [ids.season(FIX.SERIAL_LONG, 1), ids.season(FIX.SERIAL_LONG, 2)];
+/**
+ * Недавний запрос в хранилище до обхода: колонка пустого поиска — недавние (S7), обход идёт по `search:recent` и
+ * «Очистить историю» из опций, а не только по подсказкам.
+ */
+const RECENT_SEED = "тест";
 const REQ_CAP = 3;
 const MSG_CAP = 2;
 
@@ -119,6 +125,7 @@ class Crawler {
   }
 
   async run(): Promise<CrawlReport> {
+    rememberQuery(this.t.ctx.store, RECENT_SEED);
     this.t.app.ready();
     this.push({ k: "req", id: ids.init(), depth: 0 });
     for (const id of SEEDS) this.push({ k: "req", id, depth: 1 });
@@ -256,7 +263,8 @@ class Crawler {
     const size = bytesOf(answer);
     const kind = kindOf(n.id);
     this.maxBytes[kind] = Math.max(this.maxBytes[kind] ?? 0, size);
-    if (size > sizeLimit(n.id)) this.fail(at, "size", `${size} B > ${sizeLimit(n.id)} B`);
+    const limit = sizeLimit(n.id, answer);
+    if (size > limit) this.fail(at, "size", `${size} B > ${limit} B`);
     const text = JSON.stringify(answer);
     // В здоровом mock экран ошибки или заглушка по ссылке из ответа — висячая ссылка или недоделанный экран.
     const code = /Код: (KP-[A-Z0-9]+)/.exec(text)?.[1];

@@ -17,7 +17,7 @@ import { loginScreen, onLoginAct } from "../screens/login.ts";
 import { buildMenu } from "../screens/menu.ts";
 import { onOrderAct } from "../screens/order-edit.ts";
 import { onPanelAct, panelScreen } from "../screens/panels.ts";
-import { onSearchInput, searchScreen } from "../screens/search.ts";
+import { onSearchInput, rememberSearch, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
 import { onSettingsAct, settingsScreen } from "../screens/settings.ts";
 import { tvScreen } from "../screens/tv.ts";
@@ -136,8 +136,11 @@ export class App implements PluginApp {
     const t0 = ctx.clock.perf();
     this.requests.push(dataId);
     if (dataId === "init") ctx.state.initCount += 1;
+    const from = ctx.current.get();
     ctx.current.onRequest(dataId);
     const r = parseDataId(dataId);
+    // Тайтл открыт из поиска (подсказка или плитка) — запрос удачный, он идёт в недавние (спец. §11 S7).
+    if (r.k === "item" && from === "search") rememberSearch(ctx);
     const slot = slotOf(dataId);
     let out: unknown;
     let n = 0;
@@ -285,6 +288,7 @@ export class App implements PluginApp {
         return;
       case "searchInput":
       case "searchControl":
+      case "searchRecent":
         this.spawn("search", () => onSearchInput(ctx, m));
         return;
       case "pf":
