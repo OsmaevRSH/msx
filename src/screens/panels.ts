@@ -20,6 +20,7 @@ import { orderPanel } from "./order-edit.ts";
 import { MODE_NAMES, audioName, countryName, dim, folderName, subsName } from "./panels-labels.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
 import { settingPanel } from "./settings.ts";
+import { tilePanel } from "./tile-actions.ts";
 
 // Панели S6 и S10 (спец. §3.4, §9.1, §11; Plan B S6, S10, §5.10): сетка 8×6, строка-кнопка на вариант.
 // Выбор приходит сообщением `act:panel:…`; до старта (`c`) — сохранить и перерисовать карточку, в плеере (`p`) —
@@ -82,6 +83,7 @@ export async function panelScreen(ctx: AppContext, type: string, args: string[])
       case "quality": return await qualityPanel(ctx, unitArgs(args));
       case "subs": return await subsPanel(ctx, unitArgs(args));
       case "bookmarks": return await bookmarksPanel(ctx, int(args[0], 1));
+      case "tile": return tilePanel(ctx, args);
       case "mode": return modePanel(ctx, int(args[0], 1));
       case "loc": return await locPanel(ctx);
       case "seasons": return await seasonsPanel(ctx, int(args[0], 1), int(args[1], 0));

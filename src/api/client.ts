@@ -219,6 +219,12 @@ export class KpApi {
     return parseToggle(await this.call({ path: "/v1/watching/toggle", query, retry: "none", timeoutMs: PROGRESS_MS, cls }));
   }
 
+  /** Переключатель «Я смотрю» (`togglewatchlist`): не повторяется вслепую (спец. §5.3, CM-01); ответ — новое состояние. */
+  async toggleWatchlist(id: number, cls?: ReqClass | Priority): Promise<{ watching: boolean }> {
+    const json = await this.call({ path: "/v1/watching/togglewatchlist", query: { id }, retry: "none", timeoutMs: PROGRESS_MS, cls });
+    return { watching: obj(json).watching === true };
+  }
+
   async history(page: number, perpage: number, cls?: Cls): Promise<HistoryEntry[]> {
     return parseHistory(await this.historyRaw(page, perpage, cls));
   }
@@ -226,6 +232,11 @@ export class KpApi {
   /** «История» списком: тайтлы записей и `pagination`. */
   async historyPage(page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {
     return parseHistoryPage(await this.historyRaw(page, perpage, cls));
+  }
+
+  /** Удалить тайтл из истории (research kinopub-api §8.3): POST, `id` в query, ответ — `null`; повтор безопасен. */
+  async historyClearItem(id: number): Promise<void> {
+    await this.call({ method: "POST", path: "/v1/history/clear-for-item", query: { id } });
   }
 
   /** `subscribed` — только «Я смотрю» (список «Буду смотреть», как у Kodi и других клиентов). */

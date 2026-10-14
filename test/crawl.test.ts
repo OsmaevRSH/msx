@@ -64,17 +64,19 @@ describe("crawl rules", () => {
     assert.deepEqual(splitChain("a"), ["a"]);
   });
 
-  it("{context:…}: only in template.selection (action, headline, text) and template.properties, item fields are strings", () => {
+  it("{context:…}: only in template.selection (action, headline, text), template.properties and template.options, item fields are strings", () => {
     const good = {
       template: {
         selection: { action: "interaction:commit:message:pf:{context:kid}", headline: "{context:kname}", text: "{context:kid}" },
         properties: { "kp:i": "{context:kid}" },
+        // v1.16: опции плитки в фокусе (действия над плиткой).
+        options: { headline: "{context:kname}", items: [{ action: "[back|interaction:commit:message:act:tile:del:{context:kid}]" }] },
       },
       items: [{ kid: "1", kname: "Один" }, { kid: "2", kname: "" }],
     };
     assert.deepEqual(contextIssues(good), []);
     assert.deepEqual(expandContext("pf:{context:kid}", { kid: "7" }), "pf:7");
-    const where = "{context:…} outside template.selection (action, headline, text) and template.properties";
+    const where = "{context:…} outside template.selection (action, headline, text), template.properties and template.options";
     assert.deepEqual(contextIssues({
       template: { action: "content:{context:kid}", selection: { action: "pf:{context:kid}", headline: "{context:kname}", label: "{context:kid}" } },
       items: [{ kid: 1, kname: "А" }, { title: "{context:kid}" }],
@@ -143,9 +145,14 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "panel:home",
       // v1.14: панель вкладок полки и вкладка, выбранная в ней (не из «Показать все» главной).
       "panel:type", "list:fresh:documovie",
+      // v1.16: папка с опциями плиток и подтверждение «Очистить всю историю» (спец. §11.4).
+      "list:folder", "panel:tile",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }
+    // Действия над плиткой найдены в опциях и проверены как действия, но не отправлены: обход не удаляет данные.
+    const kinds = new Set(r.skipped.map((m) => m.split(":").slice(0, 3).join(":")));
+    assert.deepEqual([...kinds].sort(), ["act:tile:clear", "act:tile:del", "act:tile:unfold", "act:tile:unwatch"]);
     assert.ok((r.maxBytes["item"] ?? 0) <= 20 * 1024);
   });
 

@@ -20,6 +20,7 @@ import { onPanelAct, panelScreen } from "../screens/panels.ts";
 import { onSearchInput, rememberSearch, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
 import { onSettingsAct, settingsScreen } from "../screens/settings.ts";
+import { onTileAct } from "../screens/tile-actions.ts";
 import { tvScreen } from "../screens/tv.ts";
 import { watchingScreen } from "../screens/watching.ts";
 import { parseDataId, parseMessage } from "./ids.ts";
@@ -329,6 +330,9 @@ export class App implements PluginApp {
         return;
       case "probe":
         this.spawn(what, () => withProbe(ctx, (m) => m.onProbeAct(ctx, name, args)));
+        return;
+      case "tile":
+        this.spawn(what, () => onTileAct(ctx, name, args));
         return;
     }
   }

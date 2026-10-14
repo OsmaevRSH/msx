@@ -24,6 +24,8 @@ export interface CrawlReport {
   nodes: number; failures: CrawlFailure[]; maxBytes: Record<string, number>;
   /** Разных действий, прошедших проверку грамматики. */
   edges: number;
+  /** Разрушающие сообщения (`act:tile:…`), найденные в ответах, но не отправленные. */
+  skipped: string[];
 }
 export interface CrawlOptions {
   maxNodes?: number; depth?: number; flags?: Partial<Flags>;
@@ -59,6 +61,11 @@ const MAX_RELOADS = 2;
 const SEARCH_KEYS = new Set(["е", "с", "т"]);
 /** Выход из KinoPub завершает сессию обхода: такие сообщения — после всего остального. */
 const LAST = new Set(["set:logout", "probe:logout"]);
+/**
+ * Действия над плиткой (`act:tile:…`, спец. §11.4) удаляют данные аккаунта: из истории, «Я смотрю», папки. Обход их
+ * опции и панель подтверждения проверяет как разметку и действия, но сами сообщения не отправляет.
+ */
+const DESTRUCTIVE = new Set(["tile"]);
 
 /** Сколько узлов одного вида обходить: краулеру нужна каждая разметка и каждое действие, а не каждый тайтл. */
 const CAPS: Record<string, number> = {
@@ -118,6 +125,8 @@ class Crawler {
   private seen = new Set<string>();
   private taken = new Map<string, number>();
   private edges = new Set<string>();
+  /** Разрушающие сообщения, которые обход нашёл в опциях, но не отправил (`DESTRUCTIVE`). */
+  private skipped = new Set<string>();
   /** Флаг последнего ответа каждого экрана: замена `replace:content:<флаг>:…` должна его повторять. */
   private flags = new Map<string, string | undefined>();
   private errors: LogEntry[] = [];
@@ -142,7 +151,7 @@ class Crawler {
       this.queue.push(...this.last.splice(0));
       await this.drain();
     }
-    return { nodes: this.nodes, failures: this.failures, maxBytes: this.maxBytes, edges: this.edges.size };
+    return { nodes: this.nodes, failures: this.failures, maxBytes: this.maxBytes, edges: this.edges.size, skipped: [...this.skipped].sort() };
   }
 
   private budget(): boolean {
@@ -390,6 +399,10 @@ class Crawler {
       return;
     }
     if (m.k === "searchInput" && !SEARCH_KEYS.has(m.ch)) return;
+    if (m.k === "act" && DESTRUCTIVE.has(m.module)) {
+      this.skipped.add(msg);
+      return;
+    }
     const n: Extract<Node, { k: "msg" }> = { k: "msg", msg, depth: from.depth + 1 };
     const screen = this.screenOf(from);
     if (screen !== undefined) n.screen = screen;
@@ -408,7 +421,7 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlReport> {
 }
 
 function summary(name: string, r: CrawlReport): string {
-  const lines = [`crawl ${name}: ${r.nodes} nodes, ${r.edges} actions, ${r.failures.length} failures`];
+  const lines = [`crawl ${name}: ${r.nodes} nodes, ${r.edges} actions, ${r.failures.length} failures, ${r.skipped.length} destructive not sent`];
   for (const [kind, bytes] of Object.entries(r.maxBytes).sort(([a], [b]) => a.localeCompare(b))) {
     lines.push(`  ${kind.padEnd(26)} ${String(bytes).padStart(6)} B`);
   }

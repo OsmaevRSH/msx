@@ -17,6 +17,25 @@
     "selection": {
       "headline": "{context:kt}",
       "action": "interaction:commit:message:pf:{context:kid}"
+    },
+    "options": {
+      "headline": "{context:kt}",
+      "template": {
+        "type": "control",
+        "layout": "0,0,8,1"
+      },
+      "items": [
+        {
+          "icon": "delete",
+          "label": "Удалить из истории",
+          "action": "[back|interaction:commit:message:act:tile:del:{context:kid}]"
+        },
+        {
+          "icon": "delete-sweep",
+          "label": "Очистить всю историю",
+          "action": "[back|panel:request:interaction:panel:tile:clear@https://example.github.io/msx/app/index.html]"
+        }
+      ]
     }
   },
   "items": [
