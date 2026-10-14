@@ -4,7 +4,7 @@ import { HttpError, requireAuth } from "../router.ts";
 import type { HandlerCtx, MockResponse, Router } from "../router.ts";
 import { watchKey } from "../state.ts";
 import type { HistoryRec, MockState } from "../state.ts";
-import { SERIES_TYPES, listItem, posters } from "./catalog.ts";
+import { NOT_FOUND as ITEM_NOT_FOUND, SERIES_TYPES, listItem, missingParam, posters } from "./catalog.ts";
 
 // Просмотры и история (research kinopub-api §8.1, §8.3; Plan B §9.3, §12.3; спец. §10.3, §14.2).
 // `video` и `season` — номера (`number`), а не id; у фильма сезон 0.
@@ -49,6 +49,29 @@ function target(ctx: HandlerCtx): Target {
     : item.seasons?.find((s) => s.number === season)?.episodes.find((e) => e.number === video);
   if (!unit) throw new HttpError(404, NOT_FOUND);
   return { item, season, unit, key: watchKey(item.id, season, unit.number) };
+}
+
+/**
+ * `toggle` без `video` (v1.16): все серии сезона, у фильма — все видео (HC `watching.md`: «Если отсутствует, модификации
+ * подвергаются все эпизоды сезона»; Kodi — сезон и фильм из частей). Сериал без `season` или неизвестный сезон — 404.
+ */
+function scope(ctx: HandlerCtx): Target[] {
+  const item = findItem(num(ctx.query, "id") ?? -1);
+  if (!item) throw new HttpError(404, NOT_FOUND);
+  const season = isSeries(item) ? num(ctx.query, "season") ?? -1 : 0;
+  const units = season === 0 ? item.videos ?? [] : item.seasons?.find((x) => x.number === season)?.episodes ?? [];
+  if (units.length === 0) throw new HttpError(404, NOT_FOUND);
+  return units.map((unit) => ({ item, season, unit, key: watchKey(item.id, season, unit.number) }));
+}
+
+/**
+ * «Буду смотреть»: явный выбор `togglewatchlist`, иначе — начатый сериал, кроме досмотренного без новых серий (как
+ * `subscribed=1` до v1.16). Фильм в списке не бывает.
+ */
+export function inWatchlist(s: MockState, it: FxItem): boolean {
+  if (!isSeries(it)) return false;
+  const statuses = allUnits(it).map((x) => statusOf(s, it.id, x.season, x.unit));
+  return s.watchlist.get(it.id) ?? (statuses.some((x) => x !== -1) && (statuses.some((x) => x !== 1) || (s.newEpisodes.get(it.id) ?? 0) > 0));
 }
 
 /** Запись истории — на единицу (item, season, video); обновлённая переезжает в начало. */
@@ -151,18 +174,29 @@ export function register(r: Router, s: MockState, base: () => string): void {
     return { status: 200, json: { status: 200 } };
   });
 
+  // Переключатель: всё в области просмотрено → снять отметки, иначе — отметить всё (у сезона — как у Apple-клиента).
   r.add("GET", "/v1/watching/toggle", (ctx) => {
     requireAuth(ctx);
-    const t = target(ctx);
-    const prev = s.watching.get(t.key);
-    const status: -1 | 1 = prev?.status === 1 ? -1 : 1;
-    s.watching.set(t.key, { time: prev?.time ?? 0, status, updated: nowSec() });
+    const ts = num(ctx.query, "video") === undefined ? scope(ctx) : [target(ctx)];
+    const status: -1 | 1 = ts.every((t) => s.watching.get(t.key)?.status === 1) ? -1 : 1;
+    for (const t of ts) s.watching.set(t.key, { time: s.watching.get(t.key)?.time ?? 0, status, updated: nowSec() });
     // toggle_lost_response (спец. §14.2, CM-01): переключение применено, а ответ клиент не получит.
     if (ctx.scenario.toggleLostResponse > 0) {
       ctx.scenario.toggleLostResponse -= 1;
       return { status: 200, drop: true };
     }
     return { status: 200, json: { status: 200, watched: status === 1 ? 1 : 0, watching: { status } } };
+  });
+
+  // «Буду смотреть» (HC `watching.md`): переключатель, ответ — новое состояние; только сериал (у фильма — 404).
+  r.add("GET", "/v1/watching/togglewatchlist", (ctx) => {
+    requireAuth(ctx);
+    if (num(ctx.query, "id") === undefined) throw missingParam("id");
+    const item = findItem(num(ctx.query, "id") ?? -1);
+    if (!item || item.deleted || !isSeries(item)) throw new HttpError(404, ITEM_NOT_FOUND);
+    const on = !inWatchlist(s, item);
+    s.watchlist.set(item.id, on);
+    return { status: 200, json: { status: 200, watching: on } };
   });
 
   r.add("GET", "/v1/watching", (ctx) => {
@@ -173,15 +207,18 @@ export function register(r: Router, s: MockState, base: () => string): void {
     return { status: 200, json: { status: 200, item: watchingItem(s, item) } };
   });
 
-  // `subscribed=1` — список «Я смотрю» («Буду смотреть»): начатые сериалы, кроме досмотренных без новых серий; без
-  // параметра — сериалы с просмотренными сериями (их берёт «Продолжить» главной).
+  // `subscribed=1` — список «Я смотрю» («Буду смотреть», `inWatchlist`); добавленные `togglewatchlist` и не начатые — в
+  // конце. Без параметра — сериалы с просмотренными сериями (их берёт «Продолжить» главной).
   r.add("GET", "/v1/watching/serials", (ctx) => {
     requireAuth(ctx);
     const sub = ctx.query.get("subscribed") === "1";
-    const wanted = (w: { item: FxItem; statuses: Status[] }): boolean => !sub
-      ? w.statuses.includes(1)
-      : w.statuses.some((x) => x !== -1) && (w.statuses.some((x) => x !== 1) || (s.newEpisodes.get(w.item.id) ?? 0) > 0);
-    const items = watchedItems(s).filter((w) => isSeries(w.item) && wanted(w)).map(({ item, statuses }) => ({
+    const rows = watchedItems(s);
+    for (const [id, on] of s.watchlist) {
+      const item = findItem(id);
+      if (sub && on && item && !rows.some((w) => w.item.id === id)) rows.push({ item, statuses: allUnits(item).map(() => -1 as const) });
+    }
+    const wanted = (w: { item: FxItem; statuses: Status[] }): boolean => (sub ? inWatchlist(s, w.item) : w.statuses.includes(1));
+    const items = rows.filter((w) => isSeries(w.item) && wanted(w)).map(({ item, statuses }) => ({
       id: item.id, type: item.type, title: item.title, posters: posters(ctx.base, item.id),
       total: String(statuses.length),   // строкой, как у боевого API (research kinopub-api §8.1)
       watched: statuses.filter((x) => x === 1).length, new: s.newEpisodes.get(item.id) ?? 0,

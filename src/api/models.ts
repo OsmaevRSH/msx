@@ -88,6 +88,13 @@ export interface ItemDetail extends ItemSummary {
   bookmarks: number[];
   voice?: string;
   finished?: boolean;
+  /** «Буду смотреть»: `in_watchlist`, синоним `subscribed` (HC `video.md`); без обоих — неизвестно. */
+  watchlist?: boolean;
+  /** Строки «Имя 1, Имя 2» карточки (research §6.2): режиссёров не больше 3, актёров — 8. */
+  director?: string[];
+  cast?: string[];
+  /** Трейлер (`trailer` с `url` или `id`); `url` — прямая подписанная ссылка, если она есть в карточке. */
+  trailer?: { url?: string };
 }
 
 export interface MediaLinks {

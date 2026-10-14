@@ -9,6 +9,7 @@ import {
   parseHistoryPage, parseItemDetail, parseItemList, parseItems, parseListItem, parseMediaLinks, parsePage, parseSerialWatching,
   parseServerLocation, parseToggle, parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
 } from "./parse.ts";
+import { bool01, parseTrailer } from "./parse.ts";
 import type { ApiRequest, ApiResponse, Priority, ReqClass, RetryPolicy, Transport } from "./transport.ts";
 
 export interface TokenSource { access(): { token: string; gen: number } | undefined; refresh(gen: number): Promise<void> }
@@ -195,6 +196,16 @@ export class KpApi {
     return parseItemList(await this.call({ path: "/v1/items/similar", query: { id }, cls }));
   }
 
+  /** Поиск по актёру или режиссёру: одно имя, одно поле на запрос (HC `video.md`: запятая не работает). */
+  async searchBy(field: "cast" | "director", q: string, page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {
+    return parsePage(await this.call({ path: "/v1/items/search", query: { q, field, page, perpage }, cls }), parseListItem);
+  }
+
+  /** Прямая ссылка трейлера (HC `video.md`, Kodi `items/trailer`); только страница YouTube — undefined. */
+  async trailer(id: number, cls?: Cls): Promise<string | undefined> {
+    return parseTrailer(await this.call({ path: "/v1/items/trailer", query: { id }, cls }));
+  }
+
   /** `mid` — id видео или серии, не тайтла; ответ без `status`, ссылки в `urls` (research kinopub-api §7.1). */
   async mediaLinks(mid: number, cls: Cls): Promise<MediaLinks> {
     const timeoutMs = LINKS_MS[typeof cls === "string" ? cls : cls.cls()];
@@ -217,6 +228,17 @@ export class KpApi {
   async toggle(id: number, video: number, season?: number, cls?: Cls): Promise<{ watched: 0 | 1 }> {
     const query = { id, video, season };
     return parseToggle(await this.call({ path: "/v1/watching/toggle", query, retry: "none", timeoutMs: PROGRESS_MS, cls }));
+  }
+
+  /** Весь сезон — `toggle` без `video` (HC `watching.md`: «модификации подвергаются все эпизоды сезона»); переключатель. */
+  async toggleSeason(id: number, season: number, cls?: Cls): Promise<{ watched: 0 | 1 }> {
+    return parseToggle(await this.call({ path: "/v1/watching/toggle", query: { id, season }, retry: "none", timeoutMs: PROGRESS_MS, cls }));
+  }
+
+  /** «Буду смотреть» (HC `watching.md`): переключатель — не повторяется вслепую (CM-01); ответ — новое состояние. */
+  async toggleWatchlist(id: number, cls?: ReqClass | Priority): Promise<{ watching: boolean }> {
+    const json = await this.call({ path: "/v1/watching/togglewatchlist", query: { id }, retry: "none", timeoutMs: PROGRESS_MS, cls });
+    return { watching: bool01(obj(json).watching) === 1 };
   }
 
   async history(page: number, perpage: number, cls?: Cls): Promise<HistoryEntry[]> {

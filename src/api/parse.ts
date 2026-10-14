@@ -183,7 +183,35 @@ export function parseItemDetail(x: unknown): ItemDetail {
   const out: ItemDetail = { ...base, videos: objs(o.videos).map((v, i) => parseMediaUnit(v, i, 0)), seasons, bookmarks };
   put(out, "voice", optStr(o.voice));
   if (o.finished !== undefined && o.finished !== null) out.finished = bool(o.finished);
+  const wl = o.in_watchlist ?? o.subscribed;
+  if (wl !== undefined && wl !== null) out.watchlist = bool(wl);
+  put(out, "director", names(o.director, 3));
+  put(out, "cast", names(o.cast, 8));
+  const t = o.trailer;
+  if (isObj(t) && (optStr(t.url) ?? optStr(t.id)) !== undefined) {
+    const url = mediaUrl(t.url);
+    out.trailer = url === undefined ? {} : { url };
+  }
   return out;
+}
+
+/** «Имя 1, Имя 2» → первые `max` имён; пусто — undefined. */
+function names(x: unknown, max: number): string[] | undefined {
+  const a = str(x).split(",").map((s) => s.trim()).filter((s) => s !== "").slice(0, max);
+  return a.length > 0 ? a : undefined;
+}
+
+/** Ссылка, которую играет плеер: http(s), не страница YouTube (старые доки отдают её в `trailer.url`). */
+function mediaUrl(x: unknown): string | undefined {
+  const s = str(x).trim();
+  return /^https?:\/\//.test(s) && !/youtu/i.test(s) ? s : undefined;
+}
+
+/** `/v1/items/trailer` (HC `video.md`, Kodi): `trailer` — `{id, url, files[]}` или массив таких; файл важнее `url`. */
+export function parseTrailer(x: unknown): string | undefined {
+  const t = obj(x).trailer;
+  const o = obj(Array.isArray(t) ? t[0] : t);
+  return [...objs(o.files).map((f) => f.url), o.url].map(mediaUrl).find((u) => u !== undefined);
 }
 
 /** `media-links` приходит без `status` (research §7.1); субтитры без ссылки не нужны плееру. */

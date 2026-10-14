@@ -119,6 +119,8 @@ function compactItem(d: ItemDetail): CompactItem {
     ...d, videos: d.videos.map(compactUnit), seasons: d.seasons.map((s) => ({ ...s, episodes: s.episodes.map(compactUnit) })),
   };
   if (d.plot !== undefined && d.plot.length > PLOT_MAX) out.plot = `${d.plot.slice(0, PLOT_MAX - 1)}…`;
+  // Ссылка трейлера подписана, как поток (research §7.3): в L2 — только то, что трейлер есть.
+  if (d.trailer !== undefined) out.trailer = {};
   return out;
 }
 
