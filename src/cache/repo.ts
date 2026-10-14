@@ -1,6 +1,6 @@
 import type { KpApi } from "../api/client.ts";
 import type {
-  BookmarkFolder, DeviceInfo, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, MediaUnit, Page,
+  BookmarkFolder, Country, DeviceInfo, FileInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks, MediaUnit, Page,
   Season, SerialWatching, ServerLocation, Titled, TvChannel, User,
 } from "../api/models.ts";
 import { Priority } from "../api/transport.ts";
@@ -11,7 +11,10 @@ import { KpError, toKpError } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { Got, Policy, SwrCache } from "./swr.ts";
 
-export type ListSource = { kind: "catalog"; type?: string; sort: string; genre?: string; quality?: string }
+/** Каталог с фильтрами спец. §11.4: `year` — год или `Y1-Y2`, `country` — id, `kp` — рейтинг КП не ниже, `fin: "1"` — окончённые. */
+export type ListSource = {
+  kind: "catalog"; type?: string; sort: string; genre?: string; quality?: string; year?: string; country?: string; kp?: string; fin?: string;
+}
   | { kind: "shelf"; shelf: "fresh" | "popular" | "hot"; type: string }
   | { kind: "folder"; folder: number } | { kind: "similar"; id: number }
   | { kind: "history" } | { kind: "collections"; sort: string } | { kind: "collection"; id: number };
@@ -61,7 +64,10 @@ const opt = (s: string | undefined): string | undefined => (s === "" ? undefined
 /** Канонический JSON источника: фиксированный порядок полей, без пустых. */
 function sourceJson(src: ListSource): string {
   switch (src.kind) {
-    case "catalog": return JSON.stringify({ kind: src.kind, type: opt(src.type), sort: src.sort, genre: opt(src.genre), quality: opt(src.quality) });
+    case "catalog": return JSON.stringify({
+      kind: src.kind, type: opt(src.type), sort: src.sort, genre: opt(src.genre), quality: opt(src.quality),
+      year: opt(src.year), country: opt(src.country), kp: opt(src.kp), fin: opt(src.fin),
+    });
     case "shelf": return JSON.stringify({ kind: src.kind, shelf: src.shelf, type: src.type });
     case "folder": return JSON.stringify({ kind: src.kind, folder: src.folder });
     case "similar":
@@ -79,6 +85,7 @@ const key = (...parts: (string | number)[]): string => `${parts.join(":")}:`;
 
 export const cacheKeys = {
   genres: (type: string): string => key("refs", "genres", type),
+  countries: (): string => key("refs", "countries"),
   locations: (): string => key("refs", "loc"),
   voiceovers: (): string => key("refs", "vo"),
   user: (): string => key("user"),
@@ -187,16 +194,22 @@ export class Repo {
     return this.cache.get(cacheKeys.voiceovers(), REFS, () => this.api.voiceoverTypes());
   }
 
+  countries(): Promise<Got<Country[]>> {
+    return this.cache.get(cacheKeys.countries(), REFS, () => this.api.countries());
+  }
+
   /**
-   * По 48 на страницу; в L2 — только первая порция раздела. `opts.cls` — класс запроса для лимитера (спец. §8.3).
-   * «История» — персональная, как полки «Продолжить» (1 мин).
+   * По 48 на страницу; в L2 — только первая порция раздела, и без фильтров спец. §11.4: они живут сессию, после
+   * перезапуска их первые порции только вытесняли бы из L2 нужное холодному старту. `opts.cls` — класс запроса для
+   * лимитера (спец. §8.3). «История» — персональная, как полки «Продолжить» (1 мин).
    */
   listPage(src: ListSource, page: number, opts?: { cls?: ReqClass }): Promise<Got<Page<Titled>>> {
     const cls = opts?.cls;
     if (src.kind === "similar") return this.similarPage(src.id, page, cls);
     const base = src.kind === "folder" ? FOLDER : src.kind === "history" ? PERSONAL : LIST;
+    const filtered = src.kind === "catalog" && [src.year, src.country, src.kp, src.fin].some((v) => opt(v) !== undefined);
     const k = cacheKeys.list(src, page);
-    return this.cache.get(k, page === 1 ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)));
+    return this.cache.get(k, page === 1 && !filtered ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)));
   }
 
   shelf(kind: "fresh" | "popular" | "hot", type: string, opts?: { cls?: ReqClass }): Promise<Got<ItemSummary[]>> {
@@ -335,7 +348,10 @@ export class Repo {
   private loadList(src: Exclude<ListSource, { kind: "similar" }>, page: number, cls: ReqClass | Priority): Promise<Page<Titled>> {
     switch (src.kind) {
       case "catalog":
-        return this.api.items({ type: opt(src.type), genre: opt(src.genre), sort: src.sort, quality: opt(src.quality), page, perpage: PER_PAGE }, cls);
+        return this.api.items({
+          type: opt(src.type), genre: opt(src.genre), sort: src.sort, quality: opt(src.quality), year: opt(src.year), country: opt(src.country),
+          kp: opt(src.kp), finished: src.fin === "1", page, perpage: PER_PAGE,
+        }, cls);
       case "shelf":
         return this.api.shelf(src.shelf, { type: src.type, page, perpage: PER_PAGE }, cls);
       case "folder":

@@ -126,6 +126,14 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("panel-type", ids.panel("type", encodeListKey({ src: "fresh" })));
   });
 
+  it("v1.16: «Сериалы» with filters, its «Сортировка и фильтры» panel, the country panel", LIMIT, async () => {
+    const serials = encodeListKey({ src: "catalog", type: "serial", sort: "-updated", year: "2010-2019", country: "1", kp: "6", fin: "1" });
+    const t = await make({ loggedIn: true });
+    golden(t, "list-serials-filtered", ids.list(serials), await t.request(ids.list(serials)));
+    golden(t, "panel-filters", ids.panel("filters", serials), await t.request(ids.panel("filters", serials)));
+    await snap("panel-country", ids.panel("country", MOVIES));
+  });
+
   it("error KP-NET: the network is down — «KinoPub не отвечает» after 6 s, before the retries end (V-40)", LIMIT, async () => {
     const t = await make({ loggedIn: true });
     t.mock.setScenario({ rules: [{ path: ".*", drop: true }] });

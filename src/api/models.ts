@@ -198,6 +198,12 @@ export interface Genre {
   title: string;
 }
 
+/** Страна справочника `/v1/countries` (фильтр каталога, спец. §11.4). */
+export interface Country {
+  id: number;
+  title: string;
+}
+
 export interface DeviceCode {
   code: string;
   userCode: string;

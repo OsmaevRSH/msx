@@ -143,6 +143,8 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "panel:home",
       // v1.14: панель вкладок полки и вкладка, выбранная в ней (не из «Показать все» главной).
       "panel:type", "list:fresh:documovie",
+      // v1.16: фильтры каталога — панель красной кнопки, панели значений и список с выбранным фильтром (§11.4).
+      "panel:filters", "panel:year", "panel:country", "panel:countries", "panel:kp", "list:catalog:filtered",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }

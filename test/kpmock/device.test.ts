@@ -181,5 +181,9 @@ describe("kpmock device, user and references", () => {
     assert.deepEqual((await get("/v1/genres?type=unknown")).body.items, []);
     const countries = (await get("/v1/countries")).body.items as { id: number; title: string }[];
     assert.ok(countries.some((c) => c.title === "Россия"));
+    // 102 страны, как у живого API (конфиг PWA): панель «Другие страны» проверяется на настоящем объёме.
+    assert.equal(countries.length, 102);
+    assert.equal(new Set(countries.map((c) => c.id)).size, 102);
+    assert.ok(countries.every((c) => Number.isInteger(c.id) && c.id > 0 && c.title !== ""));
   });
 });

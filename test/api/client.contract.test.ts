@@ -28,6 +28,25 @@ describe("KpApi against kpmock (contract)", () => {
       assert.equal(q(c).has("genre"), false);
     });
 
+    it("items with the catalog filters (spec §11.4): year, country, conditions[]=kinopoisk_rating>=N, quality, finished=1", async () => {
+      const r = env.rig();
+      const page = await r.run(r.api.items({
+        type: "serial", genre: "9,1", sort: "-kinopoisk_rating", quality: "3", year: "1990-2009", country: "1,2", kp: "6", finished: true,
+        page: 1, perpage: 48,
+      }));
+      assert.ok(page.items.length > 0);
+      assert.ok(page.items.every((it) => it.type === "serial" && (it.year ?? 0) >= 1990 && (it.year ?? 0) <= 2009 && (it.kpRating ?? 0) >= 6));
+      const c = env.calls("/v1/items")[0];
+      assert.deepEqual([...q(c)].filter(([n]) => n !== "access_token"), [
+        ["type", "serial"], ["genre", "9,1"], ["sort", "-kinopoisk_rating"], ["quality", "3"], ["year", "1990-2009"], ["country", "1,2"],
+        ["conditions[]", "kinopoisk_rating>=6"], ["finished", "1"], ["page", "1"], ["perpage", "48"],
+      ]);
+      // Скобки — в URL как `conditions%5B%5D`: PHP читает их как массив (kinopub-gui `url.Values.Add("conditions[]")`).
+      assert.match(c.query, /(^|&)conditions%5B%5D=kinopoisk_rating%3E%3D6(&|$)/);
+      await r.run(r.api.items({ type: "movie", sort: "-updated", page: 1, perpage: 48 }));
+      assert.deepEqual([...q(env.calls("/v1/items")[1])].map(([n]) => n).sort(), ["access_token", "page", "perpage", "sort", "type"], "no filter — no parameter");
+    });
+
     it("shelf, search and similar", async () => {
       const r = env.rig();
       const shelf = await r.run(r.api.shelf("popular", { type: "serial", page: 1, perpage: 7 }));
@@ -82,6 +101,9 @@ describe("KpApi against kpmock (contract)", () => {
       assert.deepEqual(locs[0], { id: 1, location: "nl", name: "Netherlands" });
       const vo = await r.run(r.api.voiceoverTypes());
       assert.ok(vo.some((v) => v.id === 6 && v.title === "Оригинал"));
+      const countries = await r.run(r.api.countries());
+      assert.equal(countries.length, 102);
+      assert.deepEqual(countries.slice(0, 2), [{ id: 1, title: "США" }, { id: 2, title: "Россия" }]);
       const raw = (await r.run(r.api.raw("/v1/types"))) as { items: unknown[] };
       assert.equal(raw.items.length, 8);
     });

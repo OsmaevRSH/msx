@@ -1,5 +1,6 @@
 import type { MsxContentItem, MsxContentRoot, MsxMenuRoot } from "../src/msx/types.ts";
 import { decodeListKey, ids, isPanelId, parseDataId } from "../src/router/ids.ts";
+import { hasFilters } from "../src/screens/filters.ts";
 import { WINDOW } from "../src/screens/list.ts";
 import { MENU_FLAG, refreshMenu } from "../src/screens/menu.ts";
 
@@ -15,7 +16,10 @@ const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !
 /** Ответ для `video:resolve:…`, а не экран: свои правила (`url` или `error`, свойства — строки). */
 export const RESOLVE_KINDS: ReadonlySet<string> = new Set(["play", "playEp", "probePlay"]);
 
-/** Вид маршрута для отчёта и лимитов: `list:<источник>`, `panel:<тип>`, `probe:<страница>`, иначе `Route.k`. */
+/**
+ * Вид маршрута для отчёта и лимитов: `list:<источник>`, `panel:<тип>`, `probe:<страница>`, иначе `Route.k`. Каталог с
+ * фильтрами (спец. §11.4) — `list:catalog:filtered`: обход доходит до списков, выбранных в панелях фильтров.
+ */
 export function kindOf(dataId: string): string {
   const r = parseDataId(dataId);
   switch (r.k) {
@@ -25,6 +29,7 @@ export function kindOf(dataId: string): string {
       try {
         // Вкладка полки — свой вид: обход доходит до каждой выбранной в панели типа (v1.14).
         const k = decodeListKey(r.key);
+        if (k.src === "catalog" && hasFilters(k)) return "list:catalog:filtered";
         return ["fresh", "popular", "hot"].includes(k.src) && k.type ? `list:${k.src}:${k.type}` : `list:${k.src}`;
       } catch {
         return "list:bad";

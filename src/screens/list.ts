@@ -10,6 +10,7 @@ import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
+import { countryTitle, filterSource, filterTokens, withFilters } from "./filters.ts";
 import {
   COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
 } from "./list-head.ts";
@@ -31,7 +32,7 @@ export { SORTS, listTitle } from "./list-head.ts";
 
 const TAG = "list";
 const PER_PAGE = 48;
-/** Списков в памяти не больше этого: каждая сортировка и жанр — свой ключ, а сессия на ТВ длится часами (CNFR-17). */
+/** Списков в памяти не больше этого: каждая сортировка, жанр и фильтр — свой ключ, а сессия на ТВ длится часами (CNFR-17). */
 export const MAX_LISTS = 16;
 /**
  * Страница MSX — ряд из 6 плиток 2×4 (`tiles.ts`). Начало окна кратно ей — при сдвиге плитки не меняют колонку; окно
@@ -55,13 +56,13 @@ const T = {
 };
 
 /**
- * Состояние списка в памяти и то, что не входит в общий `ListState`: заголовок, название жанра, всего найдено
- * (`pagination`), пометка офлайна и окно ответа [from, to). `anchor` — край, к которому шёл пользователь, `pivot` —
+ * Состояние списка в памяти и то, что не входит в общий `ListState`: заголовок, названия жанра и страны фильтра, всего
+ * найдено (`pagination`), пометка офлайна и окно ответа [from, to). `anchor` — край, к которому шёл пользователь, `pivot` —
  * граница последнего сдвига: по одну сторону уже виденные плитки, по другую новые. Экран не из списков («Я смотрю»)
  * кладёт сюда готовые плитки (`tiles`) и свой `dataId` — окно, сдвиг и `extend` у него те же.
  */
 export type ListEntry = ListState & {
-  headline?: string; genre?: string; total?: number; offline?: KpErrorCode;
+  headline?: string; genre?: string; country?: string; total?: number; offline?: KpErrorCode;
   from?: number; to?: number; anchor?: "start" | "end"; pivot?: number;
   dataId?: string; tiles?: MsxContentItem[];
 };
@@ -76,7 +77,7 @@ export function listSource(k: ListKey): ListSource {
   const genre = k.genre ? { genre: k.genre } : {};
   switch (k.src) {
     case "catalog":
-      return { kind: "catalog", ...type, sort: k.sort || DEFAULT_SORT, ...genre, ...(k.quality ? { quality: k.quality } : {}) };
+      return { kind: "catalog", ...type, sort: k.sort || DEFAULT_SORT, ...genre, ...(k.quality ? { quality: k.quality } : {}), ...filterSource(k) };
     case "fresh":
     case "popular":
     case "hot":
@@ -98,7 +99,7 @@ export function listSource(k: ListKey): ListSource {
 /**
  * Полка из меню («Новинки», «Популярное», «Горячее») приходит без типа: её вкладка — из настроек (`shelfType`), а список
  * в памяти — под ключом с типом (`sk`), общим с «Показать все» главной. Экран при этом остаётся пунктом меню: флаг и
- * перерисовка — по запрошенному ключу (`dataId`).
+ * перерисовка — по запрошенному ключу (`dataId`). Так же раздел каталога из меню получает фильтры сессии (§11.4).
  */
 export async function listScreen(ctx: AppContext, key: string): Promise<MsxContentRoot> {
   let st: ListEntry;
@@ -107,8 +108,9 @@ export async function listScreen(ctx: AppContext, key: string): Promise<MsxConte
   let src: ListSource;
   try {
     k = decodeListKey(key);
-    if (isShelf(k.src) && !k.type) {
-      k = { ...k, type: shelfType(ctx, k.src) };
+    const full = isShelf(k.src) && !k.type ? { ...k, type: shelfType(ctx, k.src) } : withFilters(ctx, k);
+    if (full !== k) {
+      k = full;
       sk = encodeListKey(k);
     }
     src = listSource(k);
@@ -236,12 +238,13 @@ function apply(st: ListState, page: Page<Titled>, want: number): number {
 }
 
 async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSource): Promise<ListEntry> {
-  const [got, genre] = await Promise.all([ctx.repo.listPage(src, 1), genreTitle(ctx, k)]);
+  const [got, genre, country] = await Promise.all([ctx.repo.listPage(src, 1), genreTitle(ctx, k), countryTitle(ctx, k)]);
   const folder = folderTitle(ctx, k) ?? got.value.title;
   const raced = recall(ctx, key);
   if (raced !== undefined) return raced;
   const st: ListEntry = { key, items: [], page: 0, totalPages: 0, done: false, headline: folder ?? listTitle(k) };
   if (genre !== undefined) Object.assign(st, { genre, headline: `${st.headline} · ${genre}` });
+  if (country !== undefined) st.country = country;
   if (got.offline !== undefined) st.offline = got.offline;
   st.total = got.value.pagination.totalItems;
   apply(st, got.value, 1);
@@ -311,9 +314,10 @@ function buildRoot(ctx: AppContext, key: string, sk: string, k: ListKey, st: Lis
   const root: MsxContentRoot = {
     type: "list", flag: listFlag(key), cache: false, reuse: false, ...gridPreload(ctx), headline: st.headline ?? listTitle(k),
   };
-  const extension = listExtension(k, { genre: st.genre, total: st.total, offline: st.offline !== undefined });
+  const head = { genre: st.genre, filters: filterTokens(k, st.country), total: st.total, offline: st.offline !== undefined };
+  const extension = listExtension(k, head);
   if (extension !== undefined) root.extension = extension;
-  const options = filterOptions(ctx, key, k, st.genre);
+  const options = filterOptions(ctx, key, k);
   if (options !== undefined) root.options = options;
   if (st.items.length === 0) {
     root.pages = [{ items: emptyItems(k.src === "folder" ? T.emptyFolder : k.src === "history" ? T.emptyHistory : T.empty) }];

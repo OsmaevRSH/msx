@@ -7,7 +7,8 @@ import { FIX } from "../../tools/kpmock/fixtures.ts";
 const ACAO = "access-control-allow-origin";
 
 interface ListItem { id: number; type: string; title: string; year: number | string; imdb_rating: number | string;
-  genres: { id: number; title: string }[]; posters: Record<string, string>; created_at: number; views: number; rating: number }
+  kinopoisk_rating: number; genres: { id: number; title: string }[]; countries: { id: number; title: string }[];
+  posters: Record<string, string>; created_at: number; views: number; rating: number; finished: boolean }
 interface ListBody { status: number; items: ListItem[]; pagination: { total: number; current: number; perpage: number; total_items: number } }
 interface Urls { http: string; hls: string; hls2: string; hls4: string }
 interface UnitBody { id: number; number: number; watched: number; watching: { status: number; time: number };
@@ -77,6 +78,75 @@ describe("kpmock catalog, items, media links, CDN", () => {
       const asc = await json<ListBody>("/v1/items?sort=title&perpage=100");
       for (let i = 1; i < asc.items.length; i++) {
         assert.ok(asc.items[i - 1].title.localeCompare(asc.items[i].title, "ru") <= 0, `title order at ${i}`);
+      }
+    });
+
+    // Фильтры каталога (спец. §11.4) — как живой API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`).
+    const cond = (...c: string[]): string => new URLSearchParams(c.map((v) => ["conditions[]", v])).toString();
+    const ids = (b: ListBody): number[] => b.items.map((it) => it.id);
+    const movies = (): Promise<ListBody> => json<ListBody>("/v1/items?type=movie&perpage=500");
+
+    it("year: one year or Y1-Y2 inclusive; anything else finds nothing", async () => {
+      const all = await movies();
+      const range = await json<ListBody>("/v1/items?type=movie&year=2010-2019&perpage=500");
+      const want = all.items.filter((it) => Number(it.year) >= 2010 && Number(it.year) <= 2019).map((it) => it.id);
+      assert.ok(want.length > 0 && want.length < all.items.length, `${want.length}`);
+      assert.deepEqual(ids(range), want);
+      const one = await json<ListBody>("/v1/items?type=movie&year=2005&perpage=500");
+      assert.ok(one.items.length > 0 && one.items.every((it) => Number(it.year) === 2005));
+      for (const bad of ["abc", "2010-", "20", "2010-2019-2020"]) {
+        assert.deepEqual((await json<ListBody>(`/v1/items?type=movie&year=${bad}`)).items, [], bad);
+      }
+    });
+
+    it("country: an id, a comma list is OR; a country without titles — an empty list", async () => {
+      const us = await json<ListBody>("/v1/items?country=1&perpage=1000");
+      assert.ok(us.items.length > 0 && us.items.every((it) => it.countries.some((c) => c.id === 1)));
+      const or = await json<ListBody>("/v1/items?country=1,2&perpage=1000");
+      assert.ok(or.items.length > us.items.length);
+      assert.ok(or.items.every((it) => it.countries.some((c) => c.id === 1 || c.id === 2)));
+      assert.deepEqual((await json<ListBody>("/v1/items?country=50")).items, []);
+    });
+
+    it("conditions[]: >= and <= on kinopoisk_rating, imdb_rating, year — all of them (AND); other fields and conditions without [] are ignored", async () => {
+      const all = await movies();
+      const kp7 = await json<ListBody>(`/v1/items?type=movie&perpage=500&${cond("kinopoisk_rating>=7")}`);
+      const want = all.items.filter((it) => it.kinopoisk_rating >= 7).map((it) => it.id);
+      assert.ok(want.length > 0 && want.length < all.items.length, `${want.length}`);
+      assert.deepEqual(ids(kp7), want);
+      const both = await json<ListBody>(`/v1/items?type=movie&perpage=500&${cond("kinopoisk_rating>=7", "year<=1999", "imdb_rating>=6.5")}`);
+      assert.deepEqual(ids(both), all.items.filter((it) => it.kinopoisk_rating >= 7 && Number(it.year) <= 1999 && Number(it.imdb_rating) >= 6.5).map((it) => it.id));
+      assert.ok(both.items.length > 0 && both.items.length < kp7.items.length);
+      for (const ignored of [cond("quality>=4"), cond("finished=1"), cond("kinopoisk_rating=>7"), "conditions=kinopoisk_rating%3E%3D7"]) {
+        assert.deepEqual(ids(await json<ListBody>(`/v1/items?type=movie&perpage=500&${ignored}`)), ids(all), ignored);
+      }
+    });
+
+    it("finished: any value but 0 and empty keeps finished series only (the API looks at the presence)", async () => {
+      const serials = await json<ListBody>("/v1/items?type=serial&perpage=500");
+      const done = serials.items.filter((it) => it.finished).map((it) => it.id);
+      assert.ok(done.length > 0 && done.length < serials.items.length);
+      for (const v of ["1", "y", "n"]) assert.deepEqual(ids(await json<ListBody>(`/v1/items?type=serial&perpage=500&finished=${v}`)), done, v);
+      for (const v of ["0", ""]) assert.deepEqual(ids(await json<ListBody>(`/v1/items?type=serial&perpage=500&finished=${v}`)), ids(serials), v);
+    });
+
+    it("filters narrow each other, the genre and the type, and keep the sort", async () => {
+      const q = `type=movie,serial&genre=23&year=1990-2009&country=1,2&quality=3&sort=-kinopoisk_rating&perpage=500&${cond("kinopoisk_rating>=6")}`;
+      const b = await json<ListBody>(`/v1/items?${q}`);
+      assert.ok(b.items.length > 0);
+      for (const it of b.items) {
+        assert.ok(["movie", "serial"].includes(it.type) && it.genres.some((g) => g.id === 23), `${it.id}`);
+        assert.ok(Number(it.year) >= 1990 && Number(it.year) <= 2009 && it.kinopoisk_rating >= 6, `${it.id}`);
+        assert.ok(it.countries.some((c) => c.id === 1 || c.id === 2), `${it.id}`);
+      }
+      for (let i = 1; i < b.items.length; i++) assert.ok(b.items[i - 1].kinopoisk_rating >= b.items[i].kinopoisk_rating, `order at ${i}`);
+    });
+
+    it("type[] and genre[] → 502, as the live API: lists only through commas", async () => {
+      for (const p of ["type[]=movie&type[]=concert", "genre[]=2", "genre[0]=2", "genre[and]=2"]) {
+        const r = await get(`/v1/items?${p}`);
+        assert.equal(r.status, 502, p);
+        assert.equal(r.headers.get(ACAO), "*");
       }
     });
 

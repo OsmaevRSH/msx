@@ -6,7 +6,8 @@ import { ids } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 
 // Шапка списка S5: заголовок, `extension` и опции красной кнопки (Plan B S6). Экран, открытый из меню, MSX подписывает
-// пунктом меню вместо `headline`, а `extension` не трогает: сортировка, жанр и число найденного — там (V-09, V-11).
+// пунктом меню вместо `headline`, а `extension` не трогает: сортировка, фильтры, жанр и число найденного — там (V-09,
+// V-11, спец. §11.4).
 
 export const DEFAULT_SORT = "-updated";
 /** Подборки — по умолчанию новые, как «Последние» у Kodi и «Новые» у других клиентов (research kinopub-api §6.1). */
@@ -56,7 +57,7 @@ const T = {
   history: "История",
   collections: "Подборки",
   collection: "Подборка",
-  sortGenre: "Сортировка и жанр",
+  sortFilters: "Сортировка и фильтры",
   sort: "Сортировка",
   genre: "Жанр",
   type: "Тип",
@@ -124,8 +125,9 @@ const COLLECTIONS: Forms = ["подборка", "подборки", "подбо�
 export const sectionGenre = (genre: string | undefined): string | undefined =>
   genre !== undefined && Object.prototype.hasOwnProperty.call(SECTION_GENRES, genre) ? SECTION_GENRES[genre] : undefined;
 
+/** Раздел «4K» — каталог без типа с `quality=4`; с типом 4K — фильтр раздела типа (спец. §11.4). */
 const section = (k: ListKey): string =>
-  sectionGenre(k.genre) ?? (k.quality === UHD_QUALITY ? T.uhd : TYPE_TITLES[k.type ?? ""] ?? T.catalog);
+  sectionGenre(k.genre) ?? (k.quality === UHD_QUALITY && !k.type ? T.uhd : TYPE_TITLES[k.type ?? ""] ?? T.catalog);
 
 const sortsOf = (k: ListKey): { id: string; title: string }[] => (k.src === "collections" ? COLLECTION_SORTS : SORTS);
 const sortOf = (k: ListKey): { id: string; title: string } | undefined =>
@@ -177,13 +179,20 @@ function genreOf(k: ListKey, genre: string | undefined): string | undefined {
   return sectionGenre(k.genre) ?? genre ?? T.genre;
 }
 
-/** Что шапка знает о списке: название жанра, всего найдено (`pagination`) и ответ из кэша без сети. */
-export interface ListHead { genre?: string; total?: number; offline?: boolean }
+/**
+ * Что шапка знает о списке: название жанра, подписи фильтров (`filterTokens`, спец. §11.4), всего найдено (`pagination`)
+ * и ответ из кэша без сети.
+ */
+export interface ListHead { genre?: string; filters?: string[]; total?: number; offline?: boolean }
 
-/** «{■} Рейтинг КП · Драма · 1 234 фильма», «{■} Сериалы · 48 сериалов» у полки, «2 шт.» у папки. */
+/**
+ * «{■} Рейтинг КП · Драма · 1 234 фильма», с фильтрами — «{■} Обновлённые · 2010-е · КП ≥ 7 · Драма · 47 фильмов»;
+ * «{■} Сериалы · 48 сериалов» у полки, «2 шт.» у папки.
+ */
 export function listExtension(k: ListKey, h: ListHead): string | undefined {
   const parts: string[] = [];
   if (sorted(k)) parts.push(sortOf(k)?.title ?? "");
+  parts.push(...(h.filters ?? []));
   const genre = isShelf(k.src) ? TYPE_TITLES[k.type ?? ""] : genreOf(k, h.genre);
   if (genre !== undefined) parts.push(genre);
   // У «Похожих» одна порция без настоящей `pagination`, а в «Истории» `total_items` считает просмотры серий, а не тайтлы.
@@ -197,23 +206,25 @@ export function listExtension(k: ListKey, h: ListHead): string | undefined {
 
 /**
  * Красная кнопка (Plan B S6, V-12): в пунктах — текущие значения; пункт сначала закрывает опции (`back`), а выбор в
- * панели сортировки или жанра закрывает и её — после выбора над списком не остаётся панелей. У полки один пункт — тип:
- * красная кнопка сразу открывает его панель (Option Shortcut). Там `back` ушёл бы со списка, поэтому опции закрывает
- * `cleanup` — без них он ничего не делает (проверено в web MSX 0.1.167: и красной, и через опции панель одна).
+ * панели сортировки закрывает и её — после выбора над списком не остаётся панелей. У полки и каталога один пункт с
+ * `key: "red"` (Option Shortcut): красная кнопка сразу открывает панель — вкладок полки или «Сортировка и фильтры»
+ * каталога (`screens/filters.ts`; строки там, а не в опциях: опции — часть ответа списка, а окну 96 плиток «Фильмов»
+ * до 32 КБ не хватает и 1 КБ). Там `back` ушёл бы со списка, поэтому опции закрывает `cleanup` — без них он ничего не
+ * делает (проверено в web MSX 0.1.167: и красной, и через опции панель одна).
  */
-export function filterOptions(ctx: AppContext, key: string, k: ListKey, genre: string | undefined): MsxContentRoot | undefined {
+export function filterOptions(ctx: AppContext, key: string, k: ListKey): MsxContentRoot | undefined {
   if (!filtered(k)) return undefined;
-  if (isShelf(k.src)) {
-    const label = `${T.type}: ${shelfTypeTitle(k.type ?? "")}`;
-    const action = chain(["cleanup", panelAction(ctx.P, ids.panel("type", key))]);
-    return controlOptions(T.type, [{ id: "o_type", icon: "category", label, key: "red", action }]);
-  }
-  const items: MsxContentItem[] = [];
-  const open = (type: string): string => chain(["back", panelAction(ctx.P, ids.panel(type, key))]);
-  if (sorted(k)) items.push({ id: "o_sort", icon: "sort", label: `${T.sort}: ${sortOf(k)?.title ?? ""}`, action: open("sort") });
-  if (k.src !== "collections") items.push({ id: "o_genre", icon: "category", label: `${T.genre}: ${genreOf(k, genre) ?? T.allGenres}`, action: open("genre") });
-  return controlOptions(k.src === "catalog" ? T.sortGenre : T.sort, items);
+  const shortcut = (type: string, id: string, icon: string, label: string, headline: string): MsxContentRoot =>
+    controlOptions(headline, [{ id, icon, label, key: "red", action: chain(["cleanup", panelAction(ctx.P, ids.panel(type, key))]) }]);
+  if (isShelf(k.src)) return shortcut("type", "o_type", "category", `${T.type}: ${shelfTypeTitle(k.type ?? "")}`, T.type);
+  if (k.src === "catalog") return shortcut("filters", "o_filters", "tune", T.sortFilters, T.sortFilters);
+  const open = chain(["back", panelAction(ctx.P, ids.panel("sort", key))]);
+  return controlOptions(T.sort, [{ id: "o_sort", icon: "sort", label: `${T.sort}: ${sortOf(k)?.title ?? ""}`, action: open }]);
 }
+
+/** «Сортировка: …» и «Жанр: …» панели «Сортировка и фильтры» каталога (`screens/filters.ts`). */
+export const sortGenreLabels = (k: ListKey, genre: string | undefined): [string, string] =>
+  [`${T.sort}: ${sortOf(k)?.title ?? ""}`, `${T.genre}: ${genreOf(k, genre) ?? T.allGenres}`];
 
 /** Сортировки панели S6 для ключа списка и текущая. */
 export function sortChoices(k: ListKey): { sorts: { id: string; title: string }[]; cur: string | undefined } {
