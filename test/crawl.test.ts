@@ -50,7 +50,11 @@ describe("crawl rules", () => {
       "video:https://cdn.example/tv/sport1/playlist.m3u8?t=1",
       // «Пункты меню» (v1.11): меню и панель перерисовываются вместе.
       `[replace:menu:menu:${req("init")}|reload:panel]`,
+      // Системные настройки MSX строкой «Настройки» (v1.16): действие MSX без плагина.
+      "settings",
     ]) assert.deepEqual(actionIssues(a), [], a);
+    // Только сами настройки MSX: отдельные их пункты (`settings:reset`, `settings:start`) плагин не открывает.
+    assert.deepEqual(actionIssues("settings:reset"), ["settings:reset: unknown action"]);
     assert.deepEqual(actionIssues("video:file:///etc/x"), ["video:file:///etc/x: unknown action"]);
     assert.deepEqual(actionIssues("lazy:reload:menu"), ["lazy:reload:menu: unknown action"]);
     assert.deepEqual(actionIssues("reload:menu"), ["reload:menu: unknown action"]);
@@ -64,17 +68,19 @@ describe("crawl rules", () => {
     assert.deepEqual(splitChain("a"), ["a"]);
   });
 
-  it("{context:…}: only in template.selection (action, headline, text) and template.properties, item fields are strings", () => {
+  it("{context:…}: only in template.selection (action, headline, text), template.properties and template.options, item fields are strings", () => {
     const good = {
       template: {
         selection: { action: "interaction:commit:message:pf:{context:kid}", headline: "{context:kname}", text: "{context:kid}" },
         properties: { "kp:i": "{context:kid}" },
+        // v1.17: опции плитки в фокусе (действия над плиткой).
+        options: { headline: "{context:kname}", items: [{ action: "[back|interaction:commit:message:act:tile:del:{context:kid}]" }] },
       },
       items: [{ kid: "1", kname: "Один" }, { kid: "2", kname: "" }],
     };
     assert.deepEqual(contextIssues(good), []);
     assert.deepEqual(expandContext("pf:{context:kid}", { kid: "7" }), "pf:7");
-    const where = "{context:…} outside template.selection (action, headline, text) and template.properties";
+    const where = "{context:…} outside template.selection (action, headline, text), template.properties and template.options";
     assert.deepEqual(contextIssues({
       template: { action: "content:{context:kid}", selection: { action: "pf:{context:kid}", headline: "{context:kname}", label: "{context:kid}" } },
       items: [{ kid: 1, kname: "А" }, { title: "{context:kid}" }],
@@ -132,8 +138,17 @@ describe("crawl rules", () => {
 
 describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-16)", () => {
   it("visits at least 60 nodes and finds no failures", { timeout: 300_000 }, async () => {
-    const r = await crawl();
+    const trace: string[] = [];
+    const r = await crawl({ trace: (line) => trace.push(line) });
     assert.deepEqual(r.failures, []);
+    // v1.16: «Диагностики» в меню нет — обход доходит до неё из «Настроек», со входом и без.
+    // Строка обхода — «<глубина> <in|out> <узел> ← <откуда>»; перезапросы («(reload)») не в счёт.
+    const via = (auth: string, id: string): string[] =>
+      trace.flatMap((l) => (l.startsWith(`${l.split(" ")[0]} ${auth} ${id} ← `) ? [l.split(" ← ")[1] ?? ""] : []));
+    assert.deepEqual(via("in", "probe"), ["settings"]);
+    // Без входа: «Настройки» — из гостевого меню, «Диагностика» — первой из экрана входа (его кнопка) или из «Настроек».
+    assert.deepEqual(via("out", "settings"), ["init"]);
+    assert.equal(via("out", "probe").filter((v) => v === "login" || v === "settings").length, 1);
     assert.ok(r.nodes >= 60, `nodes: ${r.nodes}`);
     for (const k of [
       "init", "home", "search", "item", "season", "play", "list:catalog", "panel:audio", "settings", "probe:",
@@ -143,11 +158,16 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "panel:home",
       // v1.14: панель вкладок полки и вкладка, выбранная в ней (не из «Показать все» главной).
       "panel:type", "list:fresh:documovie",
-      // v1.16: фильтры каталога — панель красной кнопки, панели значений и список с выбранным фильтром (§11.4).
+      // v1.17: папка с опциями плиток и подтверждение «Очистить всю историю» (спец. §11.4).
+      "list:folder", "panel:tile",
+      // v1.18: фильтры каталога — панель красной кнопки, панели значений и список с выбранным фильтром (§11.5).
       "panel:filters", "panel:year", "panel:country", "panel:countries", "panel:kp", "list:catalog:filtered",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }
+    // Действия над плиткой найдены в опциях и проверены как действия, но не отправлены: обход не удаляет данные.
+    const kinds = new Set(r.skipped.map((m) => m.split(":").slice(0, 3).join(":")));
+    assert.deepEqual([...kinds].sort(), ["act:tile:clear", "act:tile:del", "act:tile:unfold", "act:tile:unwatch"]);
     assert.ok((r.maxBytes["item"] ?? 0) <= 20 * 1024);
   });
 

@@ -138,7 +138,7 @@ describe("Repo", () => {
       { name: "locations", path: "/v1/references/server-location", ttl: DAY, l2: true, call: (x) => x.serverLocations() },
       { name: "voiceovers", path: "/v1/references/voiceover-type", ttl: DAY, l2: true, call: (x) => x.voiceoverTypes() },
       { name: "countries", path: "/v1/countries", ttl: DAY, l2: true, call: (x) => x.countries() },
-      // Фильтры каталога — на сессию (спец. §11.4): первая порция с фильтром в L2 не пишется, 10 мин в L1, как каталог.
+      // Фильтры каталога — на сессию (спец. §11.5): первая порция с фильтром в L2 не пишется, 10 мин в L1, как каталог.
       { name: "filtered", path: "/v1/items", ttl: 10 * MIN, l2: false, call: (x) => x.listPage(FILTERED, 1) },
       { name: "shelf", path: "/v1/items/popular", ttl: 10 * MIN, l2: true, call: (x) => x.shelf("popular", "movie") },
       { name: "search", path: "/v1/items/search", ttl: 5 * MIN, l2: false, call: (x) => x.search("Простой", 1) },
@@ -457,7 +457,7 @@ describe("Repo", () => {
     const m = /^list:([A-Za-z0-9_-]+):1:$/.exec(k);
     assert.ok(m, k);
     assert.deepEqual(JSON.parse(b64urlDecode(m[1])), { kind: "catalog", type: "movie", sort: "-rating" });
-    // Фильтры (спец. §11.4) — в ключе в постоянном порядке; без них ключ прежний: кэш L2 после обновления не теряется.
+    // Фильтры (спец. §11.5) — в ключе в постоянном порядке; без них ключ прежний: кэш L2 после обновления не теряется.
     const f = cacheKeys.list({ fin: "1", kp: "7", country: "1", year: "2010-2019", kind: "catalog", type: "serial", sort: "-updated", quality: "4" }, 1);
     assert.deepEqual(JSON.parse(b64urlDecode(/^list:([A-Za-z0-9_-]+):1:$/.exec(f)?.[1] ?? "")), {
       kind: "catalog", type: "serial", sort: "-updated", quality: "4", year: "2010-2019", country: "1", kp: "7", fin: "1",

@@ -81,7 +81,7 @@ describe("kpmock catalog, items, media links, CDN", () => {
       }
     });
 
-    // Фильтры каталога (спец. §11.4) — как живой API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`).
+    // Фильтры каталога (спец. §11.5) — как живой API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`).
     const cond = (...c: string[]): string => new URLSearchParams(c.map((v) => ["conditions[]", v])).toString();
     const ids = (b: ListBody): number[] => b.items.map((it) => it.id);
     const movies = (): Promise<ListBody> => json<ListBody>("/v1/items?type=movie&perpage=500");

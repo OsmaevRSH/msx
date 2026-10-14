@@ -120,8 +120,8 @@ describe("menu panel «Пункты меню»", () => {
     onOrderAct(t.ctx, "menu", "down", ["home"]);
     assert.deepEqual(menuStore(t.ctx).get().order.slice(0, 2), ["watching", "home"]);
     assert.equal(focused(await panel(t)), "d_home");
-    onOrderAct(t.ctx, "menu", "down", ["probe"]);
-    assert.equal(menuStore(t.ctx).get().order.at(-1), "probe");
+    onOrderAct(t.ctx, "menu", "down", ["settings"]);
+    assert.equal(menuStore(t.ctx).get().order.at(-1), "settings");
     onOrderAct(t.ctx, "menu", "top", ["sport"]);
     const order = menuStore(t.ctx).get().order;
     assert.deepEqual(order.slice(0, 3), ["sport", "watching", "home"]);
@@ -153,17 +153,19 @@ describe("menu panel «Пункты меню»", () => {
 
   it("garbage in kp.cfg.menu: the panel and the menu still show every section", async () => {
     const t = await make();
-    t.ctx.store.set("cfg", "menu", { order: [1, "zzz", "probe", "home"], hidden: "home" });
+    // `probe` — «Диагностика» v1.15 (v1.16: строка «Настроек», не пункт меню), теперь чужой id.
+    t.ctx.store.set("cfg", "menu", { order: [1, "zzz", "probe", "sport", "home"], hidden: "home" });
     const p = await panel(t);
     assert.equal(all(p).filter((i) => i.id?.startsWith("m_") && i.id !== "m_reset").length, DEFAULT.length);
-    assert.equal(all(p)[1]?.id, "m_probe", "the stored order is kept for known ids");
-    assert.equal(focused(p), "m_probe");
+    assert.equal(all(p)[1]?.id, "m_sport", "the stored order is kept for known ids");
+    assert.equal(focused(p), "m_sport");
+    assert.ok(!all(p).some((i) => i.id === "m_probe" || /Диагностика|Настройки MSX/.test(i.label ?? "")));
     assert.equal((await labels(t)).filter((l) => l === "Главная").length, 1);
   });
 
   it("settings: the first row «Порядок и видимость пунктов меню» opens panel:menu and shows the summary", async () => {
     const t = await make();
-    onOrderAct(t.ctx, "menu", "hide", ["probe"]);
+    onOrderAct(t.ctx, "menu", "hide", ["sport"]);
     const s = (await t.request(ids.settings())) as MsxContentRoot;
     const row = s.items?.find((i) => i.id === "s_menu");
     assert.equal(row, s.items?.find((i) => i.type !== "space"), "the first row of the settings");

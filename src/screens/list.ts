@@ -14,6 +14,7 @@ import { countryTitle, filterSource, filterTokens, withFilters } from "./filters
 import {
   COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
 } from "./list-head.ts";
+import { listTileOptions } from "./tile-actions.ts";
 import { GRID, ROW, collectionTiles, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 export { SORTS, listTitle } from "./list-head.ts";
@@ -99,7 +100,7 @@ export function listSource(k: ListKey): ListSource {
 /**
  * Полка из меню («Новинки», «Популярное», «Горячее») приходит без типа: её вкладка — из настроек (`shelfType`), а список
  * в памяти — под ключом с типом (`sk`), общим с «Показать все» главной. Экран при этом остаётся пунктом меню: флаг и
- * перерисовка — по запрошенному ключу (`dataId`). Так же раздел каталога из меню получает фильтры сессии (§11.4).
+ * перерисовка — по запрошенному ключу (`dataId`). Так же раздел каталога из меню получает фильтры сессии (§11.5).
  */
 export async function listScreen(ctx: AppContext, key: string): Promise<MsxContentRoot> {
   let st: ListEntry;
@@ -325,7 +326,8 @@ function buildRoot(ctx: AppContext, key: string, sk: string, k: ListKey, st: Lis
   }
   // Плитка подборки ведёт в её список, а не на карточку: префетч карточки по фокусу ей не нужен.
   const coll = k.src === "collections";
-  root.template = gridTemplate(ctx, false, !coll);
+  // Опции плиток «Истории» и папки — действия над тайтлом в фокусе (спец. §11.4).
+  root.template = { ...gridTemplate(ctx, false, !coll), ...listTileOptions(ctx, k) };
   fill(ctx, root, sk, st, coll);
   return root;
 }

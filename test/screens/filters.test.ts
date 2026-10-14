@@ -16,7 +16,7 @@ import { ALL_COUNTRIES, FIX, catalog } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
-// Фильтры каталога (спец. §11.4, v1.16): красная кнопка → панель «Сортировка и фильтры», панели года, страны и рейтинга,
+// Фильтры каталога (спец. §11.5, v1.18): красная кнопка → панель «Сортировка и фильтры», панели года, страны и рейтинга,
 // переключатели 4K и «Завершённые», «Сбросить»; ключ списка и кэша с фильтрами, память раздела на сессию.
 
 const P = TEST_P;
@@ -57,7 +57,7 @@ const items = (t: TestApp): URLSearchParams[] => t.mock.calls().filter((c) => c.
 const visible = (pred: (it: ReturnType<typeof catalog>[number]) => boolean): number =>
   catalog().filter((it) => !it.deleted && !it.unlisted && pred(it)).length;
 
-describe("catalog filters: the red button and the panels (spec §11.4)", () => {
+describe("catalog filters: the red button and the panels (spec §11.5)", () => {
   it("the options of a catalog are one Option Shortcut row: the red button opens «Сортировка и фильтры» at once", async () => {
     const t = await make();
     for (const k of [MOVIES, UHD, { ...MOVIES, year: "2010-2019", kp: "7" }]) {
@@ -154,7 +154,7 @@ describe("catalog filters: the red button and the panels (spec §11.4)", () => {
   });
 });
 
-describe("catalog filters: choice, the list and the session memory (spec §11.4)", () => {
+describe("catalog filters: choice, the list and the session memory (spec §11.5)", () => {
   it("a choice applies to the open list: replace by its flag with the filter in the key; the API gets year, conditions[], country, quality, finished", async () => {
     const t = await make();
     await list(t, MOVIES);

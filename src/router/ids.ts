@@ -24,7 +24,8 @@ export type PlayRoute = Extract<Route, { k: "play" } | { k: "playEp" }>;
 
 /** `forget` — «Очистить историю»: недавние запросы (`screens/recent.ts`). */
 export type SearchControl = "back" | "clear" | "space" | "lang" | "forget";
-export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu" | "home";
+/** `tile` — действия над плиткой (`screens/tile-actions.ts`, спец. §11.4). */
+export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu" | "home" | "tile";
 
 export type Msg =
   | { k: "extend"; key: string }
@@ -38,7 +39,7 @@ export type Msg =
 
 /**
  * `quality` — id качества «не ниже» (`4` — 4K, research kinopub-api §6.1); `id` — тайтл «Похожих» или подборка. Фильтры
- * каталога (спец. §11.4, `screens/filters.ts`): `year` — год или `Y1-Y2`, `country` — id страны, `kp` — рейтинг КП не
+ * каталога (спец. §11.5, `screens/filters.ts`): `year` — год или `Y1-Y2`, `country` — id страны, `kp` — рейтинг КП не
  * ниже, `fin` — только завершённые.
  */
 export interface ListKey {
@@ -50,7 +51,7 @@ export interface ListKey {
 const SIMPLE = new Set(["init", "login", "home", "search", "settings", "bookmarks", "dev", "watching", "tv"]);
 const VARIANTS: readonly ProbeVariant[] = ["a1", "a2", "hls2", "props", "ticks", "autonext"];
 const CONTROLS: readonly SearchControl[] = ["back", "clear", "space", "lang", "forget"];
-const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu", "home"];
+const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu", "home", "tile"];
 const SOURCES: readonly ListKey["src"][] = ["catalog", "fresh", "popular", "hot", "folder", "similar", "history", "collections", "collection"];
 const KEY_FIELDS = ["type", "sort", "genre", "folder", "id", "quality", "year", "country", "kp", "fin"] as const;
 const NUM_FIELDS = new Set<string>(["folder", "id"]);

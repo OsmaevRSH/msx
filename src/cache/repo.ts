@@ -11,7 +11,7 @@ import { KpError, toKpError } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { Got, Policy, SwrCache } from "./swr.ts";
 
-/** Каталог с фильтрами спец. §11.4: `year` — год или `Y1-Y2`, `country` — id, `kp` — рейтинг КП не ниже, `fin: "1"` — окончённые. */
+/** Каталог с фильтрами спец. §11.5: `year` — год или `Y1-Y2`, `country` — id, `kp` — рейтинг КП не ниже, `fin: "1"` — окончённые. */
 export type ListSource = {
   kind: "catalog"; type?: string; sort: string; genre?: string; quality?: string; year?: string; country?: string; kp?: string; fin?: string;
 }
@@ -199,7 +199,7 @@ export class Repo {
   }
 
   /**
-   * По 48 на страницу; в L2 — только первая порция раздела, и без фильтров спец. §11.4: они живут сессию, после
+   * По 48 на страницу; в L2 — только первая порция раздела, и без фильтров спец. §11.5: они живут сессию, после
    * перезапуска их первые порции только вытесняли бы из L2 нужное холодному старту. `opts.cls` — класс запроса для
    * лимитера (спец. §8.3). «История» — персональная, как полки «Продолжить» (1 мин).
    */

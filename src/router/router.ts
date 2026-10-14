@@ -20,6 +20,7 @@ import { onPanelAct, panelScreen } from "../screens/panels.ts";
 import { onSearchInput, rememberSearch, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
 import { onSettingsAct, settingsScreen } from "../screens/settings.ts";
+import { onTileAct } from "../screens/tile-actions.ts";
 import { tvScreen } from "../screens/tv.ts";
 import { watchingScreen } from "../screens/watching.ts";
 import { parseDataId, parseMessage } from "./ids.ts";
@@ -63,8 +64,13 @@ const ROUTES: RouteTable = {
   unknown: (ctx) => errorScreen(ctx, new KpError("KP-BAD", "unknown route")),
 };
 
-/** Без входа доступны только эти маршруты (и `unknown` — он сразу экран ошибки). */
+/** Маршруты без срока экрана V-40 и без входа (`unknown` — сразу экран ошибки). */
 const PUBLIC = new Set<Route["k"]>(["init", "login", "probe", "dev", "unknown"]);
+/**
+ * Без входа доступны `PUBLIC` и «Настройки» (v1.16): без входа это только «Для разработчика» без запросов к API
+ * (`settingsScreen`); со входом у них прежний срок экрана.
+ */
+const GUEST = new Set<Route["k"]>([...PUBLIC, "settings"]);
 /** Ответ для `video:resolve:…`: ошибка — `{ error }`, а не экран. */
 const RESOLVE = new Set<Route["k"]>(["play", "playEp", "probePlay"]);
 
@@ -190,7 +196,7 @@ export class App implements PluginApp {
     const { ctx } = this;
     const resolve = RESOLVE.has(r.k);
     try {
-      if (!PUBLIC.has(r.k) && !ctx.auth.isLoggedIn()) return await this.loginInstead(r, resolve);
+      if (!GUEST.has(r.k) && !ctx.auth.isLoggedIn()) return await this.loginInstead(r, resolve);
       const handler = this.routes[r.k] as (ctx: AppContext, r: Route) => unknown;
       return await handler(ctx, r);
     } catch (e) {
@@ -329,6 +335,9 @@ export class App implements PluginApp {
         return;
       case "probe":
         this.spawn(what, () => withProbe(ctx, (m) => m.onProbeAct(ctx, name, args)));
+        return;
+      case "tile":
+        this.spawn(what, () => onTileAct(ctx, name, args));
         return;
     }
   }

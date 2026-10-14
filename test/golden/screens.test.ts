@@ -106,6 +106,8 @@ describe("golden JSON of the key screens (stage 32)", () => {
   it("voice-over panel of MOVIE_AUDIO12, settings, «Диагностика»", LIMIT, async () => {
     await snap("panel-audio-movie-audio12", ids.panel("audio", FIX.MOVIE_AUDIO12, A12_MID, "c"));
     await snap("settings", ids.settings());
+    // v1.16: без входа — только «Для разработчика».
+    await snap("settings-logged-out", ids.settings(), {});
     await snap("probe", ids.probe());
   });
 
@@ -126,7 +128,7 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("panel-type", ids.panel("type", encodeListKey({ src: "fresh" })));
   });
 
-  it("v1.16: «Сериалы» with filters, its «Сортировка и фильтры» panel, the country panel", LIMIT, async () => {
+  it("v1.18: «Сериалы» with filters, its «Сортировка и фильтры» panel, the country panel", LIMIT, async () => {
     const serials = encodeListKey({ src: "catalog", type: "serial", sort: "-updated", year: "2010-2019", country: "1", kp: "6", fin: "1" });
     const t = await make({ loggedIn: true });
     golden(t, "list-serials-filtered", ids.list(serials), await t.request(ids.list(serials)));

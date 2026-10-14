@@ -28,7 +28,7 @@ describe("KpApi against kpmock (contract)", () => {
       assert.equal(q(c).has("genre"), false);
     });
 
-    it("items with the catalog filters (spec §11.4): year, country, conditions[]=kinopoisk_rating>=N, quality, finished=1", async () => {
+    it("items with the catalog filters (spec §11.5): year, country, conditions[]=kinopoisk_rating>=N, quality, finished=1", async () => {
       const r = env.rig();
       const page = await r.run(r.api.items({
         type: "serial", genre: "9,1", sort: "-kinopoisk_rating", quality: "3", year: "1990-2009", country: "1,2", kp: "6", finished: true,

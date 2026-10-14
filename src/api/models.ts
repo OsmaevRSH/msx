@@ -198,7 +198,7 @@ export interface Genre {
   title: string;
 }
 
-/** Страна справочника `/v1/countries` (фильтр каталога, спец. §11.4). */
+/** Страна справочника `/v1/countries` (фильтр каталога, спец. §11.5). */
 export interface Country {
   id: number;
   title: string;

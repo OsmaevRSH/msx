@@ -32,6 +32,8 @@ export class MockState {
   history: HistoryRec[] = [];
   folders = new Map<number, FolderRec>();
   newEpisodes = new Map<number, number>();
+  /** Явный выбор `togglewatchlist` (сериал в «Я смотрю» или нет); без записи — правило списка по просмотрам. */
+  watchlist = new Map<number, boolean>();
 
   constructor() {
     this.reset();
@@ -78,6 +80,7 @@ export class MockState {
     this.history = [];
     this.folders.clear();
     this.newEpisodes.clear();
+    this.watchlist.clear();
 
     const now = nowSec();
     const dur = (item: number, season: number, video: number): number => {

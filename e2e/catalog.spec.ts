@@ -5,7 +5,7 @@ import type { ListKey } from "../src/router/ids.ts";
 import { content, expectContent, login, newMsxPage, noNotification, openMsx, mock } from "./fixtures.ts";
 import { answered, attachDiagnostics, callCount, callsSince, installTimeline, mark, panel, red, selected, until } from "./flows-kit.ts";
 
-// Фильтры каталога (спец. §11.4, v1.16) в web MSX пультом: красная кнопка списка сразу открывает панель «Сортировка и
+// Фильтры каталога (спец. §11.5, v1.18) в web MSX пультом: красная кнопка списка сразу открывает панель «Сортировка и
 // фильтры» (Option Shortcut), строка значения — свою панель, выбор заменяет список по флагу; фильтры уходят в `/v1/items`
 // и видны в шапке списка; раздел помнит их, пока плагин не перезапущен; «Сбросить фильтры». Одна сессия web MSX на файл.
 
@@ -76,7 +76,7 @@ async function choose(p: Page, title: string, now: string, value: string): Promi
   await expect(panel(p), "после выбора панелей нет").toBeHidden();
 }
 
-test("E-24: «Фильмы» из меню → красная → «Год: 2010-е» и «Рейтинг: КП ≥ 7» — year и conditions[] в mock, фильтры в шапке; раздел их помнит; «Сбросить фильтры»", async () => {
+test("E-29: «Фильмы» из меню → красная → «Год: 2010-е» и «Рейтинг: КП ≥ 7» — year и conditions[] в mock, фильтры в шапке; раздел их помнит; «Сбросить фильтры»", async () => {
   await noNotification(page);
   const m0 = await mark(page);
   await toMenu(page, "Фильмы");

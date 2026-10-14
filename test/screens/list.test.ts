@@ -212,7 +212,7 @@ describe("listScreen (S5, CC-05)", () => {
     assert.match(mixed.extension ?? "", /^\{ico:msx-red:stop\} Обновлённые · Мультфильмы · \d+ шт\.$/);
   });
 
-  it("V-12, §11.4: the red button of a catalog opens «Сортировка и фильтры» at once; its rows show the current values and close it before their panel", async () => {
+  it("V-12, §11.5: the red button of a catalog opens «Сортировка и фильтры» at once; its rows show the current values and close it before their panel", async () => {
     const t = await make();
     const key = catalogKey("movie", { genre: "9", sort: "-kinopoisk_rating" });
     const s: MsxContentRoot = await t.request(ids.list(key));

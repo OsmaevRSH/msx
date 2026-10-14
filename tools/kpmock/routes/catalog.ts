@@ -67,7 +67,7 @@ function csv(q: URLSearchParams, name: string): string[] | undefined {
 /** `quality` — id из `/v1/references/video-quality`, «не ниже» (research kinopub-api §6.1): 4 — 4K. */
 const QUALITY_MIN: Record<string, number> = { 1: 480, 2: 720, 3: 1080, 4: 2160 };
 
-// Фильтры каталога (спец. §11.4) — как у живого API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`,
+// Фильтры каталога (спец. §11.5) — как у живого API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`,
 // `LibraryFilter.swift`; kinopub-gui `methods.go:61-84`; доки «API 1.3» `video.md:222-330`).
 
 /** `year`: год или `Y1-Y2` включительно (`year=1990-1999` вживую = `conditions[]` по тем же границам). */

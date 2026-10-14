@@ -7,7 +7,7 @@ import type { ListKey } from "../router/ids.ts";
 
 // Шапка списка S5: заголовок, `extension` и опции красной кнопки (Plan B S6). Экран, открытый из меню, MSX подписывает
 // пунктом меню вместо `headline`, а `extension` не трогает: сортировка, фильтры, жанр и число найденного — там (V-09,
-// V-11, спец. §11.4).
+// V-11, спец. §11.5).
 
 export const DEFAULT_SORT = "-updated";
 /** Подборки — по умолчанию новые, как «Последние» у Kodi и «Новые» у других клиентов (research kinopub-api §6.1). */
@@ -125,7 +125,7 @@ const COLLECTIONS: Forms = ["подборка", "подборки", "подбо�
 export const sectionGenre = (genre: string | undefined): string | undefined =>
   genre !== undefined && Object.prototype.hasOwnProperty.call(SECTION_GENRES, genre) ? SECTION_GENRES[genre] : undefined;
 
-/** Раздел «4K» — каталог без типа с `quality=4`; с типом 4K — фильтр раздела типа (спец. §11.4). */
+/** Раздел «4K» — каталог без типа с `quality=4`; с типом 4K — фильтр раздела типа (спец. §11.5). */
 const section = (k: ListKey): string =>
   sectionGenre(k.genre) ?? (k.quality === UHD_QUALITY && !k.type ? T.uhd : TYPE_TITLES[k.type ?? ""] ?? T.catalog);
 
@@ -180,7 +180,7 @@ function genreOf(k: ListKey, genre: string | undefined): string | undefined {
 }
 
 /**
- * Что шапка знает о списке: название жанра, подписи фильтров (`filterTokens`, спец. §11.4), всего найдено (`pagination`)
+ * Что шапка знает о списке: название жанра, подписи фильтров (`filterTokens`, спец. §11.5), всего найдено (`pagination`)
  * и ответ из кэша без сети.
  */
 export interface ListHead { genre?: string; filters?: string[]; total?: number; offline?: boolean }
