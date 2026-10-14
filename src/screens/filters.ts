@@ -84,7 +84,7 @@ export function filterSource(k: ListKey): Partial<Record<Field, string>> {
   return out;
 }
 
-/** Короткие подписи фильтров для `extension`: «2010-е · США · КП ≥ 7 · 4K · завершённые». */
+/** Короткие подписи фильтров для `extension` (вместо сортировки): «2010-е · США · КП ≥ 7 · 4K · завершённые». */
 export function filterTokens(k: ListKey, country: string | undefined): string[] {
   const out: string[] = [];
   if (k.year) out.push(yearLabel(k.year));
@@ -149,7 +149,7 @@ async function filtersPanel(ctx: AppContext, key: string, k: ListKey): Promise<M
   if (k.type) items.push(toggle("f_uhd", T.uhd, uhdFilter(k), "uhd"));
   if (series(k)) items.push(toggle("f_fin", T.fin, k.fin === "1", "fin"));
   if (hasFilters(k)) items.push(row("f_reset", "clear", T.reset, commitMsg(msgs.act("panel", "filter", "reset"))));
-  return { type: "list", headline: T.title, cache: false, reuse: false, template: { type: "control", layout: "0,0,8,1" }, items };
+  return { type: "list", headline: T.title, cache: false, reuse: false, template: { type: "control", layout: "0,0,8,1", enumerate: false }, items };
 }
 
 /** Топ-10 и «Другие страны…» (две колонки, один экран); «Другие» — остальной справочник по алфавиту. */

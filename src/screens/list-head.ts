@@ -186,13 +186,13 @@ function genreOf(k: ListKey, genre: string | undefined): string | undefined {
 export interface ListHead { genre?: string; filters?: string[]; total?: number; offline?: boolean }
 
 /**
- * «{■} Рейтинг КП · Драма · 1 234 фильма», с фильтрами — «{■} Обновлённые · 2010-е · КП ≥ 7 · Драма · 47 фильмов»;
+ * «{■} Рейтинг КП · Драма · 1 234 фильма»; с фильтрами — «{■} 2010-е · КП ≥ 7 · Драма · 47 фильмов»: MSX обрезает
+ * `extension` по ширине (~32 знака при 1080p), поэтому сортировку при фильтрах показывает только панель красной кнопки;
  * «{■} Сериалы · 48 сериалов» у полки, «2 шт.» у папки.
  */
 export function listExtension(k: ListKey, h: ListHead): string | undefined {
-  const parts: string[] = [];
-  if (sorted(k)) parts.push(sortOf(k)?.title ?? "");
-  parts.push(...(h.filters ?? []));
+  const parts: string[] = [...(h.filters ?? [])];
+  if (sorted(k) && parts.length === 0) parts.push(sortOf(k)?.title ?? "");
   const genre = isShelf(k.src) ? TYPE_TITLES[k.type ?? ""] : genreOf(k, h.genre);
   if (genre !== undefined) parts.push(genre);
   // У «Похожих» одна порция без настоящей `pagination`, а в «Истории» `total_items` считает просмотры серий, а не тайтлы.

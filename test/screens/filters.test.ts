@@ -73,7 +73,8 @@ describe("catalog filters: the red button and the panels (spec §11.4)", () => {
     const t = await make();
     await list(t, MOVIES);
     const s = await panel(t, "filters", MOVIES);
-    assert.deepEqual([s.type, s.headline, s.cache, s.reuse, s.template], ["list", "Сортировка и фильтры", false, false, { type: "control", layout: "0,0,8,1" }]);
+    // Без счётчика MSX «(1/7)» у заголовка: строк мало, а он путает с номером страницы.
+    assert.deepEqual([s.type, s.headline, s.cache, s.reuse, s.template], ["list", "Сортировка и фильтры", false, false, { type: "control", layout: "0,0,8,1", enumerate: false }]);
     assert.deepEqual(rows(s).map((r) => [r.id, r.icon, r.label, r.action]), [
       ["f_sort", "sort", "Сортировка: Обновлённые", open("sort", MOVIES)],
       ["f_genre", "category", "Жанр: все жанры", open("genre", MOVIES)],
@@ -174,7 +175,7 @@ describe("catalog filters: choice, the list and the session memory (spec §11.4)
     ]);
     const n = visible((it) => it.type === "movie" && it.year >= 2010 && it.year <= 2019 && it.kinopoisk_rating >= 7);
     assert.ok(n > 0 && n < 203, `${n}`);
-    assert.equal(f.extension, `{ico:msx-red:stop} Обновлённые · 2010-е · КП ≥ 7 · ${fmtCount(n, FILMS)}`);
+    assert.equal(f.extension, `{ico:msx-red:stop} 2010-е · КП ≥ 7 · ${fmtCount(n, FILMS)}`, "filters instead of the sort: MSX cuts the extension at ~32 chars");
     assert.equal(f.headline, "Фильмы · Обновлённые");
     assert.equal((f.items ?? []).length, Math.min(n, 48));
 
@@ -184,12 +185,12 @@ describe("catalog filters: choice, the list and the session memory (spec §11.4)
     assert.deepEqual(["genre", "year", "country", "conditions[]", "quality", "finished"].map((p) => a?.get(p)), ["9", "1990-1999", "2", "kinopoisk_rating>=6", "4", "1"]);
   });
 
-  it("the head: «Обновлённые · 2010-е · США · КП ≥ 7 · 4K · завершённые · Драма · N» — short, in the extension", async () => {
+  it("the head: «2010-е · США · КП ≥ 7 · 4K · завершённые · Драма · N» — short, in the extension, the sort only in the panel", async () => {
     const t = await make();
-    const s = await list(t, { ...SERIALS, genre: "9", year: "2010-2019", country: "1", kp: "7", quality: "4", fin: "1" });
-    assert.match(s.extension ?? "", /^\{ico:msx-red:stop\} Обновлённые · 2010-е · США · КП ≥ 7 · 4K · завершённые · Драма( · \d+ сериал(а|ов)?)?$/);
+    const s = await list(t, { ...SERIALS, sort: "-kinopoisk_rating", genre: "9", year: "2010-2019", country: "1", kp: "7", quality: "4", fin: "1" });
+    assert.match(s.extension ?? "", /^\{ico:msx-red:stop\} 2010-е · США · КП ≥ 7 · 4K · завершённые · Драма( · \d+ сериал(а|ов)?)?$/);
     const far = await list(t, { ...MOVIES, country: "40", year: "2026" });
-    assert.equal(far.extension, `{ico:msx-red:stop} Обновлённые · 2026 · ${ALL_COUNTRIES.find((c) => c.id === 40)?.title}`);
+    assert.equal(far.extension, `{ico:msx-red:stop} 2026 · ${ALL_COUNTRIES.find((c) => c.id === 40)?.title}`);
     assert.deepEqual(far.pages?.[0]?.items.map((i) => i.text ?? i.label), ["Ничего не найдено", "Назад"]);
   });
 
@@ -207,7 +208,7 @@ describe("catalog filters: choice, the list and the session memory (spec §11.4)
     const menu = await list(t, MOVIES);
     assert.equal(t.mock.calls().length, calls, "the menu key reuses the filtered list in memory");
     assert.equal(menu.flag, listFlag(key(MOVIES)));
-    assert.match(menu.extension ?? "", /^\{ico:msx-red:stop\} Обновлённые · США · 4K/);
+    assert.match(menu.extension ?? "", /^\{ico:msx-red:stop\} США · 4K/);
     assert.equal((t.ctx.state.lists.get(key(usUhd)) as ListEntry | undefined)?.dataId, ids.list(key(MOVIES)));
     assert.equal(row(await panel(t, "filters", MOVIES), "Страна: США").id, "f_country", "the panel of the menu key shows the session filters");
     // Жанр из панели ключа меню: фильтры раздела остаются.
@@ -231,7 +232,7 @@ describe("catalog filters: choice, the list and the session memory (spec §11.4)
     assert.deepEqual(actions(t), [replace(SERIALS, fin)]);
     const s = await list(t, fin);
     const finished = catalog().filter((it) => it.type === "serial" && !it.deleted && !it.unlisted && it.id % 2 === 0).length;
-    assert.match(s.extension ?? "", new RegExp(`· завершённые · ${finished} сериал`));
+    assert.match(s.extension ?? "", new RegExp(`^\\{ico:msx-red:stop\\} завершённые · ${finished} сериал`));
     t.host.clearActions();
     await act(t, "fin", "");
     assert.deepEqual(actions(t), [replace(fin, SERIALS)]);
