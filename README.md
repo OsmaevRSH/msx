@@ -287,7 +287,7 @@ Workflow `.github/workflows/ci.yml`:
 | `deploy` | push в `main` после `test`; ручной запуск из `main` с `deploy` (включён по умолчанию) | сборка с адресом Pages, `size`, `upload-pages-artifact`, `deploy-pages` |
 | `e2e` | только ручной запуск с `e2e` | Chromium с системными зависимостями, `npm run e2e`; при падении — трейсы Playwright в артефакте `e2e-test-results` |
 
-Если `npm test` или краулер упали в CI, лог шага без входа в GitHub не открыть, но упавшие тесты видны всем: аннотациями на странице прогона (до 10 на шаг — «набор › тест», файл и строка, первая строка ошибки), в API `https://api.github.com/repos/<владелец>/<репозиторий>/check-runs/<id задачи>/annotations` и в сводке шага.
+Если `npm test` или краулер упали в CI, лог шага без входа в GitHub не открыть, но упавшие тесты видны всем: аннотациями на странице прогона (до 10 на шаг — «набор › тест», файл и строка, первая строка ошибки), в API `https://api.github.com/repos/<владелец>/<репозиторий>/check-runs/<id задачи>/annotations`. Короткая сводка шага (`$GITHUB_STEP_SUMMARY`) без входа не видна.
 
 Ручной запуск: Actions → ci → Run workflow, ветка `main`; поля `sha` (собрать указанный коммит), `deploy`, `e2e`. Например, только e2e — снять `deploy`, включить `e2e`. Секретов нет; у токена workflow только чтение, `deploy` дополнительно получает `pages: write` и `id-token: write`. Зависимости npm кэшируются; install-скрипт esbuild разрешён в `allowScripts` в `package.json`.
 
