@@ -87,10 +87,32 @@ function indexV1(ctx: HandlerCtx): MockResponse {
   const hit = fileOf(ctx.params.token, ctx.params.file);
   if ("status" in hit) return hit;
   const lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:10", "#EXT-X-MEDIA-SEQUENCE:0", "#EXT-X-PLAYLIST-TYPE:VOD"];
-  // TS-сегменты не отдаются (спец. §14.2): плейлист нужен для проверки URL, не для воспроизведения.
+  // Сегменты — не видео (спец. §14.2): плейлист нужен для проверки URL, сегменты — тесту скорости CDN (§16.7).
   for (let i = 1; i <= 3; i++) lines.push("#EXTINF:10.000,", `seg-${i}-v1-a${ctx.params.a}.ts${ctx.url.search}`);
   lines.push("#EXT-X-ENDLIST", "");
   return text(lines.join("\n"), M3U8);
+}
+
+const TS_PACKET = 188;
+const TS_SYNC = 0x47;
+const tsBodies = new Map<number, Buffer>();
+
+/** Тело «TS-сегмента» нужного размера: синхробайт 0x47 в начале каждого 188-байтного пакета, остальное нули. */
+function tsBody(bytes: number): Buffer {
+  let b = tsBodies.get(bytes);
+  if (b === undefined) {
+    b = Buffer.alloc(Math.max(0, Math.floor(bytes)));
+    for (let i = 0; i < b.length; i += TS_PACKET) b[i] = TS_SYNC;
+    tsBodies.set(bytes, b);
+  }
+  return b;
+}
+
+/** Сегмент `seg-N-v1-aA.ts` плейлиста hls v1 — для теста скорости CDN (§16.7): `segBytes` сценария, скорость — `cdnLocs`. */
+function segment(ctx: HandlerCtx): MockResponse {
+  const hit = fileOf(ctx.params.token, ctx.params.file);
+  if ("status" in hit) return hit;
+  return { status: 200, body: tsBody(ctx.scenario.segBytes), headers: { "content-type": "video/mp2t" } };
 }
 
 /** ABR master hls2 (research kinopub-api §7.2): по варианту на качество h264, только первая озвучка (`a1`). */
@@ -183,6 +205,7 @@ function poster(ctx: HandlerCtx): MockResponse {
 export function register(r: Router, s: MockState, base: () => string): void {
   r.add("GET", /^\/cdn\/hls\/(?<token>[^/]+)(?<file>\/.+)\/master-v1a(?<a>\d+)\.m3u8$/, masterV1);
   r.add("GET", /^\/cdn\/hls\/(?<token>[^/]+)(?<file>\/.+)\/index-v1a(?<a>\d+)\.m3u8$/, indexV1);
+  r.add("GET", /^\/cdn\/hls\/(?<token>[^/]+)(?<file>\/.+)\/seg-(?<n>\d+)-v1-a(?<a>\d+)\.ts$/, segment);
   r.add("GET", /^\/cdn\/hls2\/(?<token>[^/]+)\/(?<mid>\d+)\.m3u8$/, masterHls2);
   r.add("GET", /^\/cdn\/sub\/(?<token>[^/]+)(?<file>\/.+\.srt)$/, srt);
   r.add("GET", "/cdn/media/sample.webm", media);

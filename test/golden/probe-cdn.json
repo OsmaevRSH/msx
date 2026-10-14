@@ -1,0 +1,88 @@
+{
+  "type": "list",
+  "flag": "cdn",
+  "cache": false,
+  "reuse": false,
+  "headline": "Скорость серверов KinoPub",
+  "template": {
+    "type": "control",
+    "layout": "0,0,12,1"
+  },
+  "items": [
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
+      "headline": "Проверка"
+    },
+    {
+      "id": "cdn_run",
+      "label": "Проверить",
+      "extensionLabel": "≈ 10–30 с, до 9 МБ",
+      "action": "[info:Проверка серверов: 10–30 секунд|interaction:commit:message:act:probe:cdnRun]",
+      "focus": true
+    },
+    {
+      "id": "cdn_best",
+      "label": "Выбрать самый быстрый",
+      "extensionLabel": "Сначала проверьте",
+      "enable": false
+    },
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
+      "headline": "Серверы: задержка · скорость · первый сегмент"
+    },
+    {
+      "id": "cdn_nl",
+      "label": "{ico:check} Нидерланды",
+      "extensionLabel": "—",
+      "action": "interaction:commit:message:act:probe:cdnSet:nl"
+    },
+    {
+      "id": "cdn_de",
+      "label": "Германия",
+      "extensionLabel": "—",
+      "action": "interaction:commit:message:act:probe:cdnSet:de"
+    },
+    {
+      "id": "cdn_ru",
+      "label": "Россия",
+      "extensionLabel": "—",
+      "action": "interaction:commit:message:act:probe:cdnSet:ru",
+      "break": "context:end"
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,0,12,6",
+      "items": [
+        {
+          "layout": "0,0,12,1",
+          "offset": "0,1,0,0",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:cdn_run"
+          }
+        }
+      ]
+    },
+    {
+      "position": "context:end",
+      "area": "0,0,12,1",
+      "offset": "0,0,0,-1",
+      "items": [
+        {
+          "layout": "0,1,12,1",
+          "offset": "0,-1,0,0",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:cdn_ru"
+          }
+        }
+      ]
+    }
+  ]
+}

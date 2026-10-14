@@ -71,6 +71,12 @@
       "action": "panel:request:interaction:panel:setting:seek@https://example.github.io/msx/app/index.html"
     },
     {
+      "id": "s_cdn",
+      "label": "Скорость серверов KinoPub",
+      "extensionLabel": "",
+      "action": "content:request:interaction:probe:cdn@https://example.github.io/msx/app/index.html"
+    },
+    {
       "type": "space",
       "layout": "0,0,12,1",
       "offset": "0,0.5,0,-0.5",

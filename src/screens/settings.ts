@@ -27,6 +27,7 @@ const SEC = " с";
 const T = {
   headline: "Настройки", play: "Воспроизведение", device: "Это устройство KinoPub", account: "Аккаунт",
   expert: "Для опытных", dev: "Для разработчика", probe: "Диагностика", msx: "Системные настройки MSX", name: "Название", sub: "Подписка",
+  cdn: "Скорость серверов KinoPub",
   until: "До", left: "осталось", days: "дн.", inactive: "Не активна", authors: "Любимые студии",
   reset: "Сбросить любимые студии", noAuthors: "Студия добавляется, когда вы выбираете озвучку на карточке", none: "Нет",
   logout: "Выйти из KinoPub", confirm: "Выйти из KinoPub?", yes: "Выйти", cancel: "Отмена", mismatch: "device-settings-mismatch",
@@ -89,7 +90,7 @@ const DEV: Group = [T.dev, "probe", "msx"];
  */
 const GROUPS: Group[] = [
   ["Меню и главная", "menu", "home"],
-  [T.play, "quality", "audioLang", "audioType", "authors", "subs", "seek"],
+  [T.play, "quality", "audioLang", "audioType", "authors", "subs", "seek", "cdn"],
   [T.device, "uhd", "device"],
   [T.account, "account", "logout"],
   [T.expert, "mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
@@ -144,6 +145,8 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
         add(key, T.logout, "", panelAction(ctx.P, ids.panel("setting", "account")));
       } else if (key === "msx") {
         add(key, T.msx, "", MSX_SETTINGS);
+      } else if (key === "cdn") {
+        add(key, T.cdn, "", contentAction(ctx.P, ids.probe(key)));
       } else {
         add(key, T.probe, "", contentAction(ctx.P, ids.probe()));
       }

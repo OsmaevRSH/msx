@@ -10,6 +10,7 @@ import { encodeListKey, ids, msgs } from "../router/ids.ts";
 import type { ProbeVariant, Route } from "../router/ids.ts";
 import { playerProps } from "../screens/player.ts";
 import type { PlayerPropsInput } from "../screens/player.ts";
+import { cdnScreen, onCdnRun, onCdnSet } from "./cdn.ts";
 import { pickTestTitle } from "./checks-api.ts";
 import { flagPanel, onFlagAct } from "./devflags.ts";
 import { buildReport, checkMark, msxText, printReport, reportScreen } from "./report.ts";
@@ -150,8 +151,12 @@ async function playTiles(ctx: AppContext): Promise<MsxContentItem[]> {
   ];
 }
 
-/** `probe` — экран пробника; `probe:report:<n>` — страница отчёта; `probe:flag:<имя>` — панель переключателя. */
+/**
+ * `probe` — экран пробника; `probe:report:<n>` — страница отчёта; `probe:flag:<имя>` — панель переключателя;
+ * `probe:cdn` — «Скорость серверов KinoPub» (строка «Настроек», §16.7).
+ */
 export async function probeScreen(ctx: AppContext, page?: string): Promise<MsxContentRoot> {
+  if (page === "cdn") return cdnScreen(ctx);
   gridCheck(ctx);
   const report = /^report:(\d+)$/.exec(page ?? "");
   if (report !== null) return reportScreen(ctx, Number(report[1]));
@@ -211,6 +216,10 @@ export async function onProbeAct(ctx: AppContext, name: string, args: string[]):
     case "flagsReset":
       onFlagAct(ctx, name, args);
       return;
+    case "cdnRun":
+      return onCdnRun(ctx);
+    case "cdnSet":
+      return onCdnSet(ctx, args[0] ?? "");
     case "logout":
       // Кнопка «Выйти» теперь открывает панель «Аккаунт» (V-34); сообщение — для экранов, открытых до обновления.
       await ctx.auth.logout();

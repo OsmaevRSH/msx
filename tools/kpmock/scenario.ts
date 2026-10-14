@@ -10,6 +10,9 @@ export interface Rule {
   path: string; method?: string; status?: number; times?: number; delayMs?: number; noCors?: boolean; drop?: boolean; hang?: boolean;
 }
 
+/** Локация CDN для теста скорости (спец. §16.7): задержка до заголовков и скорость тела ответов `/cdn/` с этим `?loc=`. */
+export interface CdnProfile { latencyMs?: number; kbps?: number }
+
 export interface Scenario {
   delayMs: number; rules: Rule[]; rateLimit?: { max: number; windowMs: number };
   corsOff: boolean;            // ни одного CORS-заголовка на API → в браузере TypeError (тест KP-CORS)
@@ -18,12 +21,22 @@ export interface Scenario {
   pendingPolls: number; slowDownAtPoll?: number; codeExpiredAtPoll?: number;   // этап 6
   accessTtlSec: number; refreshInvalid: boolean;                                // этап 6
   clampPages: boolean; media: "playlist" | "webm";                              // этап 7
+  cdnCors: boolean;            // ACAO `*` на ответах `/cdn/` (у боевого CDN CORS не проверен; по умолчанию — без него)
+  cdnLocs: Record<string, CdnProfile>;   // профили локаций по `?loc=` (тест скорости CDN, §16.7)
+  segBytes: number;            // размер TS-сегмента `seg-N-v1-aA.ts`, байт
 }
 
 export const DEFAULT_SCENARIO: Scenario = Object.freeze({
   delayMs: 0, rules: Object.freeze([]) as unknown as Rule[], corsOff: false, noCorsErrors: false, toggleLostResponse: 0,
   pendingPolls: 2, accessTtlSec: 3600, refreshInvalid: false, clampPages: true, media: "playlist",
+  cdnCors: false, cdnLocs: Object.freeze({}) as Record<string, CdnProfile>, segBytes: 2_000_000,
 }) as Scenario;
+
+/** Профиль локации запроса к CDN mock по его `?loc=`; без профиля — ответ сразу и целиком. */
+export function cdnProfile(s: Scenario, url: URL): CdnProfile | undefined {
+  const loc = url.searchParams.get("loc");
+  return loc !== null && Object.hasOwn(s.cdnLocs, loc) ? s.cdnLocs[loc] : undefined;
+}
 
 /** Независимая копия: правила меняются при применении (`times`), вызывающий не должен этого видеть. */
 export function cloneScenario(s: Scenario): Scenario {

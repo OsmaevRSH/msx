@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { crawl } from "../tools/crawl.ts";
 import {
-  actionIssues, addressIssues, answerIssues, contextIssues, edgeIssues, expandContext, placeholderIssues, sizeLimit, splitChain,
+  actionIssues, addressIssues, answerIssues, contextIssues, edgeIssues, expandContext, neverSend, placeholderIssues, sizeLimit, splitChain,
 } from "../tools/crawl-rules.ts";
 import { TEST_P } from "./helpers/harness.ts";
 
@@ -66,6 +66,14 @@ describe("crawl rules", () => {
     assert.deepEqual(splitChain("[a|b]"), ["a", "b"]);
     assert.deepEqual(splitChain("[]"), []);
     assert.deepEqual(splitChain("a"), ["a"]);
+  });
+
+  it("never sent: the CDN speed test (§16.7) downloads up to 3 MB per KinoPub server — its screen is crawled, the test is not run", () => {
+    assert.equal(neverSend("act:probe:cdnRun"), true);
+    assert.equal(neverSend("act:probe:cdnRun:x"), true);
+    assert.equal(neverSend("act:probe:cdnSet:de"), false, "choosing a server is an ordinary setting");
+    assert.equal(neverSend("act:probe:runApi"), false);
+    assert.equal(neverSend("act:probe"), false);
   });
 
   it("{context:…}: only in template.selection (action, headline, text) and template.properties, item fields are strings", () => {
@@ -148,6 +156,10 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
     assert.deepEqual(via("out", "settings"), ["init"]);
     assert.equal(via("out", "probe").filter((v) => v === "login" || v === "settings").length, 1);
     assert.ok(r.nodes >= 60, `nodes: ${r.nodes}`);
+    // v1.17: «Скорость серверов KinoPub» — строка «Настроек»; экран и выбор сервера обходятся, сам тест — нет.
+    assert.deepEqual(via("in", "probe:cdn"), ["settings"]);
+    assert.ok(trace.some((l) => l.includes(" msg:act:probe:cdnSet:")), "a server row is chosen");
+    assert.deepEqual(trace.filter((l) => l.includes("cdnRun")), [], "the test itself is never run");
     for (const k of [
       "init", "home", "search", "item", "season", "play", "list:catalog", "panel:audio", "settings", "probe:",
       // v1.11: «Я смотрю», «Спорт», «Новинки», «История», подборки и их содержимое, «Пункты меню».
@@ -156,6 +168,8 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "panel:home",
       // v1.14: панель вкладок полки и вкладка, выбранная в ней (не из «Показать все» главной).
       "panel:type", "list:fresh:documovie",
+      // v1.17: тест скорости CDN.
+      "probe:cdn",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }

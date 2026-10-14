@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild, formatMessages } from "esbuild";
+import { CDN_SOURCES } from "../src/probe/cdn-hosts.ts";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const TVX_VERSION = "0.0.79";
@@ -74,8 +75,9 @@ function positiveInt(name, value) {
   return n;
 }
 
+/** `connect-src`: API и хосты видео KinoPub — их читает только тест скорости CDN (спец. §15.4, §16.7). */
 export function csp(apiBases) {
-  const connect = [...new Set(apiBases.map((u) => new URL(u).origin))].join(" ");
+  const connect = [...new Set(apiBases.map((u) => new URL(u).origin)), ...CDN_SOURCES].join(" ");
   return `default-src 'none'; script-src 'self'; connect-src ${connect}; img-src data:; style-src 'unsafe-inline'`;
 }
 

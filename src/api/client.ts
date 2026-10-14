@@ -121,6 +121,11 @@ export class KpApi {
     await this.call({ method: "POST", path: `/v1/device/${id}/settings`, form });
   }
 
+  /** CDN-сервер устройства — `id` из `references/server-location`; он же `loc` новых ссылок (research kinopub-api §5.2). */
+  async deviceLocationSave(id: number, location: number): Promise<void> {
+    await this.call({ method: "POST", path: `/v1/device/${id}/settings`, form: { serverLocation: location } });
+  }
+
   async deviceUnlink(): Promise<void> {
     await this.call({ method: "POST", path: "/v1/device/unlink", retry: "none" });
   }

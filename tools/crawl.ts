@@ -11,7 +11,7 @@ import { FIX } from "./kpmock/fixtures.ts";
 import type { TestApp } from "../test/helpers/harness.ts";
 import {
   RESOLVE_KINDS, actionIssues, actionsOf, addressIssues, answerIssues, bytesOf, contextIssues, kindOf, menuActionIssues,
-  placeholderIssues, sizeLimit, splitChain, startVariant,
+  neverSend, placeholderIssues, sizeLimit, splitChain, startVariant,
 } from "./crawl-rules.ts";
 
 // Краулер графа действий (этап 32, спец. §14.1; Plan B §12.5). Весь плагин в процессе, как в тестах: kpmock на
@@ -392,6 +392,8 @@ class Crawler {
       return;
     }
     if (m.k === "searchInput" && !SEARCH_KEYS.has(m.ch)) return;
+    // Тест скорости CDN не запускается: экран обходится, кнопка проверена правилами действий (`follow`).
+    if (neverSend(msg)) return;
     const n: Extract<Node, { k: "msg" }> = { k: "msg", msg, depth: from.depth + 1, via: label(from) };
     const screen = this.screenOf(from);
     if (screen !== undefined) n.screen = screen;

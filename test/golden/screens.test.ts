@@ -128,6 +128,16 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("panel-type", ids.panel("type", encodeListKey({ src: "fresh" })));
   });
 
+  it("v1.17: «Скорость серверов KinoPub» before a run and with a stored run (de is the fastest)", LIMIT, async () => {
+    await snap("probe-cdn", ids.probe("cdn"));
+    const t = await make({ loggedIn: true });
+    const row = (code: string, latencyMs: number, mbps: number, segMs: number) => ({ code, ok: true, acc: "full", latencyMs, mbps, segMs, bytes: 3_150_000 });
+    t.ctx.store.set("cfg", "probe.cdn", {
+      at: FAKE_EPOCH - 60_000, ms: 11_400, bytes: 9_450_000, rows: [row("nl", 61, 9.4, 2950), row("de", 23, 41.7, 640), row("ru", 148, 3.2, 7100)],
+    });
+    golden(t, "probe-cdn-run", ids.probe("cdn"), await t.request(ids.probe("cdn")));
+  });
+
   it("error KP-NET: the network is down — «KinoPub не отвечает» after 6 s, before the retries end (V-40)", LIMIT, async () => {
     const t = await make({ loggedIn: true });
     t.mock.setScenario({ rules: [{ path: ".*", drop: true }] });

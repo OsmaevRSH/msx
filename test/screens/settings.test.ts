@@ -69,7 +69,7 @@ describe("settingsScreen (S12)", () => {
     }
     assert.deepEqual(byGroup, [
       ["menu", "home"],
-      ["quality", "audioLang", "audioType", "authors", "subs", "seek"],
+      ["quality", "audioLang", "audioType", "authors", "subs", "seek", "cdn"],
       ["uhd", "device"],
       ["account", "logout"],
       ["mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
@@ -78,6 +78,7 @@ describe("settingsScreen (S12)", () => {
     assert.deepEqual(labels(s).filter((l) => l !== undefined), [
       "Порядок и видимость пунктов меню", "Порядок и видимость секций главной",
       "Максимальное качество", "Язык озвучки", "Тип озвучки", "Любимые студии", "Субтитры по умолчанию", "Шаг перемотки",
+      "Скорость серверов KinoPub",
       "4K", "Название", "Подписка", "Выйти из KinoPub",
       "Способ воспроизведения", "CDN-сервер", "Разрешить AC3", "HEVC", "Буфер старта", "Буфер продолжения", "Размер постеров", "Фоны карточек",
       "Диагностика", "Системные настройки MSX",
@@ -108,6 +109,9 @@ describe("settingsScreen (S12)", () => {
     assert.equal(row(s, "account").action, undefined);
     assert.equal(row(s, "loc").action, panelAction(P, ids.panel("loc")));
     assert.equal(row(s, "probe").action, contentAction(P, ids.probe()));
+    // v1.17: тест скорости CDN — экран probe.js (§16.7), строка — последняя в «Воспроизведении».
+    assert.equal(row(s, "cdn").action, contentAction(P, ids.probe("cdn")));
+    assert.equal(row(s, "cdn").extensionLabel, "");
     assert.equal(row(s, "msx").action, "settings");
     assert.equal(row(s, "device").enable, false);
     assert.equal(row(s, "device").action, undefined);

@@ -211,7 +211,7 @@ Chrome нужно запустить с флагом `--disable-features=LocalNe
 | `npm run perf` | те же тесты с бюджетами по реальному времени (`KP_PERF=1`): init ≤ 100 мс, экран из памяти и L2 ≤ 50 мс, повтор из кэша краулера ≤ 100 мс — на спокойной машине |
 | `npm run typecheck` | `tsc` без сборки |
 | `npm run build` | боевая сборка в `dist/`: `app/app.js`, `app/probe.js`, `app/index.html`, `start.json`, `build-info.json` |
-| `npm run size` | бюджет: `app.js` ≤ 320 000 Б и ≤ 102 400 Б (100 КБ) gzip, `probe.js` ≤ 40 960 Б и ≤ 16 384 Б gzip, `index.html` < 1 КБ |
+| `npm run size` | бюджет: `app.js` ≤ 320 000 Б и ≤ 102 400 Б (100 КБ) gzip, `probe.js` ≤ 58 368 Б и ≤ 22 528 Б gzip, `index.html` < 1 КБ |
 | `npm run privacy` | «ничего личного»: токены, IP-адреса вне тестовых диапазонов, отчёты, `.clear(` |
 | `npm run crawl` | краулер: обход всех экранов и действий от `init` против mock, проверка JSON MSX, размеров и кэша |
 | `npm run e2e` | Playwright в web-MSX против mock (один раз нужен `npx playwright install chromium`) |

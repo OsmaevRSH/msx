@@ -5,7 +5,7 @@ import { deliberate } from "./delay.ts";
 import { HttpError, Router } from "./router.ts";
 import type { HandlerCtx, MockResponse } from "./router.ts";
 import { registerAll } from "./routes/index.ts";
-import { DEFAULT_SCENARIO, cloneScenario, mergeScenario, overLimit, takeRule } from "./scenario.ts";
+import { DEFAULT_SCENARIO, cdnProfile, cloneScenario, mergeScenario, overLimit, takeRule } from "./scenario.ts";
 import type { Scenario } from "./scenario.ts";
 import { MockState } from "./state.ts";
 
@@ -41,6 +41,19 @@ const CORS: Record<string, string> = {
 };
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Кусок тела при заданной скорости CDN (`cdnLocs[loc].kbps`, тест скорости §16.7). */
+const PACE_CHUNK = 16 * 1024;
+
+/** Тело кусками со скоростью `kbps`; клиент ушёл — запись прекращается. */
+async function paced(res: ServerResponse, body: Buffer, kbps: number): Promise<void> {
+  const pauseMs = (PACE_CHUNK * 8) / kbps;
+  for (let at = 0; at < body.length && !res.closed; at += PACE_CHUNK) {
+    await sleep(pauseMs);
+    if (!res.closed) res.write(body.subarray(at, at + PACE_CHUNK));
+  }
+  res.end();
+}
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -107,8 +120,12 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     return h;
   }
 
-  function reply(res: ServerResponse, rec: CallRecord, kind: Kind, out: MockResponse, opt: { ruleNoCors?: boolean; head?: boolean } = {}): void {
+  function reply(
+    res: ServerResponse, rec: CallRecord, kind: Kind, out: MockResponse, opt: { ruleNoCors?: boolean; head?: boolean; kbps?: number } = {},
+  ): void {
     const headers: Record<string, string> = kind === "api" ? apiHeaders(out.status, opt.ruleNoCors === true) : {};
+    // Тест скорости CDN (§16.7): CDN с CORS — по сценарию; у боевого он не проверен.
+    if (kind === "cdn" && scenario.cdnCors) headers["access-control-allow-origin"] = "*";
     let payload: Buffer | string = "";
     if (out.body !== undefined) {
       payload = out.body;
@@ -123,6 +140,12 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     for (const [k, v] of Object.entries(out.headers ?? {})) headers[k.toLowerCase()] = v;
     rec.status = out.status;
     res.writeHead(out.status, headers);
+    if (opt.kbps !== undefined && opt.kbps > 0 && !opt.head && payload.length > 0) {
+      const body = Buffer.from(payload);
+      // Поддельные часы тестов решают по номинальной длительности ответа (tools/kpmock/delay.ts).
+      deliberate(res, (body.length * 8) / opt.kbps, paced(res, body, opt.kbps)).catch(() => res.destroy());
+      return;
+    }
     res.end(opt.head ? undefined : payload);
   }
 
@@ -223,6 +246,9 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
       return reply(res, rec, kind, { status: 429, json: { status: 429, error: "Too Many Requests" } });
     }
 
+    // Локация CDN из сценария: задержка до заголовков и скорость тела по `?loc=` (тест скорости CDN, §16.7).
+    const profile = kind === "cdn" ? cdnProfile(scenario, reqUrl) : undefined;
+    if (profile?.latencyMs) await deliberate(res, profile.latencyMs, sleep(profile.latencyMs));
     const head = method === "HEAD";
     const route = router.match(method, path);
     if (!route) return reply(res, rec, kind, notFound(kind), { head });
@@ -241,7 +267,7 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
         : { status: 500, json: { status: 500, error: `kpmock: ${e instanceof Error ? e.message : String(e)}` } };
     }
     if (out.drop) return drop(req, rec);
-    reply(res, rec, kind, out, { head });
+    reply(res, rec, kind, out, profile?.kbps === undefined ? { head } : { head, kbps: profile.kbps });
   }
 
   const server = createServer((req, res) => {

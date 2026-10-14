@@ -15,6 +15,16 @@ const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !
 /** Ответ для `video:resolve:…`, а не экран: свои правила (`url` или `error`, свойства — строки). */
 export const RESOLVE_KINDS: ReadonlySet<string> = new Set(["play", "playEp", "probePlay"]);
 
+/**
+ * Сообщения, которые краулер не отправляет, хотя проверяет их грамматику и обходит экран с ними: тест скорости CDN
+ * (§16.7) качает до 3 МБ с каждого сервера KinoPub — на настоящем API так нельзя, а в mock это только время обхода.
+ */
+export const NEVER_SEND: ReadonlySet<string> = new Set(["act:probe:cdnRun"]);
+
+export function neverSend(msg: string): boolean {
+  return NEVER_SEND.has(msg.split(":").slice(0, 3).join(":"));
+}
+
 /** Вид маршрута для отчёта и лимитов: `list:<источник>`, `panel:<тип>`, `probe:<страница>`, иначе `Route.k`. */
 export function kindOf(dataId: string): string {
   const r = parseDataId(dataId);

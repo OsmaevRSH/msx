@@ -6,6 +6,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
+import { CDN_SOURCES } from "../../src/probe/cdn-hosts.ts";
 import { build, type BuildOptions, type BuildResult } from "../../tools/build.mjs";
 
 const VERSION = (JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }).version;
@@ -118,23 +119,27 @@ describe("build: probe.js (stage 23b)", () => {
 });
 
 describe("build: CSP", () => {
-  it("defaults: connect-src lists both production API origins, script-src 'self'", async () => {
+  // v1.17: тест скорости CDN читает мастер-плейлисты фронт-хостов и сегменты узлов `*.cdntogo.net` (§15.4, §16.7).
+  const CDN = "https://*.cdntogo.net https://cdn2cdn.com https://cdn2site.com https://digital-cdn.net";
+
+  it("defaults: connect-src lists both production API origins and the video hosts of the CDN test, script-src 'self'", async () => {
     const res = await buildTo();
     assert.equal(
       cspOf(read(res.outDir, "app/index.html")),
-      "default-src 'none'; script-src 'self'; connect-src https://api.service-kp.com https://api.srvkp.com; " +
+      `default-src 'none'; script-src 'self'; connect-src https://api.service-kp.com https://api.srvkp.com ${CDN}; ` +
         "img-src data:; style-src 'unsafe-inline'",
     );
+    assert.equal(CDN, CDN_SOURCES.join(" "), "one list for CSP and for the test's own check (cspAllows)");
   });
 
   it("API_BASE overrides the first connect-src origin", async () => {
     const res = await buildTo({ API_BASE: "http://127.0.0.1:8787" });
-    assert.match(cspOf(read(res.outDir, "app/index.html")), /connect-src http:\/\/127\.0\.0\.1:8787 https:\/\/api\.srvkp\.com;/);
+    assert.ok(cspOf(read(res.outDir, "app/index.html")).includes(`connect-src http://127.0.0.1:8787 https://api.srvkp.com ${CDN};`));
   });
 
   it("identical API origins are listed once", async () => {
     const res = await buildTo({ API_BASE: "http://127.0.0.1:8787", API_FALLBACK_BASE: "http://127.0.0.1:8787/" });
-    assert.match(cspOf(read(res.outDir, "app/index.html")), /connect-src http:\/\/127\.0\.0\.1:8787;/);
+    assert.ok(cspOf(read(res.outDir, "app/index.html")).includes(`connect-src http://127.0.0.1:8787 ${CDN};`));
   });
 });
 
