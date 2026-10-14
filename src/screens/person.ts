@@ -8,7 +8,7 @@ import { emptyItems, fill, remember } from "./list.ts";
 import type { ListEntry } from "./list.ts";
 import { gridPreload, gridTemplate } from "./tiles.ts";
 
-// Тайтлы актёра или режиссёра (v1.18, спец. §11 S8): `/v1/items/search?field=cast|director&q=<одно имя>` (HC `video.md`:
+// Тайтлы актёра или режиссёра (v1.19, спец. §11 S8): `/v1/items/search?field=cast|director&q=<одно имя>` (HC `video.md`:
 // поле — одно на запрос, несколько имён через запятую не работают). Без своего источника в `listSource` (его меняет пакет
 // «Каталог»): как «Я смотрю», экран кладёт найденное в память списков и рисует его окном `fill` — плитки, стражи и
 // `extend` те же, а возврат к экрану отвечает из памяти без сети. Найденное — первые две порции (≤ 96, как поиск S7).

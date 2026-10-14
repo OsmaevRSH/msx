@@ -32,6 +32,9 @@ function trailer(id: number): { id: number; file: string } | null {
   return t === undefined ? null : { id: t, file: `/trailers/${t % 10}/${(t % 256).toString(16).padStart(2, "0")}/${t}.mp4` };
 }
 
+/** Сериал окончен: каждый второй сериал, ТВ-шоу и док. сериал; фильмы — никогда (`finished: false`). */
+export const isFinished = (it: FxItem): boolean => SERIES_TYPES.has(it.type) && it.id % 2 === 0;
+
 /**
  * Элемент списка в форме research kinopub-api §6.2 (без videos/seasons). Для проверки толерантного разбора
  * у каждого 7-го id `year` — строка, у каждого 5-го — `imdb_rating`.
@@ -52,7 +55,7 @@ export function listItem(it: FxItem, base: string): Record<string, unknown> {
     imdb_rating: it.id % 5 === 0 ? String(it.imdb_rating) : it.imdb_rating, kinopoisk_rating: it.kinopoisk_rating,
     rating: it.rating, views: it.views, comments: 0,
     posters: posters(base, it.id), trailer: trailer(it.id),
-    finished: SERIES_TYPES.has(it.type) && it.id % 2 === 0, advert: false, poor_quality: false,
+    finished: isFinished(it), advert: false, poor_quality: false,
     in_watchlist: false, subscribed: false, created_at: it.created_at, updated_at: it.updated_at,
   };
 }
@@ -70,18 +73,69 @@ function csv(q: URLSearchParams, name: string): string[] | undefined {
 /** `quality` — id из `/v1/references/video-quality`, «не ниже» (research kinopub-api §6.1): 4 — 4K. */
 const QUALITY_MIN: Record<string, number> = { 1: 480, 2: 720, 3: 1080, 4: 2160 };
 
+// Фильтры каталога (спец. §11.5) — как у живого API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`,
+// `LibraryFilter.swift`; kinopub-gui `methods.go:61-84`; доки «API 1.3» `video.md:222-330`).
+
+/** `year`: год или `Y1-Y2` включительно (`year=1990-1999` вживую = `conditions[]` по тем же границам). */
+const YEAR = /^(\d{4})(?:-(\d{4}))?$/;
+/**
+ * `conditions[]=<поле><оп><число>`: проверены `>=` и `<=` по этим полям; условия через И. Другие поля (`quality`, `finished`,
+ * `ac3`, `age` …) живой API молча игнорирует, форму без `[]` — тоже (kinopub-gui `methods.go:69`).
+ */
+const COND = /^([a-z_]+)(>=|<=)(-?\d+(?:\.\d+)?)$/;
+const COND_FIELDS: Record<string, (it: FxItem) => number> = {
+  year: (it) => it.year, kinopoisk_rating: (it) => it.kinopoisk_rating, imdb_rating: (it) => it.imdb_rating,
+  rating: (it) => it.rating, views: (it) => it.views, created: (it) => it.created_at,
+};
+
+/** Условия `conditions[]`, которые API применяет; остальные пропускаются. */
+function conditions(q: URLSearchParams): ((it: FxItem) => boolean)[] {
+  const out: ((it: FxItem) => boolean)[] = [];
+  for (const raw of q.getAll("conditions[]")) {
+    const m = COND.exec(raw);
+    const field = m !== null && Object.hasOwn(COND_FIELDS, m[1]) ? COND_FIELDS[m[1]] : undefined;
+    if (m === null || field === undefined) continue;
+    const v = Number(m[3]);
+    out.push(m[2] === ">=" ? (it) => field(it) >= v : (it) => field(it) <= v);
+  }
+  return out;
+}
+
+/** Диапазон `year`; неразборчивое значение не находит ничего (`year=abc` в SQL — сравнение с 0). */
+function years(q: URLSearchParams): [number, number] | undefined {
+  const raw = q.get("year");
+  if (raw === null || raw === "") return undefined;
+  const m = YEAR.exec(raw);
+  return m === null ? [1, 0] : [Number(m[1]), Number(m[2] ?? m[1])];
+}
+
+/** `finished` — по наличию: `1`, `y`, `n` одинаково оставляют окончённые; `0` и пустое игнорируются («идущих» не выбрать). */
+const finishedOnly = (q: URLSearchParams): boolean => !["", "0", null].includes(q.get("finished"));
+
 /**
  * Видимые тайтлы (без удалённых и тех, что только по id) с фильтрами `type` (без учёта регистра: живой API пишет `3d`),
- * `genre` (через запятую = ИЛИ) и `quality`; неизвестное качество не находит ничего, как `quality=1080` у живого API.
+ * `genre` и `country` (через запятую = ИЛИ), `quality`, `year`, `finished` и `conditions[]` — все через И; неизвестное
+ * качество не находит ничего, как `quality=1080` у живого API.
  */
 function filtered(q: URLSearchParams): FxItem[] {
   const types = csv(q, "type")?.map((t) => t.toLowerCase());
   const genres = csv(q, "genre")?.map(Number);
+  const countries = csv(q, "country")?.map(Number);
   const quality = q.get("quality");
   const min = quality === null || quality === "" ? 0 : QUALITY_MIN[quality] ?? Infinity;
+  const span = years(q);
+  const fin = finishedOnly(q);
+  const conds = conditions(q);
   return catalog().filter((it) => !it.deleted && !it.unlisted && (!types || types.includes(it.type.toLowerCase())) &&
-    (!genres || it.genres.some((g) => genres.includes(g.id))) && it.quality >= min);
+    (!genres || it.genres.some((g) => genres.includes(g.id))) && it.quality >= min &&
+    (!countries || it.countries.some((c) => countries.includes(c.id))) &&
+    (!span || (it.year >= span[0] && it.year <= span[1])) && (!fin || isFinished(it)) && conds.every((c) => c(it)));
 }
+
+/** `type[]=…`, `genre[]=…`, `genre[0]=…` — 502 у живого API: списки только через запятую (`video.md:477, 507`). */
+const BRACKETS = /^(type|genre)\[/;
+const badGateway = (q: URLSearchParams): MockResponse | undefined =>
+  [...q.keys()].some((k) => BRACKETS.test(k)) ? { status: 502, text: "Bad Gateway" } : undefined;
 
 type SortKey = (it: FxItem) => number | string;
 
@@ -155,7 +209,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
   r.add("GET", "/v1/items", (ctx) => {
     requireAuth(ctx);
     const { key, desc } = parseSort(ctx.query.get("sort"));
-    return listResponse(ctx, sorted(filtered(ctx.query), key, desc));
+    return badGateway(ctx.query) ?? listResponse(ctx, sorted(filtered(ctx.query), key, desc));
   });
 
   for (const [shelf, key] of Object.entries(SHELVES)) {

@@ -13,6 +13,7 @@ import { qualityOf, withLoc } from "../playback/url.ts";
 import { positionFrom } from "../progress/samples.ts";
 import { type ListKey, decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import { errorScreen, errorText } from "./error.ts";
+import { filterPanel, onFilterAct } from "./filters.ts";
 import { genresOrStatic } from "./genres-static.ts";
 import { freshItem } from "./item.ts";
 import { SHELF_TYPES, isShelf, setShelfType, shelfType, shelfTypeTitle, sortChoices } from "./list-head.ts";
@@ -78,6 +79,11 @@ export async function panelScreen(ctx: AppContext, type: string, args: string[])
     switch (type) {
       case "sort": return sortPanel(ctx, args[0]);
       case "genre": return await genrePanel(ctx, args[0]);
+      case "filters":
+      case "year":
+      case "country":
+      case "countries":
+      case "kp": return await filterPanel(ctx, type, args[0]);
       case "type": return typePanel(ctx, args[0]);
       case "audio": return await audioPanel(ctx, unitArgs(args));
       case "quality": return await qualityPanel(ctx, unitArgs(args));
@@ -279,10 +285,11 @@ async function seasonsPanel(ctx: AppContext, id: number | undefined, n: number |
 
 // --- Сообщения `act:panel:*` ---
 
-/** `act:panel:<name>:<args…>`: `audio`, `quality`, `subs`, `bm`, `mode`, `loc`, `type`. */
+/** `act:panel:<name>:<args…>`: `audio`, `quality`, `subs`, `bm`, `mode`, `loc`, `type`, `filter` (`screens/filters.ts`). */
 export async function onPanelAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
   switch (name) {
     case "type": return chooseType(ctx, args);
+    case "filter": return onFilterAct(ctx, args);
     case "audio": return chooseAudio(ctx, args);
     case "quality": return chooseQuality(ctx, args);
     case "subs": return chooseSubs(ctx, args);

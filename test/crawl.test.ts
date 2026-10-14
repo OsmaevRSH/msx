@@ -160,6 +160,8 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "panel:type", "list:fresh:documovie",
       // v1.17: папка с опциями плиток и подтверждение «Очистить всю историю» (спец. §11.4).
       "list:folder", "panel:tile",
+      // v1.18: фильтры каталога — панель красной кнопки, панели значений и список с выбранным фильтром (§11.5).
+      "panel:filters", "panel:year", "panel:country", "panel:countries", "panel:kp", "list:catalog:filtered",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }

@@ -62,7 +62,7 @@ const L = {
   bm: "0,5,3,1", audio: "3,5,3,1", quality: "6,5,2,1", subs: "8,5,4,1",
 };
 /**
- * v1.18: ряд над «▶» — «Трейлер» (2 колонки) и «Буду смотреть» у сериала (3); тогда текст — три ряда сетки, иначе четыре.
+ * v1.19: ряд над «▶» — «Трейлер» (2 колонки) и «Буду смотреть» у сериала (3); тогда текст — три ряда сетки, иначе четыре.
  * В ряду сетки при 1920×1080 три строки текста по 82–87 знаков (замер скриншотом web MSX): строка фактов — до `LINE`
  * знаков, сюжет с переносом по словам — по `CPL` на строку, сколько строк осталось.
  */
@@ -209,7 +209,7 @@ function cardItems(ctx: AppContext, item: ItemDetail, m: CardModel): MsxContentI
   const { P } = ctx;
   const id = item.id;
   const withProps = ctx.flags.get().playerPropsIn === "item";
-  // v1.18: ряд над «▶» — трейлер и «Буду смотреть»; без них текст занимает и этот ряд.
+  // v1.19: ряд над «▶» — трейлер и «Буду смотреть»; без них текст занимает и этот ряд.
   const row: MsxContentItem[] = [];
   if (item.trailer !== undefined) {
     row.push({ id: "b_trailer", type: "button", layout: "3,3,2,1", label: `{ico:movie} ${T.trailer}`, action: resolveAction(P, ids.playTrailer(id)), properties: TRAILER_PROPS });
@@ -274,7 +274,7 @@ function prefButtons(ctx: AppContext, item: ItemDetail, unit: MediaUnit, mid: nu
 function cardOptions(ctx: AppContext, item: ItemDetail, m: CardModel): MsxContentRoot {
   const rows: OptionRow[] = [];
   if (m.film !== undefined) rows.push(watchedRow(m.film.ref, m.film.status, true));
-  // v1.18: тайтлы режиссёра и актёров — поиск `field=director|cast` по одному имени (HC `video.md`).
+  // v1.19: тайтлы режиссёра и актёров — поиск `field=director|cast` по одному имени (HC `video.md`).
   const person = (field: "cast" | "director", label: string, n: string): OptionRow => ({
     label: `{ico:search} ${label}: ${n}`, action: contentAction(ctx.P, ids.person(field, n)),
   });
@@ -401,7 +401,7 @@ async function inList(ctx: AppContext, id: number): Promise<boolean> {
 }
 
 /**
- * `wl:<id>:<0|1>` — «Буду смотреть» (v1.18): переключатель — только при расхождении со свежей карточкой и не больше двух
+ * `wl:<id>:<0|1>` — «Буду смотреть» (v1.19): переключатель — только при расхождении со свежей карточкой и не больше двух
  * раз (CM-01: ответ мог потеряться, состояние — смениться на другом ТВ). Карточка после сверки свежая, «Я смотрю» и
  * главная — устаревшие; перерисовка — только текущего экрана.
  */
@@ -419,7 +419,7 @@ async function watchlist(ctx: AppContext, args: string[]): Promise<void> {
 }
 
 /**
- * `season:<id>:<n>:<0|1>` — весь сезон (v1.18). Сверка `watching?id=` (Р-20) → `toggle` сезона без `video` (HC
+ * `season:<id>:<n>:<0|1>` — весь сезон (v1.19). Сверка `watching?id=` (Р-20) → `toggle` сезона без `video` (HC
  * `watching.md`: «модификации подвергаются все эпизоды сезона») только при расхождении → снова сверка; не больше двух
  * переключений: сервер ставит сезону состояние, противоположное целому, и смешанный сезон снимается за два. Что не сошлось
  * (ошибка, сбой связи) — по сериям через outbox: у каждой своя сверка. Оверлей и перерисовка — до него.
@@ -449,7 +449,7 @@ async function markSeason(ctx: AppContext, args: string[]): Promise<void> {
   }
 }
 
-/** `play:<id>:trailer` (v1.18): ссылка свежей карточки, иначе `items/trailer`; без `kp:*` — без прогресса и `marktime`. */
+/** `play:<id>:trailer` (v1.19): ссылка свежей карточки, иначе `items/trailer`; без `kp:*` — без прогресса и `marktime`. */
 export async function trailerResolve(ctx: AppContext, id: number): Promise<MsxResolveResponse> {
   const got = await ctx.repo.item(id);
   const url = (got.stale ? undefined : got.value.trailer?.url) ?? (await ctx.api.trailer(id));

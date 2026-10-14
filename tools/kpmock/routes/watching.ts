@@ -52,7 +52,7 @@ function target(ctx: HandlerCtx): Target {
 }
 
 /**
- * `toggle` без `video` (v1.18): все серии сезона, у фильма — все видео (HC `watching.md`: «Если отсутствует, модификации
+ * `toggle` без `video` (v1.19): все серии сезона, у фильма — все видео (HC `watching.md`: «Если отсутствует, модификации
  * подвергаются все эпизоды сезона»; Kodi — сезон и фильм из частей). Сериал без `season` или неизвестный сезон — 404.
  */
 function scope(ctx: HandlerCtx): Target[] {
@@ -94,7 +94,7 @@ function listed(s: MockState, id: number, statuses: Status[]): boolean {
   return s.watchlist.get(id) ?? (statuses.some((x) => x !== -1) && (statuses.some((x) => x !== 1) || (s.newEpisodes.get(id) ?? 0) > 0));
 }
 
-/** `in_watchlist` и `subscribed` карточки (v1.18): то же правило; фильм в списке не бывает. */
+/** `in_watchlist` и `subscribed` карточки (v1.19): то же правило; фильм в списке не бывает. */
 export function inWatchlist(s: MockState, it: FxItem): boolean {
   return isSeries(it) && listed(s, it.id, statusesOf(s, it));
 }
@@ -221,7 +221,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
   });
 
   // «Я смотрю» («Буду смотреть», research kinopub-api §8.1): переключатель, ответ — новое состояние `watching`.
-  // Строго (v1.18, как v1.14): без `id` — 400 Yii; неизвестный, удалённый и не сериал — 404 (HC: «id — идентификатор сериала»).
+  // Строго (v1.19, как v1.14): без `id` — 400 Yii; неизвестный, удалённый и не сериал — 404 (HC: «id — идентификатор сериала»).
   r.add("GET", "/v1/watching/togglewatchlist", (ctx) => {
     requireAuth(ctx);
     if (num(ctx.query, "id") === undefined) throw missingParam("id");

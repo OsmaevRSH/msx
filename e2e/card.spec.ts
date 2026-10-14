@@ -8,7 +8,7 @@ import {
   videoTime,
 } from "./flows-kit.ts";
 
-// Пакет «Карточка» v1.18 (спец. §11 S8, S9) в web MSX: «Буду смотреть» переключается, сезон отмечается целиком, поиск
+// Пакет «Карточка» v1.19 (спец. §11 S8, S9) в web MSX: «Буду смотреть» переключается, сезон отмечается целиком, поиск
 // по актёру открывает список его тайтлов, трейлер запускается без прогресса. Одна сессия web MSX на файл.
 
 test.describe.configure({ mode: "serial" });
@@ -52,7 +52,7 @@ async function option(p: Page, id: string, label: string): Promise<void> {
   await expect(sel).toContainText(label);
 }
 
-test("E-24: «Буду смотреть» на карточке сериала — сверка, один togglewatchlist, подпись кнопки и «Я смотрю»", async () => {
+test("E-30: «Буду смотреть» на карточке сериала — сверка, один togglewatchlist, подпись кнопки и «Я смотрю»", async () => {
   await open(page, ids.item(BIG));
   await expectContent(page, "✓ В списке");
   const c0 = await callCount();
@@ -74,7 +74,7 @@ test("E-24: «Буду смотреть» на карточке сериала �
   expect((await callsSince(c0, /^\/v1\/watching\/togglewatchlist$/)).length).toBe(2);
 });
 
-test("E-25: сезон отмечается целиком — опции → «Отметить сезон» → toggle без video, ✓ на всех сериях", async () => {
+test("E-31: сезон отмечается целиком — опции → «Отметить сезон» → toggle без video, ✓ на всех сериях", async () => {
   await open(page, ids.season(ONE, 1));
   await expectContent(page, "Серия 1");
   await option(page, `e${ONE * 1000 + 1}`, "Отметить сезон");
@@ -95,7 +95,7 @@ test("E-25: сезон отмечается целиком — опции → «
     { message: "отметки сняты", timeout: 10_000 }).toBe(true);
 });
 
-test("E-26: поиск по актёру — карточка → опции → «В ролях: …» → список его тайтлов (field=cast)", async () => {
+test("E-32: поиск по актёру — карточка → опции → «В ролях: …» → список его тайтлов (field=cast)", async () => {
   await open(page, ids.item(BIG));
   await option(page, "b_main", `В ролях: ${ACTOR}`);
   const c0 = await callCount();
@@ -111,7 +111,7 @@ test("E-26: поиск по актёру — карточка → опции →
   expect(tiles.length, "плитки тайтлов актёра").toBeGreaterThan(0);
 });
 
-test("E-27: трейлер — «Трейлер» → resolve play:<id>:trailer → видео играет, marktime нет", async () => {
+test("E-33: трейлер — «Трейлер» → resolve play:<id>:trailer → видео играет, marktime нет", async () => {
   await open(page, ids.item(FIX.MOVIE_SIMPLE));
   const c0 = await callCount();
   const m = await mark(page);

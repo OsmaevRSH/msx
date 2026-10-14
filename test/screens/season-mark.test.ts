@@ -9,7 +9,7 @@ import { watchKey } from "../../tools/kpmock/state.ts";
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
-// v1.18: «Отметить сезон просмотренным» и обратно (спец. §11 S9) — опция сезона и каждой серии; `toggle` сезона без
+// v1.19: «Отметить сезон просмотренным» и обратно (спец. §11 S9) — опция сезона и каждой серии; `toggle` сезона без
 // `video` только после сверки (Р-20, CM-01), оверлей и «✓» на сериях сразу; что не сошлось — по сериям через outbox.
 
 const BIG = FIX.SERIAL_BIG;
@@ -39,7 +39,7 @@ const statuses = (t: TestApp, id: number, n: number): number[] =>
 /** Запросы просмотров (`watching*`) после `from`: у `toggle` — с `video` или только с сезоном. */
 const paths = (t: TestApp, from: number): string[] => t.mock.calls().slice(from).filter((c) => c.path.startsWith("/v1/watching")).map((c) => `${c.path}${c.path.endsWith("toggle") ? `?${new URLSearchParams(c.query).has("video") ? "video" : "season"}` : ""}`);
 
-describe("season options v1.18", () => {
+describe("season options v1.19", () => {
   it("a part-watched season: «Отметить сезон» in the screen options and in every episode's options", async () => {
     const t = await make();
     const s = await open(t, BIG, 1);

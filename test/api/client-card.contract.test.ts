@@ -5,10 +5,10 @@ import { FIX, castOf, directorOf, findItem } from "../../tools/kpmock/fixtures.t
 import { watchKey } from "../../tools/kpmock/state.ts";
 import { kp, q, useKpApiMock } from "./kpapi-rig.ts";
 
-// Contract-тесты KpApi пакета «Карточка» (v1.18) против kpmock: «Буду смотреть», сезон целиком, трейлер, поиск по
+// Contract-тесты KpApi пакета «Карточка» (v1.19) против kpmock: «Буду смотреть», сезон целиком, трейлер, поиск по
 // актёру и режиссёру, новые поля карточки.
 
-describe("KpApi card package against kpmock (contract, v1.18)", () => {
+describe("KpApi card package against kpmock (contract, v1.19)", () => {
   const env = useKpApiMock();
 
   it("item: watchlist, director, cast (≤ 8), trailer without url under nolinks=1", async () => {

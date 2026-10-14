@@ -155,7 +155,7 @@ export async function seasonScreen(ctx: AppContext, id: number, n: number, from?
   // Красная кнопка открывает панель сезонов сразу (Option Shortcut): MSX ищет его в опциях элемента в фокусе, поэтому
   // пункт есть и у корня, и у каждой серии. Без `back` в начале: у ярлыка опции не открыты, и `back` ушёл бы с экрана.
   const seasonsRow: OptionRow[] = many ? [{ label: T.pickSeason, action: panelAction(ctx.P, ids.panel("seasons", id, n)), key: "red" }] : [];
-  // v1.18: весь сезон — `act:item:season` (сверка и `toggle` без `video`); у частей фильма сезона нет.
+  // v1.19: весь сезон — `act:item:season` (сверка и `toggle` без `video`); у частей фильма сезона нет.
   if (m.serial) {
     const all = m.episodes.every((e) => e.status === 1);
     seasonsRow.push({ label: all ? T.unmarkSeason : T.markSeason, action: commitMsg(msgs.act("item", "season", id, n, all ? 0 : 1)) });

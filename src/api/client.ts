@@ -1,7 +1,7 @@
 import { KP_CLIENT } from "../config/client.ts";
 import { KpError, isKpError } from "../core/errors.ts";
 import type {
-  BookmarkFolder, Collection, DeviceCode, DeviceInfo, DeviceSettings, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks,
+  BookmarkFolder, Collection, Country, DeviceCode, DeviceInfo, DeviceSettings, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks,
   Page, SerialWatching, ServerLocation, TokenPairRaw, TvChannel, User, WatchingUnit,
 } from "./models.ts";
 import {
@@ -144,13 +144,29 @@ export class KpApi {
     return parseItems(await this.call({ path: "/v1/references/voiceover-type" }), parseGenre);
   }
 
+  /** Справочник стран фильтра каталога: `items: [{id, title}]` (research kinopub-api §6.1). */
+  async countries(): Promise<Country[]> {
+    return parseItems(await this.call({ path: "/v1/countries" }), parseGenre);
+  }
+
   // --- Каталог (research kinopub-api §6–§7) ---
 
-  /** `quality` — id качества «не ниже»: `4` — 4K (research kinopub-api §6.1). */
+  /**
+   * `quality` — id качества «не ниже»: `4` — 4K (research kinopub-api §6.1). Фильтры (спец. §11.5, проверено вживую
+   * 2026-09-26 — kinopub-apple-client `video.md:486-497`): `year` — год или `Y1-Y2`, `country` — id через запятую (ИЛИ),
+   * `kp` — `conditions[]=kinopoisk_rating>=N` (только форма с `[]`), `finished=1` — окончённые; всё через И с `genre`.
+   */
   async items(
-    q: { type?: string; genre?: string; sort?: string; quality?: string; page: number; perpage: number }, cls?: Cls,
+    q: {
+      type?: string; genre?: string; sort?: string; quality?: string; year?: string; country?: string; kp?: string; finished?: boolean;
+      page: number; perpage: number;
+    }, cls?: Cls,
   ): Promise<Page<ItemSummary>> {
-    const query = { type: q.type, genre: q.genre, sort: q.sort, quality: q.quality, page: q.page, perpage: q.perpage };
+    const query = {
+      type: q.type, genre: q.genre, sort: q.sort, quality: q.quality, year: q.year, country: q.country,
+      "conditions[]": q.kp === undefined ? undefined : `kinopoisk_rating>=${q.kp}`, finished: q.finished === true ? 1 : undefined,
+      page: q.page, perpage: q.perpage,
+    };
     return parsePage(await this.call({ path: "/v1/items", query, cls }), parseListItem);
   }
 

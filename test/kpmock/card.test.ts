@@ -5,7 +5,7 @@ import { startMock } from "../../tools/kpmock/server.ts";
 import type { MockServer } from "../../tools/kpmock/server.ts";
 import { watchKey } from "../../tools/kpmock/state.ts";
 
-// v1.18, пакет «Карточка»: контракты kpmock по исходникам клиентов — «Буду смотреть» (`togglewatchlist`), сезон целиком
+// v1.19, пакет «Карточка»: контракты kpmock по исходникам клиентов — «Буду смотреть» (`togglewatchlist`), сезон целиком
 // (`toggle` без `video`), трейлер (`items/trailer`), поиск по актёру и режиссёру (`field=cast|director`). Строго, как
 // v1.14: обязательные параметры — HTTP 400, неизвестное — 404.
 
@@ -17,7 +17,7 @@ interface Card { in_watchlist: boolean; subscribed: boolean; cast: string; direc
 interface ListBody { items: (Card & { id: number; type: string })[]; pagination: { total_items: number } }
 interface Serial { id: number; total: string; watched: number }
 
-describe("kpmock: card package (v1.18)", () => {
+describe("kpmock: card package (v1.19)", () => {
   let mock: MockServer;
   let tok = "";
   const get = (path: string, q: Record<string, string | number> = {}): Promise<Response> => {
