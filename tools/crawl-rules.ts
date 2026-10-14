@@ -182,9 +182,12 @@ export function splitChain(a: string): string[] {
   return inner === "" ? [] : inner.split("|");
 }
 
-/** Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник); `video:<адрес>` — эфир канала «Спорт». */
+/**
+ * Действия, которые строит плагин (`src/msx/actions.ts`, плеер, ошибки, пробник); `video:<адрес>` — эфир канала «Спорт»,
+ * `settings` — системные настройки MSX из «Настроек» (v1.16).
+ */
 const FORMS: readonly RegExp[] = [
-  /^back$/, /^home$/, /^cleanup$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/, /^focus:[A-Za-z0-9_]+$/,
+  /^back$/, /^home$/, /^cleanup$/, /^settings$/, /^reload:(?:content|panel)$/, /^invalidate:content$/, /^info:[^|]+$/, /^focus:[A-Za-z0-9_]+$/,
   /^video:https?:\/\/[^\s|[\]]+$/,
   /^interaction:commit:message:[^|]+$/, /^(?:shot:)?interaction:commit:video$/,
   /^player:(?:eject|ticking:restart|button:[a-z]+:execute|commit:message:[^|]+|seek:[+-]\d+)$/,

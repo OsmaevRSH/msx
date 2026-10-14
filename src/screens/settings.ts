@@ -16,6 +16,8 @@ import { MODE_NAMES, countryName } from "./panels-labels.ts";
 
 // S12 (спец. §11; Plan B S12): строка — текущее значение в `extensionLabel`, выбор — панелью `panel:setting:<ключ>`.
 // 4K и HEVC — настройки своего устройства KinoPub у каждого ТВ (CD-04, Plan B §6.2.1): POST формой и сверка чтением.
+// v1.16: последняя группа «Для разработчика» — «Диагностика» и системные настройки MSX (из меню они ушли); без входа
+// экран — только она, без запросов к API.
 
 const TAG = "settings";
 const WAIT_MS = 3000;
@@ -24,7 +26,7 @@ const SEC = " с";
 
 const T = {
   headline: "Настройки", play: "Воспроизведение", device: "Это устройство KinoPub", account: "Аккаунт",
-  expert: "Для опытных", diag: "Диагностика", probe: "Проверки и журнал", name: "Название", sub: "Подписка",
+  expert: "Для опытных", dev: "Для разработчика", probe: "Диагностика", msx: "Системные настройки MSX", name: "Название", sub: "Подписка",
   until: "До", left: "осталось", days: "дн.", inactive: "Не активна", authors: "Любимые студии",
   reset: "Сбросить любимые студии", noAuthors: "Студия добавляется, когда вы выбираете озвучку на карточке", none: "Нет",
   logout: "Выйти из KinoPub", confirm: "Выйти из KinoPub?", yes: "Выйти", cancel: "Отмена", mismatch: "device-settings-mismatch",
@@ -75,17 +77,23 @@ const DEFS: Record<string, Def> = {
   seek: { label: "Шаг перемотки", field: "seekStep", opts: nums([5, 10, 15, 30], SEC) },
 };
 
+/** Действие MSX: открывает его системные настройки (пункт меню `type: settings` открывает их же). */
+const MSX_SETTINGS = "settings";
+
+type Group = [string, ...string[]];
+/** v1.16: «Диагностика» (пробник, `probe.js` грузится по её открытию) и системные настройки MSX — и без входа. */
+const DEV: Group = [T.dev, "probe", "msx"];
 /**
  * V-33: способ воспроизведения, CDN, AC3 и HEVC — технические, они в «Для опытных». Порядок и видимость пунктов меню и
  * секций главной — первыми (отзыв с ТВ v1.13: в группе «Меню» после аккаунта настройку не нашли).
  */
-const GROUPS: [string, ...string[]][] = [
+const GROUPS: Group[] = [
   ["Меню и главная", "menu", "home"],
   [T.play, "quality", "audioLang", "audioType", "authors", "subs", "seek"],
   [T.device, "uhd", "device"],
   [T.account, "account", "logout"],
   [T.expert, "mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
-  [T.diag, "probe"],
+  DEV,
 ];
 
 const defOf = (key: string): Def | undefined => (Object.prototype.hasOwnProperty.call(DEFS, key) ? DEFS[key] : undefined);
@@ -102,9 +110,11 @@ function soft<V>(ctx: AppContext, p: Promise<V>): Promise<V | undefined> {
   return Promise.race([p.catch(failed), sleep(ctx.clock, WAIT_MS).then(() => undefined)]);
 }
 
+/** Без входа (маршрут открыт и гостю) — только «Для разработчика»: остальные строки — аккаунт и устройство KinoPub. */
 export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
   const keys = Object.keys(DEFS);
-  const [dev, user, lists] = await Promise.all([
+  const guest = !ctx.auth.isLoggedIn();
+  const [dev, user, lists] = guest ? [undefined, undefined, []] : await Promise.all([
     soft(ctx, device(ctx)), soft(ctx, ctx.repo.user()), Promise.all(keys.map((k) => optsOf(ctx, DEFS[k]!))),
   ]);
   const p = ctx.prefs.get();
@@ -113,7 +123,7 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
   const add = (key: string, label: string, ext: string, action?: string): void => {
     items.push({ id: `s_${key}`, label, extensionLabel: ext, ...(action === undefined ? { enable: false } : { action }) });
   };
-  for (const [head, ...rows] of GROUPS) {
+  for (const [head, ...rows] of guest ? [DEV] : GROUPS) {
     items.push({ type: "space", layout: "0,0,12,1", offset: GROUP_OFFSET, headline: head });
     for (const key of rows) {
       const i = keys.indexOf(key);
@@ -132,6 +142,8 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
         add(key, orderRow(key), orderSummary(ctx, key), panelAction(ctx.P, ids.panel(key)));
       } else if (key === "logout") {
         add(key, T.logout, "", panelAction(ctx.P, ids.panel("setting", "account")));
+      } else if (key === "msx") {
+        add(key, T.msx, "", MSX_SETTINGS);
       } else {
         add(key, T.probe, "", contentAction(ctx.P, ids.probe()));
       }

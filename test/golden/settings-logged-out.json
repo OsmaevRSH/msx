@@ -1,0 +1,57 @@
+{
+  "type": "list",
+  "flag": "settings",
+  "cache": false,
+  "reuse": false,
+  "headline": "Настройки",
+  "template": {
+    "type": "control",
+    "layout": "0,0,12,1"
+  },
+  "items": [
+    {
+      "type": "space",
+      "layout": "0,0,12,1",
+      "offset": "0,0.5,0,-0.5",
+      "headline": "Для разработчика"
+    },
+    {
+      "id": "s_probe",
+      "label": "Диагностика",
+      "extensionLabel": "",
+      "action": "content:request:interaction:probe@https://example.github.io/msx/app/index.html",
+      "focus": true
+    },
+    {
+      "id": "s_msx",
+      "label": "Системные настройки MSX",
+      "extensionLabel": "",
+      "action": "settings"
+    }
+  ],
+  "inserts": [
+    {
+      "position": "page:0",
+      "area": "0,0,12,3",
+      "offset": "0,0,0,-1",
+      "items": [
+        {
+          "layout": "0,0,12,1",
+          "offset": "0,1,0,0",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:s_probe"
+          }
+        },
+        {
+          "layout": "0,3,12,1",
+          "offset": "0,-1,0,0",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:s_msx"
+          }
+        }
+      ]
+    }
+  ]
+}

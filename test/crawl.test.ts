@@ -50,7 +50,11 @@ describe("crawl rules", () => {
       "video:https://cdn.example/tv/sport1/playlist.m3u8?t=1",
       // «Пункты меню» (v1.11): меню и панель перерисовываются вместе.
       `[replace:menu:menu:${req("init")}|reload:panel]`,
+      // Системные настройки MSX строкой «Настройки» (v1.16): действие MSX без плагина.
+      "settings",
     ]) assert.deepEqual(actionIssues(a), [], a);
+    // Только сами настройки MSX: отдельные их пункты (`settings:reset`, `settings:start`) плагин не открывает.
+    assert.deepEqual(actionIssues("settings:reset"), ["settings:reset: unknown action"]);
     assert.deepEqual(actionIssues("video:file:///etc/x"), ["video:file:///etc/x: unknown action"]);
     assert.deepEqual(actionIssues("lazy:reload:menu"), ["lazy:reload:menu: unknown action"]);
     assert.deepEqual(actionIssues("reload:menu"), ["reload:menu: unknown action"]);
@@ -132,8 +136,17 @@ describe("crawl rules", () => {
 
 describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-16)", () => {
   it("visits at least 60 nodes and finds no failures", { timeout: 300_000 }, async () => {
-    const r = await crawl();
+    const trace: string[] = [];
+    const r = await crawl({ trace: (line) => trace.push(line) });
     assert.deepEqual(r.failures, []);
+    // v1.16: «Диагностики» в меню нет — обход доходит до неё из «Настроек», со входом и без.
+    // Строка обхода — «<глубина> <in|out> <узел> ← <откуда>»; перезапросы («(reload)») не в счёт.
+    const via = (auth: string, id: string): string[] =>
+      trace.flatMap((l) => (l.startsWith(`${l.split(" ")[0]} ${auth} ${id} ← `) ? [l.split(" ← ")[1] ?? ""] : []));
+    assert.deepEqual(via("in", "probe"), ["settings"]);
+    // Без входа: «Настройки» — из гостевого меню, «Диагностика» — первой из экрана входа (его кнопка) или из «Настроек».
+    assert.deepEqual(via("out", "settings"), ["init"]);
+    assert.equal(via("out", "probe").filter((v) => v === "login" || v === "settings").length, 1);
     assert.ok(r.nodes >= 60, `nodes: ${r.nodes}`);
     for (const k of [
       "init", "home", "search", "item", "season", "play", "list:catalog", "panel:audio", "settings", "probe:",
