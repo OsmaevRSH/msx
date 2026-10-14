@@ -16,6 +16,7 @@ import { catalog } from "../../tools/kpmock/fixtures.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
+import { assertRealMs } from "../helpers/perf.ts";
 import { waitFor } from "../progress/progress-rig.ts";
 
 let apps: TestApp[] = [];
@@ -298,7 +299,7 @@ describe("onExtend (spec §3.4, §6.3, CD-16)", () => {
     const ms = performance.now() - t0;
     assert.equal(items(s as MsxContentRoot).length, 96);
     assert.equal(t.mock.calls().length, before);
-    assert.ok(ms <= 50, `${ms.toFixed(1)} ms`);
+    assertRealMs(ms, 50, "list from memory");
     assert.equal(t.ctx.current.get(), ids.list(MOVIES));
   });
 

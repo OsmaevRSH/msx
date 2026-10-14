@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { deliberate } from "./delay.ts";
 import { HttpError, Router } from "./router.ts";
 import type { HandlerCtx, MockResponse } from "./router.ts";
 import { registerAll } from "./routes/index.ts";
@@ -208,11 +209,11 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     if (method === "OPTIONS") return reply(res, rec, "other", { status: 405, text: "Method Not Allowed" });
 
     const body = await readBody(req);
-    if (scenario.delayMs > 0) await sleep(scenario.delayMs);
+    if (scenario.delayMs > 0) await deliberate(res, scenario.delayMs, sleep(scenario.delayMs));
     const rule = takeRule(scenario, method, path);
     if (rule) {
-      if (rule.delayMs) await sleep(rule.delayMs);
-      if (rule.hang && !(await hold(req, res))) return;
+      if (rule.delayMs) await deliberate(res, rule.delayMs, sleep(rule.delayMs));
+      if (rule.hang && !(await deliberate(res, Infinity, hold(req, res)))) return;
       if (rule.drop) return drop(req, rec);
       if (rule.status !== undefined) {
         return reply(res, rec, kind, { status: rule.status, json: { status: rule.status, error: "mock" } }, { ruleNoCors: rule.noCors === true });

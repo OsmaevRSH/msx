@@ -158,7 +158,8 @@ describe("new menu sections as lists (v1.11)", () => {
     refreshAfterPlayback(t.ctx, FIX.MOVIE_SIMPLE);
     assert.equal(t.ctx.state.lists.has(key), false);
     await t.run(new Promise((r) => setImmediate(r)));
-    await new Promise((r) => setTimeout(r, 30));
+    // Запрос идёт в реальном времени: дождаться, сколько бы он ни шёл на загруженной машине.
+    for (let i = 0; i < 500 && query(t, "/v1/history").length <= n; i++) await new Promise((r) => setTimeout(r, 10));
     assert.equal(query(t, "/v1/history").length, n + 1);
   });
 

@@ -9,6 +9,7 @@ import { errorScreen, errorText } from "../../src/screens/error.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 import { MemoryStorage } from "../helpers/memory-storage.ts";
+import { assertRealMs } from "../helpers/perf.ts";
 
 const AT_P = `@${TEST_P}`;
 
@@ -41,7 +42,7 @@ describe("App.handleRequest: init (CNFR-03)", () => {
     const t0 = t.ctx.clock.perf();
     const menu = (await t.request("init")) as MsxMenuRoot;
     assert.ok(t.ctx.clock.perf() - t0 <= 100);
-    assert.ok(performance.now() - wall <= 100, "init must not wait for anything");
+    assertRealMs(performance.now() - wall, 100, "init must not wait for anything");
     assert.ok(Array.isArray(menu.menu) && menu.menu.length > 0);
     assert.equal(t.mock.calls().length, 0);
     assert.equal(t.ctx.state.initCount, 1);

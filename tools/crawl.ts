@@ -5,6 +5,8 @@ import type { LogEntry } from "../src/core/log.ts";
 import { ids, isPanelId, parseDataId, parseMessage } from "../src/router/ids.ts";
 import { rememberQuery } from "../src/screens/recent.ts";
 import { createTestApp } from "../test/helpers/harness.ts";
+import { PERF } from "../test/helpers/perf.ts";
+import { ghReport } from "./gh-report.ts";
 import { FIX } from "./kpmock/fixtures.ts";
 import type { TestApp } from "../test/helpers/harness.ts";
 import {
@@ -33,11 +35,15 @@ const MAX_NODES = 600;
 const MAX_DEPTH = 5;
 /** Повторный запрос того же `dataId` отвечает из кэша (спец. §6.3, CNFR-04). */
 const CACHE_MS = 50;
-/** На время повторного запроса mock отвечает с такой задержкой: экран, который ждёт сеть, в `CACHE_MS` не уложится. */
+/**
+ * На время повторного запроса mock отвечает с такой задержкой: экран, который ждёт сеть, ответил бы только после ответа
+ * mock. FakeClock такую задержку (не длиннее `ioGraceMs`) дожидается — фоновые запросы повтора доходят, как раньше.
+ */
 const NET_DELAY_MS = 200;
 /**
- * Реальное время повтора — только «не ждал сеть»: оно ниже `NET_DELAY_MS` с запасом. Бюджет `CACHE_MS` проверяет
- * поддельное время — реальные 50 мс на загруженном раннере CI превышаются и без сети (этап 35).
+ * Реальное время повтора — только в режиме `KP_PERF=1` (`npm run perf`): на загруженной машине (раннер CI, параллельные
+ * прогоны) 100 мс превышаются и без сети. «Не ждал сеть» доказывает журнал mock: к ответу повтора ни один его запрос
+ * ещё не получил ответа.
  */
 const CACHE_REAL_MS = NET_DELAY_MS / 2;
 /**
@@ -226,26 +232,33 @@ class Crawler {
     return isPanelId(n.id) || RESOLVE_KINDS.has(k) ? n.screen : n.id;
   }
 
-  /** Повтор того же `dataId` — из кэша: ≤ 50 мс поддельного времени и без ожидания сети, хотя mock на это время медленнее. */
+  /**
+   * Повтор того же `dataId` — из кэша: ≤ 50 мс поддельного времени и без ожидания сети, хотя mock на это время медленнее:
+   * к ответу повтора ни один запрос, ушедший во время него, ещё не получил ответа mock. Ответ из кэша не уступает циклу
+   * событий, а задержка mock — его таймер, поэтому от скорости машины исход не зависит.
+   */
   private async fromCache(n: Extract<Node, { k: "req" }>): Promise<void> {
     const { t } = this;
     t.mock.setScenario({ delayMs: NET_DELAY_MS });
+    const calls0 = t.mock.calls().length;
     const fake0 = t.clock.perf();
     const t0 = performance.now();
     let t1 = t0;
+    let answered: string[] = [];
     try {
       await t.run(t.app.handleRequest(n.id, {}).then(() => {
         t1 = performance.now();
+        answered = t.mock.calls().slice(calls0).filter((c) => c.status !== 0).map((c) => c.path);
       }));
     } finally {
       t.mock.setScenario({ delayMs: 0 });
     }
     t.host.clearActions();
-    const real = Math.round(t1 - t0);
     const fake = t.clock.perf() - fake0;
-    if (real > CACHE_REAL_MS || fake > CACHE_MS) {
-      this.fail(label(n), "cache", `repeat took ${real} ms (fake ${fake} ms) > ${CACHE_REAL_MS} ms (fake ${CACHE_MS} ms)`);
-    }
+    if (fake > CACHE_MS) this.fail(label(n), "cache", `repeat took ${fake} ms of fake time > ${CACHE_MS} ms`);
+    if (answered.length > 0) this.fail(label(n), "cache", `repeat waited for the network: ${answered.join(", ")}`);
+    const real = Math.round(t1 - t0);
+    if (PERF && real > CACHE_REAL_MS) this.fail(label(n), "cache", `repeat took ${real} ms of real time > ${CACHE_REAL_MS} ms`);
   }
 
   // --- Проверки ---
@@ -411,6 +424,8 @@ if (import.meta.main) {
   for (const [name, o] of runs) {
     const r = await crawl(trace === undefined ? o : { ...o, trace });
     console.log(summary(name, r));
+    const failures = r.failures.map((f) => ({ title: `crawl ${name}: ${f.rule} ${f.dataId}`, message: f.detail }));
+    for (const line of ghReport(`npm run crawl (${name})`, `${r.nodes} nodes`, failures)) console.log(line);
     failed += r.failures.length;
   }
   process.exit(failed > 0 ? 1 : 0);

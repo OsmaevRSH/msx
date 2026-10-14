@@ -22,7 +22,7 @@ const UPDATE = process.env.UPDATE_GOLDEN === "1";
 const MOCK = "http://kpmock.invalid";
 const MOVIES = encodeListKey({ src: "catalog", type: "movie", sort: "-updated" });
 const A12_MID = findItem(FIX.MOVIE_AUDIO12)?.videos?.[0]?.id ?? 0;
-/** С замёрзшим `Date` зависший промис FakeClock не распознаёт — тест падает по своему сроку. */
+/** Страховой срок теста; реальное время FakeClock меряет по `performance` — замёрзший `Date` ему не мешает. */
 const LIMIT = { timeout: 60_000 };
 
 let apps: TestApp[] = [];
@@ -136,8 +136,8 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("resolve-play-2001-continue", ids.playContinue(FIX.SERIAL_BIG));
   });
 
-  // Последним: с замёрзшим `Date` FakeClock ждал бы висящий fetch вечно — этот стенд ввод-вывод не ждёт вовсе, а после
-  // снимка висящие запросы обрываются; следующий стенд в этом процессе всё равно ждал бы их.
+  // Последним: висящий ответ FakeClock ждёт `ioGraceMs` перед каждым таймером — этот стенд его не ждёт вовсе, а после
+  // снимка висящие запросы обрываются; следующему стенду в этом процессе они бы только мешали.
   it("error KP-NET: the network hangs — «Нет связи» from the transport after 6 s", LIMIT, async () => {
     const t = await make({ loggedIn: true });
     t.mock.setScenario({ rules: [{ path: ".*", hang: true }] });

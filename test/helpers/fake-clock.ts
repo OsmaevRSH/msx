@@ -1,6 +1,8 @@
 import { subscribe } from "node:diagnostics_channel";
+import { performance } from "node:perf_hooks";
 import { setImmediate as nextTurn, setTimeout as realSleep } from "node:timers/promises";
 import type { Clock, TimerId } from "../../src/core/clock.ts";
+import { DELAY_CHANNEL } from "../../tools/kpmock/delay.ts";
 
 /** 2026-01-01T00:00:00Z — стартовое `now()` по умолчанию. */
 export const FAKE_EPOCH = Date.UTC(2026, 0, 1);
@@ -13,6 +15,14 @@ interface FakeTimer {
 
 const MAX_FIRES_AT_SAME_TIME = 10_000;
 const IDLE_REAL_LIMIT_MS = 10_000;
+/**
+ * Предел ожидания запроса в полёте: только страховка от запроса, который не кончается никогда. Под нагрузкой ответ mock
+ * идёт сотни миллисекунд — поддельные таймеры его не обгоняют.
+ */
+const BUSY_REAL_LIMIT_MS = 10_000;
+
+/** Реальное время; `Date` тест может заморозить (`mock.timers`), `performance` — нет. */
+const realNow = (): number => performance.now();
 
 // Сколько запросов глобального fetch (undici) сейчас в полёте: runUntilSettled даёт им
 // дойти до конца, прежде чем перевести поддельное время к следующему таймеру.
@@ -26,6 +36,16 @@ subscribe("undici:request:create", () => {
 subscribe("undici:request:trailers", fetchDone);
 subscribe("undici:request:error", fetchDone);
 
+// Из них ответы, которые kpmock сейчас задерживает намеренно (`delayMs`, `hang` — Infinity; tools/kpmock/delay.ts):
+// номинальная задержка → сколько таких.
+const delayed = new Map<number, number>();
+subscribe(DELAY_CHANNEL, (m) => {
+  const { delta, ms } = m as { delta: number; ms: number };
+  const n = (delayed.get(ms) ?? 0) + delta;
+  if (n > 0) delayed.set(ms, n);
+  else delayed.delete(ms);
+});
+
 /**
  * Поддельные часы для тестов. `now()` и `perf()` идут вместе и двигаются только через
  * `advance()` или `runUntilSettled()`.
@@ -34,8 +54,9 @@ export class FakeClock implements Clock {
   /** Реальная пауза для ввода-вывода перед переходом к следующему таймеру. */
   ioPauseMs = 2;
   /**
-   * Сколько реального времени ждать запросы fetch в полёте перед переходом к таймеру.
-   * Ответ mock медленнее этого (например, `delayMs: 600`) считается «долгим»: поддельные таймеры его обгоняют.
+   * Порог намеренной задержки ответа mock (`delayMs`, `hang`). Задержку не длиннее него FakeClock ждёт до конца, как
+   * обычный запрос в полёте; длиннее (например, `delayMs: 600`) — «долгий» ответ: его не ждут, поддельные таймеры
+   * обгоняют его сразу. Решает номинальная задержка, а не реальное время: на загруженной машине исход тот же.
    */
   ioGraceMs = 250;
 
@@ -100,18 +121,18 @@ export class FakeClock implements Clock {
     );
     const deadline = this.elapsed + maxMs;
     const loop = this.loopGuard();
-    let idleSince = Date.now();
+    let idleSince = realNow();
     for (;;) {
       await this.flushIo(() => settled);
       if (settled) return p;
       const t = this.nextTimer();
       if (t === undefined) {
-        if (Date.now() - idleSince > IDLE_REAL_LIMIT_MS) {
+        if (realNow() - idleSince > IDLE_REAL_LIMIT_MS) {
           throw new Error(`runUntilSettled: no fake timers and the promise is still pending after ${IDLE_REAL_LIMIT_MS} ms of real time`);
         }
         continue;
       }
-      idleSince = Date.now();
+      idleSince = realNow();
       if (t.at > deadline) {
         throw new Error(`runUntilSettled: the promise did not settle within ${maxMs} ms of fake time`);
       }
@@ -123,11 +144,18 @@ export class FakeClock implements Clock {
   private async flushIo(settled: () => boolean): Promise<void> {
     await nextTurn();
     await realSleep(this.ioPauseMs);
-    const started = Date.now();
-    while (fetchInFlight > 0 && !settled() && Date.now() - started < this.ioGraceMs) {
+    const started = realNow();
+    while (!settled() && this.ioPending(realNow() - started)) {
       await realSleep(this.ioPauseMs);
     }
     await nextTurn();
+  }
+
+  /** Ждать ли ещё запросы в полёте: все, кроме задержанных mock дольше `ioGraceMs`, — до `BUSY_REAL_LIMIT_MS`. */
+  private ioPending(waitedMs: number): boolean {
+    let overtaken = 0;
+    for (const [ms, n] of delayed) if (ms > this.ioGraceMs) overtaken += n;
+    return fetchInFlight > overtaken && waitedMs < BUSY_REAL_LIMIT_MS;
   }
 
   private nextTimer(): FakeTimer | undefined {

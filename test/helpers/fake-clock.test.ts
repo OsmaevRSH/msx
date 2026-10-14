@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { sleep } from "../../src/core/clock.ts";
+import { deliberate } from "../../tools/kpmock/delay.ts";
 import { FakeClock } from "./fake-clock.ts";
+import { assertRealMs } from "./perf.ts";
 
 describe("FakeClock", () => {
   it("starts from the given time; now() and perf() advance together", async () => {
@@ -81,7 +83,7 @@ describe("FakeClock", () => {
     );
     assert.equal(v, "done");
     assert.equal(c.perf(), 3000);
-    assert.ok(Date.now() - t0 < 1000, "fake time must not take real time");
+    assertRealMs(Date.now() - t0, 1000, "fake time must not take real time");
   });
 
   it("runUntilSettled rethrows the rejection", async () => {
@@ -105,9 +107,12 @@ describe("FakeClock", () => {
     let url = "";
     const serverTimers: NodeJS.Timeout[] = [];
     before(async () => {
+      // `delay` — намеренная задержка ответа, как `delayMs` kpmock; `busy` — просто медленный ответ (нагруженная машина).
       server = createServer((req, res) => {
-        const delay = Number(new URL(req.url ?? "/", "http://x").searchParams.get("delay") ?? "0");
-        serverTimers.push(setTimeout(() => res.end("ok"), delay));
+        const q = new URL(req.url ?? "/", "http://x").searchParams;
+        const wait = (ms: number): Promise<void> => new Promise((r) => serverTimers.push(setTimeout(r, ms)));
+        const delay = Number(q.get("delay") ?? "0");
+        void (delay > 0 ? deliberate(res, delay, wait(delay)) : wait(Number(q.get("busy") ?? "0"))).then(() => res.end("ok"));
       });
       await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
       url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
@@ -138,11 +143,26 @@ describe("FakeClock", () => {
       assert.equal(c.perf(), 0);
     });
 
-    it("a response slower than ioGraceMs of real time loses to the fake timeout", async () => {
+    // Ждал бы FakeClock этот ответ — пришло бы «ok»: 1000 мс реального времени куда меньше страховки 10 с.
+    it("a response delayed on purpose longer than ioGraceMs is not waited for: the fake timeout wins", async () => {
       const c = new FakeClock(0, 0);
       c.ioGraceMs = 100;
       await assert.rejects(c.runUntilSettled(get(c, "?delay=1000", 8000)), { name: "AbortError" });
       assert.equal(c.perf(), 8000);
+    });
+
+    it("a response delayed on purpose by no more than ioGraceMs is waited for to the end", async () => {
+      const c = new FakeClock(0, 0);
+      c.ioGraceMs = 100;
+      assert.equal(await c.runUntilSettled(get(c, "?delay=100", 8000)), "ok");
+      assert.equal(c.perf(), 0);
+    });
+
+    it("an ordinary response is waited for to the end, however slow the machine: ioGraceMs does not cut it", async () => {
+      const c = new FakeClock(0, 0);
+      c.ioGraceMs = 20;
+      assert.equal(await c.runUntilSettled(get(c, "?busy=300", 8000)), "ok");
+      assert.equal(c.perf(), 0);
     });
   });
 });

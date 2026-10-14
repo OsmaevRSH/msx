@@ -10,7 +10,9 @@ const sha256 = (path: string): string => createHash("sha256").update(readFileSyn
 const VENDOR_FILES = ["tvx-plugin-module.min.js", "tvx-plugin-module.min.d.ts"];
 
 const SCRIPTS: Record<string, string> = {
-  test: 'node --test "test/**/*.test.ts"',
+  // Второй репортёр — аннотации упавших тестов в GitHub Actions (tools/gh-report.ts); вне Actions он молчит.
+  test: 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./tools/gh-report.ts --test-reporter-destination=stdout "test/**/*.test.ts"',
+  perf: "KP_PERF=1 npm test",
   typecheck: "tsc -p tsconfig.json",
   build: "node tools/build.mjs",
   size: "node tools/size.mjs",

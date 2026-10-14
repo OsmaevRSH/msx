@@ -16,6 +16,7 @@ import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
+import { assertRealMs } from "../helpers/perf.ts";
 
 // Главная S4 (спец. §8.4, §6.3, §11; Plan B S4; CC-11, CNFR-04/05/16).
 
@@ -60,6 +61,11 @@ function shelf(s: MsxContentRoot, title: string): MsxContentItem[] {
   assert.fail(`no shelf ${title}`);
 }
 
+/** Ни один запрос к mock начиная с `from`-го ещё не получил ответа: экран ответил, не дожидаясь KinoPub. */
+function unanswered(t: TestApp, from: number): boolean {
+  return t.mock.calls().slice(from).every((c) => c.status === 0);
+}
+
 /** Фоновая работа идёт в реальном времени; поддельные часы при этом стоят. */
 async function until(cond: () => boolean, what: string): Promise<void> {
   for (let i = 0; i < 500; i++) {
@@ -69,7 +75,7 @@ async function until(cond: () => boolean, what: string): Promise<void> {
   assert.fail(`timed out waiting for ${what}`);
 }
 
-/** То же, но таймеры FakeClock (лимитер, повторы, ожидание 3 с) идут; запросы в полёте mock дожидаются. */
+/** То же, но таймеры FakeClock (лимитер, повторы, ожидание 3 с) идут; запросы в полёте, и задержанные на 600 мс, дожидаются. */
 function drive(t: TestApp, cond: () => boolean, what: string): Promise<void> {
   t.clock.ioGraceMs = 2000;
   return t.run(until(cond, what));
@@ -77,7 +83,7 @@ function drive(t: TestApp, cond: () => boolean, what: string): Promise<void> {
 
 /**
  * Таймеры FakeClock идут до первого действия плагина: проверка стоит ровно на нём, время дальше не убегает. `graceMs` —
- * сколько реального времени ждать запросы в полёте перед каждым таймером; при висящих запросах (этап 33b) — меньше.
+ * порог `ioGraceMs`: ответ, задержанный mock не дольше него, FakeClock дожидается; при задержке длиннее — нет.
  */
 function driveToAction(t: TestApp, graceMs = 2000): Promise<void> {
   t.clock.ioGraceMs = graceMs;
@@ -324,7 +330,7 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
     const s = (await t.app.handleRequest(HOME, {})) as MsxContentRoot;
     const realMs = performance.now() - real0;
     assert.ok(t.clock.perf() - fake0 <= 50);
-    assert.ok(realMs <= 50, `home from L2 took ${realMs.toFixed(1)} ms`);
+    assertRealMs(realMs, 50, "home from L2");
     assert.deepEqual(headers(s), ALL);
     assert.equal(shelf(s, "Продолжить просмотр")[0]?.tag, "1×4");
     await realSleep(20);
@@ -340,13 +346,15 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
     const gone = [cacheKeys.bookmarks(), ...["popular", "hot"].flatMap((kind) => ["movie", "serial"].map((type) => cacheKeys.shelf(kind, type)))];
     for (const k of gone) first.ctx.l2.remove(k);
     first.mock.setScenario({ delayMs: 600 });
+    const n = first.mock.calls().length;
     const t = await make({ mock: first.mock, storage: first.storage, loggedIn: false });
     const real0 = performance.now();
     const fake0 = t.clock.perf();
     const s = (await t.app.handleRequest(HOME, {})) as MsxContentRoot;
     const realMs = performance.now() - real0;
     assert.equal(t.clock.perf(), fake0, "answered without waiting for KinoPub");
-    assert.ok(realMs <= 50, `partial home from L2 took ${realMs.toFixed(1)} ms`);
+    assert.ok(unanswered(t, n), "answered before KinoPub");
+    assertRealMs(realMs, 50, "partial home from L2");
     assert.deepEqual(headers(s), ALL.slice(0, 3));
     await driveToAction(t);
     assert.deepEqual(actions(t), [REPLACE]);
@@ -368,7 +376,8 @@ describe("homeScreen: L2 cache (CNFR-04, CC-11)", () => {
     const real0 = performance.now();
     const s = (await t.app.handleRequest(HOME, {})) as MsxContentRoot;
     const realMs = performance.now() - real0;
-    assert.ok(realMs <= 50, `stale home from L2 took ${realMs.toFixed(1)} ms`);
+    assert.ok(unanswered(t, n0), "answered before KinoPub");
+    assertRealMs(realMs, 50, "stale home from L2");
     assert.deepEqual(headers(s), ALL);
     await until(() => t.mock.calls().length > n0, "background refresh");
   });
@@ -503,7 +512,7 @@ describe("homeScreen: KinoPub hangs (stage 33b)", () => {
   it("no cache: «loading» at 1.5 s, the KP-NET error by replace at 6 s; opened again — the error at once", async () => {
     const t = await make();
     t.mock.setScenario(HANG);
-    // Всё висит: ждать ответы в реальном времени перед каждым поддельным таймером незачем.
+    // Всё висит: ответы не ждать, поддельные таймеры идут сразу.
     t.clock.ioGraceMs = 20;
     const p0 = t.clock.perf();
     const first = await open(t);

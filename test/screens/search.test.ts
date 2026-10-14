@@ -15,6 +15,7 @@ import { catalog } from "../../tools/kpmock/fixtures.ts";
 import type { CallRecord } from "../../tools/kpmock/server.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
+import { assertRealMs } from "../helpers/perf.ts";
 
 let apps: TestApp[] = [];
 
@@ -176,7 +177,7 @@ describe("searchScreen (S7, CC-06)", () => {
     const s = (await t.app.handleRequest(ids.search(), {})) as MsxContentRoot;
     const ms = performance.now() - t0;
     assert.equal(t.mock.calls().length, before);
-    assert.ok(ms <= 50, `${ms.toFixed(1)} ms`);
+    assertRealMs(ms, 50, "search from memory");
     const { header, template, items: tiles, inserts, ...root } = s;
     assert.deepEqual(root, {
       type: "list", compress: true, flag: "search", cache: false, reuse: false, preload: "next", headline: "Поиск",

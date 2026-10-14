@@ -7,6 +7,7 @@ import type { ListKey } from "../../src/router/ids.ts";
 import { SECTIONS, buildMenu, menuStore } from "../../src/screens/menu.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
+import { assertRealMs } from "../helpers/perf.ts";
 
 let apps: TestApp[] = [];
 
@@ -146,7 +147,7 @@ describe("buildMenu (S3)", () => {
       const wall = performance.now();
       const t0 = t.ctx.clock.perf();
       const m = (await t.request("init")) as MsxMenuRoot;
-      assert.ok(performance.now() - wall <= 100);
+      assertRealMs(performance.now() - wall, 100, "init");
       assert.ok(t.ctx.clock.perf() - t0 <= 100);
       assert.deepEqual(m, buildMenu(t.ctx));
       assert.equal(t.mock.calls().length, 0);

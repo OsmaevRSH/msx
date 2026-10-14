@@ -349,7 +349,7 @@ describe("Transport", () => {
       const r = rig();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(authed("/v1/items"))), kp("KP-NET", "no-answer"));
       assert.equal(mock.release(), 1);
-      // Поздний ответ ждём, не двигая поддельное время: под нагрузкой часы дошли бы до таймаута 8 с раньше ответа.
+      // Поздний ответ ждём, не двигая поддельное время: проверяется сам поздний ответ, а не гонка с таймаутом 8 с.
       for (let i = 0; i < 1000 && !logged(r, /^GET \/v1\/items 200 /); i++) await realSleep(10);
       assert.ok(logged(r, /^GET \/v1\/items 200 /), "the late answer arrived");
       hang("^/v1/items$");
