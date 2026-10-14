@@ -244,7 +244,7 @@ Chrome нужно запустить с флагом `--disable-features=LocalNe
 | Contract | плагин без MSX против `kpmock` по HTTP | `test/contract`, `npm test` |
 | Golden | JSON ключевых экранов | `test/golden`, `npm test` |
 | Краулер | весь граф действий: разметка, `{context:…}`, размеры, ответ из кэша; действия над плиткой (`act:tile:…`) только проверяет, но не отправляет — они удаляют данные; тест скорости CDN (`act:probe:cdnRun`) тоже не запускает — он качает до 3 МБ с сервера | `npm run crawl` |
-| E2E | web MSX в Chromium против плагина и `kpmock` на `127.0.0.1`: smoke, CE-01…CE-07, сценарии E-02…E-28 и E-30 (тест скорости CDN) | `e2e/`, `npm run e2e` |
+| E2E | web MSX в Chromium против плагина и `kpmock` на `127.0.0.1`: smoke, CE-01…CE-07, сценарии E-02…E-30 (E-30 — тест скорости CDN) | `e2e/`, `npm run e2e` |
 | Пробник | CDG-01…CDG-12 на телевизоре | раздел «Диагностика» |
 | Приёмка | CAC-01…CAC-25 на телевизоре | ниже |
 
