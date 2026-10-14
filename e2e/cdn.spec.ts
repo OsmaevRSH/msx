@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { ids } from "../src/router/ids.ts";
 import { MOCK_URL, P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press } from "./fixtures.ts";
-import { answer, answered, attachDiagnostics, callsSince, installTimeline, mark } from "./flows-kit.ts";
+import { answer, answered, attachDiagnostics, callsSince, installTimeline, mark, selected } from "./flows-kit.ts";
 
 // «Скорость серверов KinoPub» (v1.18, спец. §11 S12, §16.7) в web MSX: «Настройки» → строка теста → «Проверить» →
 // таблица по локациям → «Выбрать самый быстрый» → `serverLocation` устройства в mock, со сверкой чтением. CDN mock — с
@@ -50,6 +50,13 @@ test("E-30: «Скорость серверов KinoPub» — «Проверит
   await answered(page, ids.probe("cdn"), m0, 15_000);
   await expectContent(page, "Проверить");
   for (const name of ["Нидерланды", "Германия", "Россия"]) await expectContent(page, name);
+  // Стражи краёв (§11): «вниз» с последней строки и «вверх» с первой фокус не переносят.
+  await page.keyboard.press("ArrowDown");
+  await expect(selected(page), "вниз с «Проверить» — на месте").toContainText("Проверить");
+  await exec(page, "focus:cdn_nl");
+  await expect(selected(page)).toContainText("Нидерланды");
+  await page.keyboard.press("ArrowUp");
+  await expect(selected(page), "вверх с первой строки — на месте").toContainText("Нидерланды");
   const before = await answer(page, ids.probe("cdn"));
   expect(before.items.find((i: { id?: string }) => i.id === "cdn_best")?.enable, "до проверки выбирать нечего").toBe(false);
 
@@ -59,7 +66,7 @@ test("E-30: «Скорость серверов KinoPub» — «Проверит
     ((await answer(page, ids.probe("cdn"))).items as { extensionLabel?: string }[]).filter((i) => /Мбит\/с/.test(i.extensionLabel ?? "")).length;
   await expect.poll(speeds, { message: "три строки со скоростью (ответ после проверки)", timeout: 45_000 }).toBe(3);
   await expectContent(page, "Германия · самый быстрый");
-  await expect(content(page), "все три строки и действия — на одном экране").toContainText("Мбит/с");
+  for (const text of ["Россия", "Выбрать самый быстрый", "Проверить"]) await expect(content(page), "всё на одном экране").toContainText(text);
   const cdn = await callsSince(c0, /^\/cdn\//);
   expect(cdn.map((c) => c.q.get("loc")), "локации по очереди, по одному файлу WebM на каждую").toEqual(["nl", "de", "ru"]);
   const shown = await answer(page, ids.probe("cdn"));
@@ -80,9 +87,10 @@ test("E-30: «Скорость серверов KinoPub» — «Проверит
   const c1 = (await mock.calls()).length;
   await press(page, "cdn_best", "Выбрать самый быстрый");
   await expect.poll(deviceLocation, { message: "serverLocation устройства в mock — Германия (id 2)", timeout: 15_000 }).toBe(2);
-  const after = (await callsSince(c1, /^\/v1\/device\//)).map((c) => `${c.method} ${c.path.replace(/\/\d+\//, "/N/")}`);
+  // Свои запросы теста (`deviceLocation`) — без Origin: в счёт только запросы плагина.
+  const after = (await callsSince(c1, /^\/v1\/device\//)).filter((c) => c.origin !== undefined).map((c) => `${c.method} ${c.path.replace(/\/\d+\//, "/N/")}`);
   expect(after.slice(0, 2), "POST, затем сверка чтением").toEqual(["POST /v1/device/N/settings", "GET /v1/device/info"]);
-  await expectContent(page, "CDN-сервер: Германия");
+  await expect(page.locator("#appNotificationScene"), "итог — уведомлением").toContainText("CDN-сервер: Германия");
   await expect.poll(async () => (await answer(page, ids.probe("cdn"))).items.find((i: { id?: string }) => i.id === "cdn_de")?.label, {
     message: "экран перерисован с новой отметкой", timeout: 10_000,
   }).toBe("{ico:check} Германия · самый быстрый");

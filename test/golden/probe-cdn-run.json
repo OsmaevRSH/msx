@@ -1,19 +1,20 @@
 {
   "type": "list",
+  "compress": true,
   "flag": "cdn",
   "cache": false,
   "reuse": false,
   "headline": "Скорость серверов KinoPub",
   "template": {
     "type": "control",
-    "layout": "0,0,12,1",
+    "layout": "0,0,16,1",
     "enumerate": false
   },
   "items": [
     {
       "type": "space",
-      "layout": "0,0,12,1",
-      "offset": "0,0.5,0,-0.5",
+      "layout": "0,0,16,1",
+      "offset": "0,0.3,0,-0.3",
       "headline": "Серверы: задержка · скорость · первый сегмент"
     },
     {
@@ -45,32 +46,25 @@
       "id": "cdn_run",
       "label": "Проверить",
       "extensionLabel": "31.12.2025 23:59 · 9,0 МБ за 11,4 с",
-      "action": "[info:Проверка серверов: 10–30 секунд|interaction:commit:message:act:probe:cdnRun]",
-      "break": "context:end"
+      "action": "[info:Проверка серверов: 10–30 секунд|interaction:commit:message:act:probe:cdnRun]"
     }
   ],
   "inserts": [
     {
       "position": "page:0",
-      "area": "0,0,12,6",
+      "area": "0,0,16,6",
+      "offset": "0,0,0,-1",
       "items": [
         {
-          "layout": "0,0,12,1",
+          "layout": "0,0,16,1",
           "offset": "0,1,0,0",
           "color": "transparent",
           "selection": {
             "action": "focus:cdn_nl"
           }
-        }
-      ]
-    },
-    {
-      "position": "context:end",
-      "area": "0,0,12,1",
-      "offset": "0,0,0,-1",
-      "items": [
+        },
         {
-          "layout": "0,1,12,1",
+          "layout": "0,6,16,1",
           "offset": "0,-1,0,0",
           "color": "transparent",
           "selection": {

@@ -41,9 +41,14 @@ const LAT_SLACK_MS = 5;
 const DEVICE_WAIT_MS = 1500;
 const LOC_CODE = /^[a-z0-9_-]+$/i;
 const CHECK = "{ico:check} ";
-/** V-33: заголовок группы — в нижней половине своей строки. */
-const GROUP_OFFSET = "0,0.5,0,-0.5";
-const GRID = { width: 12, height: 6, w: 12, h: 1 };
+/**
+ * Сжатый корень 16×8 (`compress`, как у сезонов): заголовок, 3 сервера и 2 действия — 6 строк — с обоими стражами краёв
+ * помещаются на один экран (без сжатия строк 6, и последняя уходила бы на вторую страницу к стражу). Заголовок группы —
+ * в нижней части своей строки (V-33); на половине сжатой строки его буквы обрезались.
+ */
+const GRID = { width: 16, height: 8, w: 16, h: 1 };
+const ROW = "0,0,16,1";
+const GROUP_OFFSET = "0,0.3,0,-0.3";
 
 const T = {
   headline: "Скорость серверов KinoPub", run: "Проверить", running: "Идёт проверка…",
@@ -246,7 +251,7 @@ export async function cdnScreen(ctx: AppContext): Promise<MsxContentRoot> {
     return countryName(code, l?.name ?? "");
   };
   const byCode = new Map((run?.rows ?? []).map((r) => [r.code, r]));
-  const head = (headline: string): MsxContentItem => ({ type: "space", layout: "0,0,12,1", offset: GROUP_OFFSET, headline });
+  const head = (headline: string): MsxContentItem => ({ type: "space", layout: ROW, offset: GROUP_OFFSET, headline });
   const last = run === undefined ? `≈ 10–30 с, до ${locs.length * (CAP_BYTES / MB)} МБ`
     : `${fmtDate(run.at / 1000)} ${fmtTime(run.at)} · ${fmtMb(run.bytes)} за ${fmtSec(run.ms)}${run.stopped ? " · прервана" : ""}`;
   const pick = best !== undefined && best !== cur && !busy;
@@ -270,7 +275,8 @@ export async function cdnScreen(ctx: AppContext): Promise<MsxContentRoot> {
   items[focus] = { ...items[focus], focus: true };
   const framed = gridEdges(items, GRID, { top: "overlay", bottom: true });
   const root: MsxContentRoot = {
-    type: "list", flag: FLAG, cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1", enumerate: false }, items: framed.items,
+    type: "list", compress: true, flag: FLAG, cache: false, reuse: false, headline: T.headline,
+    template: { type: "control", layout: ROW, enumerate: false }, items: framed.items,
   };
   if (framed.inserts !== undefined) root.inserts = framed.inserts;
   return root;
