@@ -142,7 +142,7 @@ describe("MSX markup of every answer (W10b: items need a template, the menu is r
     ]);
     assert.equal(t.ctx.auth.isLoggedIn(), false);
     const seen = kinds(answers);
-    for (const k of ["init", "login", "probe:", "probe:report:1", "probe:flag:heartbeat", "dev", "unknown", "home", "panel:sort"]) {
+    for (const k of ["init", "login", "settings", "probe:", "probe:report:1", "probe:flag:heartbeat", "dev", "unknown", "home", "panel:sort"]) {
       assert.ok(seen.has(k), `${k} not crawled: ${[...seen].join(" ")}`);
     }
     check(t, answers);

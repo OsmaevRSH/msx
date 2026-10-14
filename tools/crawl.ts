@@ -29,7 +29,7 @@ export interface CrawlReport {
 }
 export interface CrawlOptions {
   maxNodes?: number; depth?: number; flags?: Partial<Flags>;
-  /** Строка на каждый узел: глубина, вход и что обойдено (`npm run crawl -- --verbose`). */
+  /** Строка на каждый узел: глубина, вход, что обойдено и откуда («← узел»; `npm run crawl -- --verbose`). */
   trace?: (line: string) => void;
 }
 
@@ -86,9 +86,10 @@ const RECENT_SEED = "тест";
 const REQ_CAP = 3;
 const MSG_CAP = 2;
 
+/** `via` — узел, из ответа или действий которого пришёл этот (в строке `--verbose` после «←»). */
 type Node =
-  | { k: "req"; id: string; depth: number; screen?: string }
-  | { k: "msg"; msg: string; depth: number; screen?: string }
+  | { k: "req"; id: string; depth: number; screen?: string; via?: string }
+  | { k: "msg"; msg: string; depth: number; screen?: string; via?: string }
   /** Перезапрос открытого экрана по `reload:content` или замене с его флагом — сразу, как это делает MSX. */
   | { k: "reload"; id: string; depth: number };
 
@@ -146,9 +147,10 @@ class Crawler {
     for (const id of SEEDS) this.push({ k: "req", id, depth: 1 });
     await this.drain();
     if (this.last.length > 0) {
-      // После выхода — меню и экраны без входа; код входа не подтверждается, чтобы обход не вошёл снова.
+      // После выхода — меню и экраны без входа; код входа не подтверждается, чтобы обход не вошёл снова. Глубина — заново
+      // от выхода: «Диагностика» без входа — строка «Настроек» (v1.16), третий шаг от гостевого меню.
       this.t.mock.setScenario({ pendingPolls: 1_000_000 });
-      this.queue.push(...this.last.splice(0));
+      this.queue.push(...this.last.splice(0).map((n) => ({ ...n, depth: 0 })));
       await this.drain();
     }
     return { nodes: this.nodes, failures: this.failures, maxBytes: this.maxBytes, edges: this.edges.size, skipped: [...this.skipped].sort() };
@@ -171,7 +173,7 @@ class Crawler {
 
   private async visit(n: Node, body: () => Promise<void>): Promise<void> {
     this.nodes += 1;
-    this.o.trace?.(`${n.depth} ${this.auth()} ${label(n)}`);
+    this.o.trace?.(`${n.depth} ${this.auth()} ${label(n)}${n.k !== "reload" && n.via !== undefined ? ` ← ${n.via}` : ""}`);
     await body();
     for (const e of this.errors.splice(0)) this.fail(label(n), "log", `${e.tag} ${e.msg} ${JSON.stringify(e.data ?? {})}`);
   }
@@ -386,7 +388,7 @@ class Crawler {
       this.fail(label(from), "dangling", `unknown dataId ${id}`);
       return;
     }
-    const n: Extract<Node, { k: "req" }> = { k: "req", id, depth: from.depth + 1 };
+    const n: Extract<Node, { k: "req" }> = { k: "req", id, depth: from.depth + 1, via: label(from) };
     const screen = this.screenOf(from);
     if (overlay && screen !== undefined) n.screen = screen;
     this.push(n);
@@ -403,7 +405,7 @@ class Crawler {
       this.skipped.add(msg);
       return;
     }
-    const n: Extract<Node, { k: "msg" }> = { k: "msg", msg, depth: from.depth + 1 };
+    const n: Extract<Node, { k: "msg" }> = { k: "msg", msg, depth: from.depth + 1, via: label(from) };
     const screen = this.screenOf(from);
     if (screen !== undefined) n.screen = screen;
     this.push(n, m.k === "act" && LAST.has(`${m.module}:${m.name}`));

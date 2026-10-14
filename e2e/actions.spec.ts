@@ -49,7 +49,7 @@ async function choose(p: Page, label: string): Promise<void> {
   await p.keyboard.press("Enter");
 }
 
-test("E-24: «История» — «Удалить из истории» убирает плитку сразу, фокус на соседней; «Очистить всю историю» — подтверждение с фокусом на «Отмена»", async () => {
+test("E-26: «История» — «Удалить из истории» убирает плитку сразу, фокус на соседней; «Очистить всю историю» — подтверждение с фокусом на «Отмена»", async () => {
   await open(page, HISTORY);
   await expectContent(page, "«Простой»");
   await optionsOn(page, FIX.MOVIE_SIMPLE, "«Простой»");
@@ -95,7 +95,7 @@ test("E-24: «История» — «Удалить из истории» уби
   await noNotification(page);
 });
 
-test("E-25: «Я смотрю» — «Убрать из „Я смотрю“» на сериале: один togglewatchlist, плитка пропала; у фильма опций плитки нет", async () => {
+test("E-27: «Я смотрю» — «Убрать из „Я смотрю“» на сериале: один togglewatchlist, плитка пропала; у фильма опций плитки нет", async () => {
   // Без mock.reset(): он отзывает токены плагина. История уже пуста (E-24), «Я смотрю» от неё не зависит.
   await open(page, ids.watching());
   await expectContent(page, "«Большой»");
@@ -122,7 +122,7 @@ test("E-25: «Я смотрю» — «Убрать из „Я смотрю“» 
   await expect(msxMenuDialog(page)).toBeHidden();
 });
 
-test("E-26: папка закладок — «Убрать из папки»: remove-item, плитка пропала, «1 шт.»", async () => {
+test("E-28: папка закладок — «Убрать из папки»: remove-item, плитка пропала, «1 шт.»", async () => {
   await open(page, ids.bookmarks());
   await open(page, FOLDER);
   await expectContent(page, "«Простой»");

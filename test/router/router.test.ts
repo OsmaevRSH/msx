@@ -70,7 +70,7 @@ describe("App.handleRequest: init (CNFR-03)", () => {
 });
 
 describe("App.handleRequest without login", () => {
-  for (const dataId of ["home", "list:abc", "search", "item:1", "season:1:1", "settings", "bookmarks"]) {
+  for (const dataId of ["home", "list:abc", "search", "item:1", "season:1:1", "bookmarks"]) {
     it(`${dataId} → login screen; current is login`, async () => {
       const t = await make();
       await t.request(dataId);
@@ -94,7 +94,8 @@ describe("App.handleRequest without login", () => {
     }
   });
 
-  for (const dataId of ["init", "login", "probe", "probe:report:1", "dev"]) {
+  // v1.16: «Настройки» без входа — урезанные, с «Диагностикой» и системными настройками MSX.
+  for (const dataId of ["init", "login", "settings", "probe", "probe:report:1", "dev"]) {
     it(`${dataId} is public`, async () => {
       const t = await make();
       await t.request(dataId);
