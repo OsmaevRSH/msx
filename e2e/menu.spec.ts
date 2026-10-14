@@ -12,7 +12,8 @@ import {
 
 // Меню v1.11 (спец. §11 S3, S12, S15, S16): «Я смотрю» и «Спорт» пультом из меню, подборки, «Пункты меню» — скрытый
 // пункт исчезает из меню MSX сразу, под открытой панелью (`[replace:menu|reload:panel]`). v1.13 (§11.1): обе настройки
-// порядка — первыми строками настроек, «Секции главной» меняют главную. Одна сессия web MSX на файл.
+// порядка — первыми строками настроек, «Секции главной» меняют главную. v1.16 (E-25): в конце меню один пункт «Настройки»,
+// системные настройки MSX — строкой их группы «Для разработчика». Одна сессия web MSX на файл.
 
 test.describe.configure({ mode: "serial" });
 
@@ -287,4 +288,39 @@ test("E-22: «Новинки» из меню — вкладка «Фильмы»
   await expectContent(page, "Тестовая");
   await expect(content(page), "подпись количества у подборок").not.toContainText("шт.");
   expect((await answer(page, ids.list(encodeListKey({ src: "collections" })))).items.every((i: { titleFooter?: string }) => i.titleFooter === undefined)).toBe(true);
+});
+
+test("E-25: в конце меню один пункт «Настройки» (v1.16); «Для разработчика» — последней группой, «Системные настройки MSX» открывают настройки MSX, «Назад» — к «Настройкам»", async () => {
+  // После E-22 фокус в меню на «Подборках»: вниз до «Настроек».
+  const items = page.locator("#appMainMenuItems .app-main-menu-item");
+  await expect(items.last()).toHaveText("Настройки");
+  await expect(items.filter({ hasText: /^Настройки$/ })).toHaveCount(1);
+  await expect(menuItem(page, "Диагностика")).toHaveCount(0);
+  const m0 = await mark(page);
+  for (let n = 0; n < 30 && (await menuSelected(page).innerText()) !== "Настройки"; n++) await page.keyboard.press("ArrowDown");
+  await expect(menuSelected(page)).toHaveText("Настройки");
+  await answered(page, ids.settings(), m0);
+  await expectContent(page, "Порядок и видимость пунктов меню");
+  const s = await answer(page, ids.settings());
+  expect(s.items.filter((i: { headline?: string }) => i.headline !== undefined).at(-1).headline).toBe("Для разработчика");
+
+  await page.keyboard.press("ArrowRight");
+  await expect(selected(page)).toContainText("Порядок и видимость пунктов меню");
+  await exec(page, "focus:s_probe");
+  await expect(selected(page)).toContainText("Диагностика");
+  await page.keyboard.press("ArrowDown");
+  await expect(selected(page)).toContainText("Системные настройки MSX");
+  await page.keyboard.press("ArrowDown");
+  await expect(selected(page), "вниз с последней строки — на месте").toContainText("Системные настройки MSX");
+  await page.keyboard.press("Enter");
+  await expectContent(page, "Стартовый параметр");
+  await page.keyboard.press("Backspace");
+  await expectContent(page, "Системные настройки MSX");
+  await expect(selected(page)).toContainText("Системные настройки MSX");
+
+  // В меню: после «Настроек» пунктов нет — MSX листает меню по кругу на «Главную».
+  await page.keyboard.press("Backspace");
+  await expect(menuSelected(page)).toHaveText("Настройки");
+  await page.keyboard.press("ArrowDown");
+  await expect(menuSelected(page)).toHaveText("Главная");
 });
