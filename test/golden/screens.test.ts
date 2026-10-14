@@ -128,7 +128,7 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("panel-type", ids.panel("type", encodeListKey({ src: "fresh" })));
   });
 
-  it("v1.17: «Скорость серверов KinoPub» before a run and with a stored run (de is the fastest)", LIMIT, async () => {
+  it("v1.18: «Скорость серверов KinoPub» before a run and with a stored run (de is the fastest)", LIMIT, async () => {
     await snap("probe-cdn", ids.probe("cdn"));
     const t = await make({ loggedIn: true });
     const row = (code: string, latencyMs: number, mbps: number, segMs: number) => ({ code, ok: true, acc: "full", latencyMs, mbps, segMs, bytes: 3_150_000 });

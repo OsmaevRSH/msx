@@ -119,7 +119,7 @@ describe("build: probe.js (stage 23b)", () => {
 });
 
 describe("build: CSP", () => {
-  // v1.17: тест скорости CDN читает мастер-плейлисты фронт-хостов и сегменты узлов `*.cdntogo.net` (§15.4, §16.7).
+  // v1.18: тест скорости CDN читает мастер-плейлисты фронт-хостов и сегменты узлов `*.cdntogo.net` (§15.4, §16.7).
   const CDN = "https://*.cdntogo.net https://cdn2cdn.com https://cdn2site.com https://digital-cdn.net";
 
   it("defaults: connect-src lists both production API origins and the video hosts of the CDN test, script-src 'self'", async () => {

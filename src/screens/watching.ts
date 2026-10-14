@@ -13,6 +13,7 @@ import { fill, remember } from "./list.ts";
 import type { ListEntry } from "./list.ts";
 import { FILMS, SERIALS } from "./list-head.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
+import { NO_OPTIONS, WATCHING_OPTIONS } from "./tile-actions.ts";
 import { GRID, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 // «Я смотрю» S15 (спец. §11): сериалы списка «Я смотрю» KinoPub (`/v1/watching/serials?subscribed=1`, как у Kodi и
@@ -69,7 +70,7 @@ function tilesOf(ctx: AppContext, s: Snap): { items: Titled[]; tiles: MsxContent
     const f = e === undefined ? undefined : film(e, ctx.overlay.get);
     if (e !== undefined && f === undefined) continue;
     items.push(it);
-    deco.push(f?.progress === undefined ? {} : { progress: pct(f.progress), progressColor: "msx-blue", stamp: f.stamp });
+    deco.push({ ...NO_OPTIONS, ...(f?.progress === undefined ? {} : { progress: pct(f.progress), progressColor: "msx-blue", stamp: f.stamp }) });
   }
   const tiles = posterTiles(ctx, items).map((t, i) => ({ ...t, ...deco[i] }));
   return { items, tiles, serials: serials.length };
@@ -95,7 +96,7 @@ function render(ctx: AppContext, s: Snap): { root: MsxContentRoot; hash: string 
   const st: ListEntry = { key: KEY, items, tiles, page: 1, totalPages: 1, done: true, dataId: ids.watching() };
   if (prev?.items.length === items.length) Object.assign(st, { from: prev.from, to: prev.to, anchor: prev.anchor, pivot: prev.pivot });
   remember(ctx, KEY, st);
-  root.template = gridTemplate(ctx);
+  root.template = { ...gridTemplate(ctx), ...WATCHING_OPTIONS };
   fill(ctx, root, KEY, st);
   return { root, hash };
 }

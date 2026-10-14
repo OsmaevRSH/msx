@@ -66,9 +66,11 @@ export function rootIssues(root: MsxContentRoot, at: string): string[] {
     if (!p.items.some((i) => focusable(i, template))) out.push(`${at}: на странице ${n} нет фокусируемого элемента`);
   });
   if (root.options !== undefined) out.push(...rootIssues(root.options, `${at} options`));
+  // Опции шаблона — опции каждой плитки (действия над плиткой, спец. §11.4); `options: false` у плитки — системные MSX.
+  if (template?.options !== undefined) out.push(...rootIssues(template.options, `${at} template options`));
   const all = [...(items ?? []), ...(pages ?? []).flatMap((p) => p.items), ...(root.header?.items ?? []), ...(root.inserts ?? []).flatMap((p) => p.items)];
   all.forEach((i, n) => {
-    if (i.options !== undefined) out.push(...rootIssues(i.options, `${at} item ${i.id ?? n} options`));
+    if (isObj(i.options)) out.push(...rootIssues(i.options, `${at} item ${i.id ?? n} options`));
   });
   return out;
 }
@@ -147,11 +149,14 @@ export function addressIssues(v: unknown, P: string): string[] {
 
 const CONTEXT = /\{context:([^{}]*)\}/g;
 const CONTEXT_PATHS = new Set(["template.selection.action", "template.selection.headline", "template.selection.text"]);
-const contextAllowed = (path: string): boolean => CONTEXT_PATHS.has(path) || path.startsWith("template.properties.");
-const CONTEXT_WHERE = "outside template.selection (action, headline, text) and template.properties";
+/** `template.options` MSX тоже раскрывает полями плитки в фокусе (проверено в web MSX, спец. §11.4). */
+const contextAllowed = (path: string): boolean =>
+  CONTEXT_PATHS.has(path) || path.startsWith("template.properties.") || path.startsWith("template.options.");
+const CONTEXT_WHERE = "outside template.selection (action, headline, text), template.properties and template.options";
 
 /**
- * Р-36: `{context:…}` — только в `template.selection` (`action`, `headline`, `text`) и `template.properties`; в
+ * Р-36: `{context:…}` — только в `template.selection` (`action`, `headline`, `text`), `template.properties` и
+ * `template.options` (v1.17); в
  * `template.action` MSX его не раскрывает. Раскрывает полем элемента, нестроковое поле — пустой строкой, поэтому
  * у каждого элемента корня поле есть и оно строка.
  */

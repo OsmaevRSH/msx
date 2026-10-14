@@ -18,6 +18,20 @@
     "selection": {
       "headline": "{context:kt}",
       "action": "interaction:commit:message:pf:{context:kid}"
+    },
+    "options": {
+      "headline": "{context:kt}",
+      "template": {
+        "type": "control",
+        "layout": "0,0,8,1"
+      },
+      "items": [
+        {
+          "icon": "visibility-off",
+          "label": "Убрать из «Я смотрю»",
+          "action": "[back|interaction:commit:message:act:tile:unwatch:{context:kid}]"
+        }
+      ]
     }
   },
   "items": [
@@ -50,6 +64,7 @@
       "titleHeader": "{col:msx-white}Тестовый{br}фильм «Простой»",
       "image": "http://kpmock.invalid/poster/medium/2006.svg",
       "action": "content:request:interaction:item:2006@https://example.github.io/msx/app/index.html",
+      "options": false,
       "progress": 0.22,
       "progressColor": "msx-blue",
       "stamp": "1 ч 10 м"

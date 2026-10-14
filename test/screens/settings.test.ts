@@ -109,7 +109,7 @@ describe("settingsScreen (S12)", () => {
     assert.equal(row(s, "account").action, undefined);
     assert.equal(row(s, "loc").action, panelAction(P, ids.panel("loc")));
     assert.equal(row(s, "probe").action, contentAction(P, ids.probe()));
-    // v1.17: тест скорости CDN — экран probe.js (§16.7), строка — последняя в «Воспроизведении».
+    // v1.18: тест скорости CDN — экран probe.js (§16.7), строка — последняя в «Воспроизведении».
     assert.equal(row(s, "cdn").action, contentAction(P, ids.probe("cdn")));
     assert.equal(row(s, "cdn").extensionLabel, "");
     assert.equal(row(s, "msx").action, "settings");

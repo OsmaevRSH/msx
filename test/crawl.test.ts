@@ -76,17 +76,19 @@ describe("crawl rules", () => {
     assert.equal(neverSend("act:probe"), false);
   });
 
-  it("{context:…}: only in template.selection (action, headline, text) and template.properties, item fields are strings", () => {
+  it("{context:…}: only in template.selection (action, headline, text), template.properties and template.options, item fields are strings", () => {
     const good = {
       template: {
         selection: { action: "interaction:commit:message:pf:{context:kid}", headline: "{context:kname}", text: "{context:kid}" },
         properties: { "kp:i": "{context:kid}" },
+        // v1.17: опции плитки в фокусе (действия над плиткой).
+        options: { headline: "{context:kname}", items: [{ action: "[back|interaction:commit:message:act:tile:del:{context:kid}]" }] },
       },
       items: [{ kid: "1", kname: "Один" }, { kid: "2", kname: "" }],
     };
     assert.deepEqual(contextIssues(good), []);
     assert.deepEqual(expandContext("pf:{context:kid}", { kid: "7" }), "pf:7");
-    const where = "{context:…} outside template.selection (action, headline, text) and template.properties";
+    const where = "{context:…} outside template.selection (action, headline, text), template.properties and template.options";
     assert.deepEqual(contextIssues({
       template: { action: "content:{context:kid}", selection: { action: "pf:{context:kid}", headline: "{context:kname}", label: "{context:kid}" } },
       items: [{ kid: 1, kname: "А" }, { title: "{context:kid}" }],
@@ -156,7 +158,7 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
     assert.deepEqual(via("out", "settings"), ["init"]);
     assert.equal(via("out", "probe").filter((v) => v === "login" || v === "settings").length, 1);
     assert.ok(r.nodes >= 60, `nodes: ${r.nodes}`);
-    // v1.17: «Скорость серверов KinoPub» — строка «Настроек»; экран и выбор сервера обходятся, сам тест — нет.
+    // v1.18: «Скорость серверов KinoPub» — строка «Настроек»; экран и выбор сервера обходятся, сам тест — нет.
     assert.deepEqual(via("in", "probe:cdn"), ["settings"]);
     assert.ok(trace.some((l) => l.includes(" msg:act:probe:cdnSet:")), "a server row is chosen");
     assert.deepEqual(trace.filter((l) => l.includes("cdnRun")), [], "the test itself is never run");
@@ -168,11 +170,16 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "panel:home",
       // v1.14: панель вкладок полки и вкладка, выбранная в ней (не из «Показать все» главной).
       "panel:type", "list:fresh:documovie",
-      // v1.17: тест скорости CDN.
+      // v1.17: папка с опциями плиток и подтверждение «Очистить всю историю» (спец. §11.4).
+      "list:folder", "panel:tile",
+      // v1.18: тест скорости CDN.
       "probe:cdn",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);
     }
+    // Действия над плиткой найдены в опциях и проверены как действия, но не отправлены: обход не удаляет данные.
+    const kinds = new Set(r.skipped.map((m) => m.split(":").slice(0, 3).join(":")));
+    assert.deepEqual([...kinds].sort(), ["act:tile:clear", "act:tile:del", "act:tile:unfold", "act:tile:unwatch"]);
     assert.ok((r.maxBytes["item"] ?? 0) <= 20 * 1024);
   });
 
