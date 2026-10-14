@@ -56,7 +56,7 @@ describe("Phase 1 «Смотрю кино» end to end (M1)", () => {
     mock.setScenario({ pendingPolls: 2 });
     a.app.ready();
     const guest = (await a.request("init")) as MsxMenuRoot;
-    assert.deepEqual(guest.menu.map((m) => m.id), ["login", "probe", "msx_settings"]);
+    assert.deepEqual(guest.menu.map((m) => m.id), ["login", "settings"]);
 
     const loginId = follow(menuItem(guest, "login").data, "");
     const screen = (await a.request(loginId)) as MsxContentRoot;

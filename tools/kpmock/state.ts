@@ -32,7 +32,7 @@ export class MockState {
   history: HistoryRec[] = [];
   folders = new Map<number, FolderRec>();
   newEpisodes = new Map<number, number>();
-  /** «Буду смотреть», изменённое `togglewatchlist` (v1.16): id → в списке; без записи — по умолчанию (watching.ts). */
+  /** Явный выбор `togglewatchlist` (сериал в «Я смотрю» или нет); без записи — правило списка по просмотрам. */
   watchlist = new Map<number, boolean>();
 
   constructor() {

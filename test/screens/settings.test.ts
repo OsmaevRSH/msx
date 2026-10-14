@@ -5,9 +5,10 @@ import { chain, commitMsg, contentAction, panelAction } from "../../src/msx/acti
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
 import { onSettingsAct } from "../../src/screens/settings.ts";
+import { answerIssues } from "../../tools/crawl-rules.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
-import type { TestApp } from "../helpers/harness.ts";
+import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 
 const P = TEST_P;
 const CHECK = "{ico:check} ";
@@ -21,8 +22,8 @@ afterEach(async () => {
   apps = [];
 });
 
-async function make(): Promise<TestApp> {
-  const t = await createTestApp({ loggedIn: true });
+async function make(o: TestAppOptions = { loggedIn: true }): Promise<TestApp> {
+  const t = await createTestApp(o);
   apps.push(t);
   return t;
 }
@@ -53,7 +54,7 @@ describe("settingsScreen (S12)", () => {
     assert.equal(s.compress, undefined);
     assert.deepEqual(s.template, { type: "control", layout: "0,0,12,1" });
     const groups = (s.items ?? []).filter((i) => i.type === "space");
-    assert.deepEqual(groups.map((g) => g.headline), ["Меню и главная", "Воспроизведение", "Это устройство KinoPub", "Аккаунт", "Для опытных", "Диагностика"]);
+    assert.deepEqual(groups.map((g) => g.headline), ["Меню и главная", "Воспроизведение", "Это устройство KinoPub", "Аккаунт", "Для опытных", "Для разработчика"]);
     // V-33: заголовок в нижней половине своей строки — вплотную к группе, без пустой полосы под ним.
     for (const g of groups) assert.deepEqual([g.layout, g.offset], ["0,0,12,1", "0,0.5,0,-0.5"]);
   });
@@ -72,14 +73,14 @@ describe("settingsScreen (S12)", () => {
       ["uhd", "device"],
       ["account", "logout"],
       ["mode", "loc", "ac3", "hevc", "bufferInit", "bufferResume", "posterSize", "cardBackgrounds"],
-      ["probe"],
+      ["probe", "msx"],
     ]);
     assert.deepEqual(labels(s).filter((l) => l !== undefined), [
       "Порядок и видимость пунктов меню", "Порядок и видимость секций главной",
       "Максимальное качество", "Язык озвучки", "Тип озвучки", "Любимые студии", "Субтитры по умолчанию", "Шаг перемотки",
       "4K", "Название", "Подписка", "Выйти из KinoPub",
       "Способ воспроизведения", "CDN-сервер", "Разрешить AC3", "HEVC", "Буфер старта", "Буфер продолжения", "Размер постеров", "Фоны карточек",
-      "Проверки и журнал",
+      "Диагностика", "Системные настройки MSX",
     ]);
   });
 
@@ -107,6 +108,7 @@ describe("settingsScreen (S12)", () => {
     assert.equal(row(s, "account").action, undefined);
     assert.equal(row(s, "loc").action, panelAction(P, ids.panel("loc")));
     assert.equal(row(s, "probe").action, contentAction(P, ids.probe()));
+    assert.equal(row(s, "msx").action, "settings");
     assert.equal(row(s, "device").enable, false);
     assert.equal(row(s, "device").action, undefined);
   });
@@ -139,6 +141,60 @@ describe("settingsScreen (S12)", () => {
     assert.equal(ext(s, "hevc"), "—");
     assert.equal(ext(s, "uhd"), "—");
     assert.equal(ext(s, "device"), "—");
+  });
+});
+
+// v1.16: «Диагностика» и системные настройки MSX ушли из меню в последнюю группу настроек — и без входа: при проблемах
+// со входом они нужны первыми. Без входа экран не ходит в API: остальные строки — настройки аккаунта и устройства.
+describe("settingsScreen: «Для разработчика» (v1.16)", () => {
+  const DEV = [
+    { id: "s_probe", label: "Диагностика", action: contentAction(P, ids.probe()) },
+    { id: "s_msx", label: "Системные настройки MSX", action: "settings" },
+  ];
+  const devRows = (s: MsxContentRoot): MsxContentItem[] => {
+    const items = s.items ?? [];
+    const head = items.findIndex((i) => i.type === "space" && i.headline === "Для разработчика");
+    assert.ok(head >= 0, "no «Для разработчика»");
+    return items.slice(head + 1).filter((i) => i.type !== "space" && i.selection === undefined);
+  };
+
+  it("the last group: «Диагностика» opens the probe, «Системные настройки MSX» — the MSX settings (action `settings`)", async () => {
+    const t = await make();
+    const s = await screen(t);
+    const groups = (s.items ?? []).filter((i) => i.type === "space" && i.headline !== undefined);
+    assert.equal(groups.at(-1)?.headline, "Для разработчика");
+    assert.deepEqual(devRows(s).map(({ id, label, action }) => ({ id, label, action })), DEV);
+    assert.deepEqual(answerIssues(ids.settings(), s), []);
+  });
+
+  it("without login: only «Для разработчика», no API requests, the probe is not loaded; the router answers it instead of the login screen", async () => {
+    const t = await make({ probe: "lazy" });
+    const s = await screen(t);
+    assert.equal(s.headline, "Настройки");
+    assert.equal(s.flag, "settings");
+    assert.deepEqual((s.items ?? []).filter((i) => i.type === "space" && i.headline !== undefined).map((i) => i.headline), ["Для разработчика"]);
+    assert.deepEqual(devRows(s).map(({ id, label, action }) => ({ id, label, action })), DEV);
+    assert.equal(devRows(s)[0]?.focus, true, "focus on «Диагностика»");
+    assert.deepEqual(answerIssues(ids.settings(), s), []);
+    assert.equal(t.mock.calls().length, 0, "no API requests");
+    assert.equal(t.ctx.probe, undefined, "probe.js is loaded only by «Диагностика»");
+    assert.equal(t.ctx.current.get(), ids.settings());
+    assert.equal(t.ctx.log.entries().filter((e) => e.msg === "login required").length, 0);
+  });
+
+  it("logged in: opening the settings does not load probe.js either", async () => {
+    const t = await make({ loggedIn: true, probe: "lazy" });
+    await screen(t);
+    assert.equal(t.ctx.probe, undefined);
+    await t.request(ids.probe());
+    assert.ok(t.ctx.probe !== undefined);
+  });
+
+  it("without login a setting panel is still the login screen: only the screen is public", async () => {
+    const t = await make({});
+    const p = await panel(t, "quality");
+    assert.notEqual(p.headline, "Максимальное качество");
+    assert.equal(t.ctx.log.entries().filter((e) => e.msg === "login required").length, 1);
   });
 });
 

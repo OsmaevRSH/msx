@@ -9,7 +9,7 @@ import {
   parseHistoryPage, parseItemDetail, parseItemList, parseItems, parseListItem, parseMediaLinks, parsePage, parseSerialWatching,
   parseServerLocation, parseToggle, parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
 } from "./parse.ts";
-import { bool01, parseTrailer } from "./parse.ts";
+import { parseTrailer } from "./parse.ts";
 import type { ApiRequest, ApiResponse, Priority, ReqClass, RetryPolicy, Transport } from "./transport.ts";
 
 export interface TokenSource { access(): { token: string; gen: number } | undefined; refresh(gen: number): Promise<void> }
@@ -235,10 +235,10 @@ export class KpApi {
     return parseToggle(await this.call({ path: "/v1/watching/toggle", query: { id, season }, retry: "none", timeoutMs: PROGRESS_MS, cls }));
   }
 
-  /** «Буду смотреть» (HC `watching.md`): переключатель — не повторяется вслепую (CM-01); ответ — новое состояние. */
+  /** Переключатель «Я смотрю» (`togglewatchlist`): не повторяется вслепую (спец. §5.3, CM-01); ответ — новое состояние. */
   async toggleWatchlist(id: number, cls?: ReqClass | Priority): Promise<{ watching: boolean }> {
     const json = await this.call({ path: "/v1/watching/togglewatchlist", query: { id }, retry: "none", timeoutMs: PROGRESS_MS, cls });
-    return { watching: bool01(obj(json).watching) === 1 };
+    return { watching: obj(json).watching === true };
   }
 
   async history(page: number, perpage: number, cls?: Cls): Promise<HistoryEntry[]> {
@@ -248,6 +248,11 @@ export class KpApi {
   /** «История» списком: тайтлы записей и `pagination`. */
   async historyPage(page: number, perpage: number, cls?: Cls): Promise<Page<ItemSummary>> {
     return parseHistoryPage(await this.historyRaw(page, perpage, cls));
+  }
+
+  /** Удалить тайтл из истории (research kinopub-api §8.3): POST, `id` в query, ответ — `null`; повтор безопасен. */
+  async historyClearItem(id: number): Promise<void> {
+    await this.call({ method: "POST", path: "/v1/history/clear-for-item", query: { id } });
   }
 
   /** `subscribed` — только «Я смотрю» (список «Буду смотреть», как у Kodi и других клиентов). */

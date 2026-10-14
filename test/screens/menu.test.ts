@@ -42,12 +42,11 @@ describe("buildMenu (S3)", () => {
     assert.equal(m.flag, "menu");
   });
 
-  it("without login: «Вход», «Диагностика», «Настройки MSX»", async () => {
+  it("without login: «Вход» and «Настройки» (v1.16: «Диагностика» and MSX settings are rows of «Настройки»)", async () => {
     const t = await make(false);
     assert.deepEqual(shape(buildMenu(t.ctx)), [
       { icon: "login", label: "Вход", data: req("login") },
-      { icon: "build", label: "Диагностика", data: req("probe") },
-      { type: "settings", label: "Настройки MSX" },
+      { icon: "settings", label: "Настройки", data: req("settings") },
     ]);
   });
 
@@ -79,30 +78,45 @@ describe("buildMenu (S3)", () => {
       { icon: "sports-soccer", label: "Спорт", data: req("tv") },
       { type: "separator" },
       { icon: "settings", label: "Настройки", data: req("settings") },
-      { icon: "build", label: "Диагностика", data: req("probe") },
-      { type: "settings", label: "Настройки MSX" },
     ]);
   });
+
+  // v1.16, отзыв с ТВ: «Настройки, Диагностика, Настройки» в конце меню — второй «Настройки» был пунктом MSX
+  // `type: settings`, MSX подписывает его сам и нашу подпись «Настройки MSX» не показывает.
+  for (const loggedIn of [false, true]) {
+    it(`one settings item, no «Диагностика» and no MSX settings item (loggedIn: ${loggedIn})`, async () => {
+      const t = await make(loggedIn);
+      const m = buildMenu(t.ctx).menu;
+      assert.deepEqual(m.filter((i) => i.type === "settings"), []);
+      assert.deepEqual(m.filter((i) => i.id === "probe" || i.id === "msx_settings" || i.data === req("probe")), []);
+      assert.deepEqual(m.filter((i) => /Настройки|Диагностика/.test(i.label ?? "")).map((i) => [i.id, i.icon, i.label]), [
+        ["settings", "settings", "Настройки"],
+      ]);
+    });
+  }
 
   it("existing item ids keep their values: MSX keeps the selected item by id across replace:menu", async () => {
     const t = await make(true);
     const got = buildMenu(t.ctx).menu.map((i) => i.id);
-    for (const id of ["home", "search", "movies", "serials", "cartoons", "docs", "tvshows", "concerts", "bookmarks", "settings", "probe", "msx_settings"]) {
+    for (const id of ["home", "search", "movies", "serials", "cartoons", "docs", "tvshows", "concerts", "bookmarks", "settings"]) {
       assert.ok(got.includes(id), id);
     }
   });
 
-  it("«Пункты меню»: hidden items disappear, the order is the user's, «Настройки MSX» stays last", async () => {
+  it("«Пункты меню»: hidden items disappear, the order is the user's, nothing is pinned after «Настройки»", async () => {
     const t = await make(true);
     const store = menuStore(t.ctx);
     const order = store.get().order;
-    store.set({ order: ["sport", ...order.filter((id) => id !== "sport")], hidden: ["home", "fresh", "probe"] });
+    store.set({ order: ["sport", ...order.filter((id) => id !== "sport")], hidden: ["home", "fresh"] });
     const m = buildMenu(t.ctx).menu;
     const labels = m.map((i) => i.label ?? "—");
     assert.deepEqual(labels.slice(0, 5), ["Спорт", "—", "Я смотрю", "Поиск", "Каталог"]);
-    assert.ok(!labels.includes("Главная") && !labels.includes("Новинки") && !labels.includes("Диагностика"));
-    assert.equal(m.at(-1)?.type, "settings");
-    assert.equal(m.at(-2)?.label, "Настройки");
+    assert.ok(!labels.includes("Главная") && !labels.includes("Новинки"));
+    assert.equal(m.at(-1)?.label, "Настройки");
+    // «Настройки» выше «Спорта» — последним пунктом становится раздел, MSX ничего не добавляет после него.
+    store.set({ order: ["settings", ...order.filter((id) => id !== "settings")], hidden: [] });
+    assert.deepEqual(buildMenu(t.ctx).menu.map((i) => i.label).filter((l) => l !== undefined).slice(0, 2), ["Настройки", "Главная"]);
+    assert.equal(buildMenu(t.ctx).menu.at(-1)?.label, "Спорт");
     // Группа «Ещё» встречается дважды: «Спорт» первым пунктом (над ним разделителя нет), затем подборки — с подписью.
     assert.equal(m.filter((i) => i.label === "Ещё").length, 1);
     assert.equal(m.filter((i) => i.type === "separator" && i.label === "Каталог").length, 1);
@@ -119,8 +133,31 @@ describe("buildMenu (S3)", () => {
 
   it("without login the menu ignores «Пункты меню»", async () => {
     const t = await make(false);
-    t.ctx.store.set("cfg", "menu", { hidden: ["probe"] });
-    assert.deepEqual(buildMenu(t.ctx).menu.map((i) => i.label), ["Вход", "Диагностика", "Настройки MSX"]);
+    t.ctx.store.set("cfg", "menu", { order: ["settings", "home"], hidden: ["watching"] });
+    assert.deepEqual(buildMenu(t.ctx).menu.map((i) => i.label), ["Вход", "Настройки"]);
+  });
+
+  it("v1.16: a stored «Пункты меню» of v1.15 with «Диагностика» (probe) or MSX settings keeps the rest; the old ids are dropped", async () => {
+    const t = await make(true);
+    // Порядок v1.15: «Диагностика» поднята наверх и скрыта вместе с «Я смотрю»; `msx_settings` в настройке не бывал,
+    // но и он отбрасывается.
+    t.ctx.store.set("cfg", "menu", {
+      order: ["probe", "search", "home", "msx_settings", ...SECTIONS.map((x) => x.id).filter((id) => id !== "search" && id !== "home"), "probe"],
+      hidden: ["probe", "watching", "msx_settings"],
+    });
+    const cfg = menuStore(t.ctx).get();
+    assert.deepEqual(cfg.order.slice(0, 3), ["search", "home", "watching"]);
+    assert.deepEqual([...cfg.order].sort(), SECTIONS.map((x) => x.id).sort());
+    assert.deepEqual(cfg.hidden, ["watching"]);
+    const m = buildMenu(t.ctx).menu;
+    assert.deepEqual(m.slice(0, 2).map((i) => i.label), ["Поиск", "Главная"]);
+    assert.ok(!m.some((i) => i.label === "Я смотрю" || i.label === "Диагностика" || i.type === "settings"));
+    assert.equal(m.at(-1)?.label, "Настройки");
+    // Следующее изменение в «Пунктах меню» сохраняет настройку уже без прежних id.
+    menuStore(t.ctx).set(cfg);
+    const stored = t.ctx.store.get<{ order?: string[]; hidden?: string[] }>("cfg", "menu");
+    assert.ok(stored !== undefined && !JSON.stringify(stored).includes("probe") && !JSON.stringify(stored).includes("msx_settings"));
+    assert.deepEqual(stored.hidden, ["watching"]);
   });
 
   it("every section is in SECTIONS once, with an icon and a label", () => {

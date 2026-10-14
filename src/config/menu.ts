@@ -15,7 +15,7 @@ const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is st
 export class OrderStore {
   private store: KvStore;
   readonly defaults: readonly string[];
-  /** Пункты, которые нельзя скрыть («Просмотр и аккаунт»). */
+  /** Пункты, которые нельзя скрыть («Настройки»). */
   private locked: ReadonlySet<string>;
   private key: string;
 

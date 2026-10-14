@@ -12,15 +12,10 @@
       "data": "request:interaction:login@https://example.github.io/msx/app/index.html"
     },
     {
-      "id": "probe",
-      "icon": "build",
-      "label": "Диагностика",
-      "data": "request:interaction:probe@https://example.github.io/msx/app/index.html"
-    },
-    {
-      "id": "msx_settings",
-      "type": "settings",
-      "label": "Настройки MSX"
+      "id": "settings",
+      "icon": "settings",
+      "label": "Настройки",
+      "data": "request:interaction:settings@https://example.github.io/msx/app/index.html"
     }
   ]
 }

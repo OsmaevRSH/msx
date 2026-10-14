@@ -15,6 +15,7 @@ export interface Scenario {
   corsOff: boolean;            // ни одного CORS-заголовка на API → в браузере TypeError (тест KP-CORS)
   noCorsErrors: boolean;       // 429 и 5xx без CORS-заголовков (nginx без always)
   toggleLostResponse: number;  // столько ближайших toggle применить и оборвать соединение (этап 8)
+  watchlistLostResponse?: number;  // то же для togglewatchlist (действия над плиткой, CM-01)
   pendingPolls: number; slowDownAtPoll?: number; codeExpiredAtPoll?: number;   // этап 6
   accessTtlSec: number; refreshInvalid: boolean;                                // этап 6
   clampPages: boolean; media: "playlist" | "webm";                              // этап 7

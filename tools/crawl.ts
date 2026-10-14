@@ -24,10 +24,12 @@ export interface CrawlReport {
   nodes: number; failures: CrawlFailure[]; maxBytes: Record<string, number>;
   /** Разных действий, прошедших проверку грамматики. */
   edges: number;
+  /** Разрушающие сообщения (`act:tile:…`), найденные в ответах, но не отправленные. */
+  skipped: string[];
 }
 export interface CrawlOptions {
   maxNodes?: number; depth?: number; flags?: Partial<Flags>;
-  /** Строка на каждый узел: глубина, вход и что обойдено (`npm run crawl -- --verbose`). */
+  /** Строка на каждый узел: глубина, вход, что обойдено и откуда («← узел»; `npm run crawl -- --verbose`). */
   trace?: (line: string) => void;
 }
 
@@ -59,6 +61,11 @@ const MAX_RELOADS = 2;
 const SEARCH_KEYS = new Set(["е", "с", "т"]);
 /** Выход из KinoPub завершает сессию обхода: такие сообщения — после всего остального. */
 const LAST = new Set(["set:logout", "probe:logout"]);
+/**
+ * Действия над плиткой (`act:tile:…`, спец. §11.4) удаляют данные аккаунта: из истории, «Я смотрю», папки. Обход их
+ * опции и панель подтверждения проверяет как разметку и действия, но сами сообщения не отправляет.
+ */
+const DESTRUCTIVE = new Set(["tile"]);
 
 /** Сколько узлов одного вида обходить: краулеру нужна каждая разметка и каждое действие, а не каждый тайтл. */
 const CAPS: Record<string, number> = {
@@ -79,9 +86,10 @@ const RECENT_SEED = "тест";
 const REQ_CAP = 3;
 const MSG_CAP = 2;
 
+/** `via` — узел, из ответа или действий которого пришёл этот (в строке `--verbose` после «←»). */
 type Node =
-  | { k: "req"; id: string; depth: number; screen?: string }
-  | { k: "msg"; msg: string; depth: number; screen?: string }
+  | { k: "req"; id: string; depth: number; screen?: string; via?: string }
+  | { k: "msg"; msg: string; depth: number; screen?: string; via?: string }
   /** Перезапрос открытого экрана по `reload:content` или замене с его флагом — сразу, как это делает MSX. */
   | { k: "reload"; id: string; depth: number };
 
@@ -118,6 +126,8 @@ class Crawler {
   private seen = new Set<string>();
   private taken = new Map<string, number>();
   private edges = new Set<string>();
+  /** Разрушающие сообщения, которые обход нашёл в опциях, но не отправил (`DESTRUCTIVE`). */
+  private skipped = new Set<string>();
   /** Флаг последнего ответа каждого экрана: замена `replace:content:<флаг>:…` должна его повторять. */
   private flags = new Map<string, string | undefined>();
   private errors: LogEntry[] = [];
@@ -137,12 +147,13 @@ class Crawler {
     for (const id of SEEDS) this.push({ k: "req", id, depth: 1 });
     await this.drain();
     if (this.last.length > 0) {
-      // После выхода — меню и экраны без входа; код входа не подтверждается, чтобы обход не вошёл снова.
+      // После выхода — меню и экраны без входа; код входа не подтверждается, чтобы обход не вошёл снова. Глубина — заново
+      // от выхода: «Диагностика» без входа — строка «Настроек» (v1.16), третий шаг от гостевого меню.
       this.t.mock.setScenario({ pendingPolls: 1_000_000 });
-      this.queue.push(...this.last.splice(0));
+      this.queue.push(...this.last.splice(0).map((n) => ({ ...n, depth: 0 })));
       await this.drain();
     }
-    return { nodes: this.nodes, failures: this.failures, maxBytes: this.maxBytes, edges: this.edges.size };
+    return { nodes: this.nodes, failures: this.failures, maxBytes: this.maxBytes, edges: this.edges.size, skipped: [...this.skipped].sort() };
   }
 
   private budget(): boolean {
@@ -162,7 +173,7 @@ class Crawler {
 
   private async visit(n: Node, body: () => Promise<void>): Promise<void> {
     this.nodes += 1;
-    this.o.trace?.(`${n.depth} ${this.auth()} ${label(n)}`);
+    this.o.trace?.(`${n.depth} ${this.auth()} ${label(n)}${n.k !== "reload" && n.via !== undefined ? ` ← ${n.via}` : ""}`);
     await body();
     for (const e of this.errors.splice(0)) this.fail(label(n), "log", `${e.tag} ${e.msg} ${JSON.stringify(e.data ?? {})}`);
   }
@@ -377,7 +388,7 @@ class Crawler {
       this.fail(label(from), "dangling", `unknown dataId ${id}`);
       return;
     }
-    const n: Extract<Node, { k: "req" }> = { k: "req", id, depth: from.depth + 1 };
+    const n: Extract<Node, { k: "req" }> = { k: "req", id, depth: from.depth + 1, via: label(from) };
     const screen = this.screenOf(from);
     if (overlay && screen !== undefined) n.screen = screen;
     this.push(n);
@@ -390,7 +401,11 @@ class Crawler {
       return;
     }
     if (m.k === "searchInput" && !SEARCH_KEYS.has(m.ch)) return;
-    const n: Extract<Node, { k: "msg" }> = { k: "msg", msg, depth: from.depth + 1 };
+    if (m.k === "act" && DESTRUCTIVE.has(m.module)) {
+      this.skipped.add(msg);
+      return;
+    }
+    const n: Extract<Node, { k: "msg" }> = { k: "msg", msg, depth: from.depth + 1, via: label(from) };
     const screen = this.screenOf(from);
     if (screen !== undefined) n.screen = screen;
     this.push(n, m.k === "act" && LAST.has(`${m.module}:${m.name}`));
@@ -408,7 +423,7 @@ export async function crawl(opts: CrawlOptions = {}): Promise<CrawlReport> {
 }
 
 function summary(name: string, r: CrawlReport): string {
-  const lines = [`crawl ${name}: ${r.nodes} nodes, ${r.edges} actions, ${r.failures.length} failures`];
+  const lines = [`crawl ${name}: ${r.nodes} nodes, ${r.edges} actions, ${r.failures.length} failures, ${r.skipped.length} destructive not sent`];
   for (const [kind, bytes] of Object.entries(r.maxBytes).sort(([a], [b]) => a.localeCompare(b))) {
     lines.push(`  ${kind.padEnd(26)} ${String(bytes).padStart(6)} B`);
   }

@@ -9,7 +9,8 @@ import {
 import type { MockCall } from "./fixtures.ts";
 
 // Smoke Phase 0 в настоящей web-версии MSX (этап 27, решение Р-27): одна сессия MSX на весь файл, как у пользователя —
-// меню без входа, вход по коду, главная и список, карточка, видео, «Диагностика» и «Для разработчика»; в конце — тот же iframe (CE-05).
+// меню без входа, вход по коду, главная и список, карточка, видео, «Настройки» → «Диагностика» и «Для разработчика»; в конце —
+// тот же iframe (CE-05).
 
 test.describe.configure({ mode: "serial" });
 
@@ -42,8 +43,9 @@ test.afterAll(async () => {
 test("CE-01: web MSX грузит start.json и плагин с localhost, меню без входа", async () => {
   const { start } = await openMsx(page);
   expect(start.parameter, "start.json ведёт на плагин dev-сервера").toBe(`menu:request:interaction:init@${P}`);
-  await expect(menuItem(page, "Вход")).toBeVisible();
-  await expect(menuItem(page, "Диагностика")).toBeVisible();
+  // v1.16: без входа — «Вход» и «Настройки»; «Диагностика» — строка «Настроек».
+  await expect(page.locator("#appMainMenuItems .app-main-menu-item")).toHaveText(["Вход", "Настройки"]);
+  await expect(menuItem(page, "Диагностика")).toHaveCount(0);
   await expect(menuItem(page, "Главная")).toHaveCount(0);
 
   const s = await waitFor(page, (x) => x.initAnsweredAt !== undefined && x.readyAt !== undefined, 5000, "ответ на init после ready");
@@ -114,9 +116,13 @@ test("видео sample.webm играет, события плеера дохо�
   expect(media.length, "MSX брал видео у CDN mock").toBeGreaterThanOrEqual(1);
 });
 
-test("«Диагностика» лениво грузит probe.js, проверки API CDG-01 и CDG-02 — ✓", async () => {
+test("«Настройки» → «Диагностика» лениво грузит probe.js, проверки API CDG-01 и CDG-02 — ✓", async () => {
   expect(diag(page).probeRequests, "до «Диагностики» probe.js не загружен").toEqual([]);
-  await exec(page, contentAction(P, ids.probe()));
+  // v1.16: «Диагностики» в меню нет — строка группы «Для разработчика» в конце «Настроек».
+  await exec(page, contentAction(P, ids.settings()));
+  await expectContent(page, "Для разработчика");
+  expect(diag(page).probeRequests, "«Настройки» probe.js не грузят").toEqual([]);
+  await press(page, "s_probe", "Диагностика");
   await expectContent(page, "Запустить проверки API");
   expect(diag(page).probeRequests).toHaveLength(1);
   expect(diag(page).probeRequests[0]).toMatch(/\/app\/probe\.js\?v=[0-9a-f]{10}$/);
