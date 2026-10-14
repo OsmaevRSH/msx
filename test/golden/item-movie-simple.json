@@ -1,0 +1,135 @@
+{
+  "type": "pages",
+  "flag": "item_2006",
+  "cache": false,
+  "extension": "{ico:msx-red:stop} Ещё",
+  "options": {
+    "headline": "Тестовый фильм «Простой»",
+    "template": {
+      "type": "button",
+      "layout": "0,0,8,1"
+    },
+    "items": [
+      {
+        "label": "Отметить просмотренным",
+        "action": "interaction:commit:message:act:item:watched:2006:0:1:1"
+      },
+      {
+        "label": "{ico:search} Режиссёр: Тамара Сигма",
+        "action": "content:request:interaction:person:director:0KLQsNC80LDRgNCwINCh0LjQs9C80LA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Полина Омикрон",
+        "action": "content:request:interaction:person:cast:0J_QvtC70LjQvdCwINCe0LzQuNC60YDQvtC9@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Роман Пи",
+        "action": "content:request:interaction:person:cast:0KDQvtC80LDQvSDQn9C4@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Анна Альфа",
+        "action": "content:request:interaction:person:cast:0JDQvdC90LAg0JDQu9GM0YTQsA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Борис Бета",
+        "action": "content:request:interaction:person:cast:0JHQvtGA0LjRgSDQkdC10YLQsA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Вера Гамма",
+        "action": "content:request:interaction:person:cast:0JLQtdGA0LAg0JPQsNC80LzQsA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Глеб Дельта",
+        "action": "content:request:interaction:person:cast:0JPQu9C10LEg0JTQtdC70YzRgtCw@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "Способ воспроизведения",
+        "action": "panel:request:interaction:panel:mode:2006@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "Обновить",
+        "action": "interaction:commit:message:act:item:refresh:2006"
+      }
+    ]
+  },
+  "pages": [
+    {
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,3,5",
+          "image": "http://kpmock.invalid/poster/big/2006.svg",
+          "imageFiller": "fit"
+        },
+        {
+          "type": "space",
+          "layout": "3,0,9,3",
+          "headline": "Тестовый фильм «Простой»",
+          "text": "2020 · Семейный, Мистика · Южная Корея{br}КП 6,6 · IMDb 7,8 · 1 ч 30 мин{br}Режиссёр: Тамара Сигма{br}В ролях: Полина Омикрон, Роман Пи, Анна Альфа, Борис Бета, Вера Гамма{br}Озвучки: Студия Бета{br}{br}Синтетическое описание тайтла 2006. Данные mock для тестов."
+        },
+        {
+          "id": "b_trailer",
+          "type": "button",
+          "layout": "3,3,2,1",
+          "label": "{ico:movie} Трейлер",
+          "action": "video:resolve:request:interaction:play:2006:trailer@https://example.github.io/msx/app/index.html",
+          "properties": {
+            "control:type": "extended",
+            "trigger:back": "player:eject",
+            "trigger:complete": "player:eject"
+          }
+        },
+        {
+          "id": "b_main",
+          "type": "button",
+          "layout": "3,4,5,1",
+          "label": "▶ Продолжить с 19:57",
+          "focus": true,
+          "action": "video:resolve:request:interaction:play:2006:continue@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_second",
+          "type": "button",
+          "layout": "8,4,2,1",
+          "label": "С начала",
+          "action": "video:resolve:request:interaction:play:2006:start@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_similar",
+          "type": "button",
+          "layout": "10,4,2,1",
+          "label": "Похожие",
+          "action": "content:request:interaction:list:c2ltaWxhcnxpZD0yMDA2@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_bm",
+          "type": "button",
+          "layout": "0,5,3,1",
+          "label": "★ В закладках",
+          "action": "panel:request:interaction:panel:bookmarks:2006@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_audio",
+          "type": "button",
+          "layout": "3,5,3,1",
+          "label": "{ico:record-voice-over} Студия Бета",
+          "action": "panel:request:interaction:panel:audio:2006:2006001:c@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_quality",
+          "type": "button",
+          "layout": "6,5,2,1",
+          "label": "{ico:hd} 1080p",
+          "action": "panel:request:interaction:panel:quality:2006:2006001:c@https://example.github.io/msx/app/index.html"
+        },
+        {
+          "id": "b_subs",
+          "type": "button",
+          "layout": "8,5,4,1",
+          "label": "{ico:subtitles} Выключены",
+          "action": "panel:request:interaction:panel:subs:2006:2006001:c@https://example.github.io/msx/app/index.html"
+        }
+      ]
+    }
+  ]
+}

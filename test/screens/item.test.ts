@@ -81,9 +81,10 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     assert.equal(poster?.type, "space");
     assert.equal(poster?.imageFiller, "fit");
     assert.match(poster?.image ?? "", /big/);
-    const about = items(s).find((i) => i.layout === "3,0,9,4");
+    // v1.16: над «▶» ряд «Трейлер» и «Буду смотреть» — текст на три ряда; факты сериала и люди — item-card.test.ts.
+    const about = items(s).find((i) => i.layout === "3,0,9,3");
     assert.equal(about?.headline, "Тестовый сериал «Большой»");
-    assert.match(about?.text ?? "", /^\d{4} · .+{br}КП \d,\d · IMDb \d,\d · \d+ мин{br}{br}Синтетическое описание тайтла 2001/);
+    assert.match(about?.text ?? "", /^\d{4} · .+{br}КП \d,\d · IMDb \d,\d · \d+ мин · Выходит · просмотрено 3 из 200{br}.+{br}{br}Синтетическое описание тайтла 2001/);
 
     assert.equal(el(s, "b_bm").label, "★ В закладках");
     assert.equal(el(s, "b_bm").layout, "0,5,3,1");
@@ -127,7 +128,8 @@ describe("itemScreen: serial SERIAL_BIG (S8)", () => {
     const t = await make();
     const s = await open(t, BIG);
     assert.equal(s.options?.headline, "Тестовый сериал «Большой»");
-    assert.deepEqual(options(s), [
+    // v1.16: между ними — поиск по режиссёру и актёрам (item-card.test.ts).
+    assert.deepEqual(options(s).filter((o) => !o.label?.startsWith("{ico:search}")), [
       { label: "Способ воспроизведения", action: panelAction(P, ids.panel("mode", BIG)) },
       { label: "Обновить", action: commitMsg(msgs.act("item", "refresh", BIG)) },
     ]);
@@ -166,7 +168,7 @@ describe("itemScreen: films", () => {
     assert.deepEqual(options(s)[0], {
       label: "Отметить просмотренным", action: commitMsg(msgs.act("item", "watched", FIX.MOVIE_SIMPLE, 0, 1, 1)),
     });
-    assert.equal(options(s).length, 3);
+    assert.equal(options(s).filter((o) => !o.label?.startsWith("{ico:search}")).length, 3, "v1.16: and the director and cast rows");
   });
 
   it("MOVIE_MULTI: «Части» opens the parts as season 1; not in bookmarks", async () => {

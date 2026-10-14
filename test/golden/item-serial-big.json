@@ -2,6 +2,7 @@
   "type": "pages",
   "flag": "item_2001",
   "cache": false,
+  "extension": "{ico:msx-red:stop} Ещё",
   "options": {
     "headline": "Тестовый сериал «Большой»",
     "template": {
@@ -9,6 +10,34 @@
       "layout": "0,0,8,1"
     },
     "items": [
+      {
+        "label": "{ico:search} Режиссёр: Тамара Сигма",
+        "action": "content:request:interaction:person:director:0KLQsNC80LDRgNCwINCh0LjQs9C80LA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Егор Дзета",
+        "action": "content:request:interaction:person:cast:0JXQs9C-0YAg0JTQt9C10YLQsA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Жанна Эта",
+        "action": "content:request:interaction:person:cast:0JbQsNC90L3QsCDQrdGC0LA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Захар Тета",
+        "action": "content:request:interaction:person:cast:0JfQsNGF0LDRgCDQotC10YLQsA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Ирина Йота",
+        "action": "content:request:interaction:person:cast:0JjRgNC40L3QsCDQmdC-0YLQsA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Кирилл Каппа",
+        "action": "content:request:interaction:person:cast:0JrQuNGA0LjQu9C7INCa0LDQv9C_0LA@https://example.github.io/msx/app/index.html"
+      },
+      {
+        "label": "{ico:search} В ролях: Лидия Лямбда",
+        "action": "content:request:interaction:person:cast:0JvQuNC00LjRjyDQm9GP0LzQsdC00LA@https://example.github.io/msx/app/index.html"
+      },
       {
         "label": "Способ воспроизведения",
         "action": "panel:request:interaction:panel:mode:2001@https://example.github.io/msx/app/index.html"
@@ -30,9 +59,28 @@
         },
         {
           "type": "space",
-          "layout": "3,0,9,4",
+          "layout": "3,0,9,3",
           "headline": "Тестовый сериал «Большой»",
-          "text": "1992 · Мелодрама, Мультфильм · Россия{br}КП 6,0 · IMDb 9,2 · 42 мин{br}{br}Синтетическое описание тайтла 2001. Данные mock для тестов."
+          "text": "1992 · Мелодрама, Мультфильм · Россия{br}КП 6,0 · IMDb 9,2 · 42 мин · Выходит · просмотрено 3 из 200{br}Режиссёр: Тамара Сигма{br}В ролях: Егор Дзета, Жанна Эта, Захар Тета, Ирина Йота, Кирилл Каппа{br}Озвучки: Студия Бета{br}{br}Синтетическое описание тайтла 2001. Данные mock для тестов."
+        },
+        {
+          "id": "b_trailer",
+          "type": "button",
+          "layout": "3,3,2,1",
+          "label": "{ico:movie} Трейлер",
+          "action": "video:resolve:request:interaction:play:2001:trailer@https://example.github.io/msx/app/index.html",
+          "properties": {
+            "control:type": "extended",
+            "trigger:back": "player:eject",
+            "trigger:complete": "player:eject"
+          }
+        },
+        {
+          "id": "b_wl",
+          "type": "button",
+          "layout": "5,3,3,1",
+          "label": "✓ В списке",
+          "action": "interaction:commit:message:act:item:wl:2001:0"
         },
         {
           "id": "b_main",

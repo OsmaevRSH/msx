@@ -18,6 +18,9 @@ export type Route =
   | { k: "play"; id: number; what: "continue" | "start" }
   | { k: "playEp"; id: number; mid: number; s: number; e: number; start: boolean; at?: number }
   | { k: "probePlay"; variant: ProbeVariant; id: number; mid: number; s: number; e: number }
+  /** v1.16: трейлер — resolve без прогресса (`play:<id>:trailer`); тайтлы актёра или режиссёра (`person:<поле>:<b64url имени>`). */
+  | { k: "trailer"; id: number }
+  | { k: "person"; field: "cast" | "director"; q: string }
   | { k: "unknown"; raw: string };
 
 export type PlayRoute = Extract<Route, { k: "play" } | { k: "playEp" }>;
@@ -73,6 +76,7 @@ function parsePlay(parts: string[]): Route | undefined {
   if (id === undefined) return undefined;
   if (parts.length === 3) {
     const what = parts[2];
+    if (what === "trailer") return { k: "trailer", id };
     return what === "continue" || what === "start" ? { k: "play", id, what } : undefined;
   }
   if (parts.length !== 5 && parts.length !== 6) return undefined;
@@ -111,6 +115,16 @@ function route(id: string): Route | undefined {
       return parts.length === 1 ? { k: "probe" } : rest !== "" ? { k: "probe", page: rest } : undefined;
     case "play":
       return parsePlay(parts);
+    case "person": {
+      const [, field, q = ""] = parts;
+      let name = "";
+      try {
+        name = b64urlDecode(q);
+      } catch {
+        return undefined;
+      }
+      return parts.length === 3 && (field === "cast" || field === "director") && name !== "" ? { k: "person", field, q: name } : undefined;
+    }
     default:
       return undefined;
   }
@@ -191,6 +205,8 @@ export const ids = {
     return base;
   },
   probePlay: (variant: string, id: number, mid: number, s: number, e: number): string => join(["play", "probe", variant, id, mid, s, e]),
+  playTrailer: (id: number): string => `play:${id}:trailer`,
+  person: (field: "cast" | "director", q: string): string => `person:${field}:${b64urlEncode(q)}`,
 };
 
 export const msgs = {

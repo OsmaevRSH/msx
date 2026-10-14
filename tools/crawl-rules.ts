@@ -13,7 +13,7 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Ответ для `video:resolve:…`, а не экран: свои правила (`url` или `error`, свойства — строки). */
-export const RESOLVE_KINDS: ReadonlySet<string> = new Set(["play", "playEp", "probePlay"]);
+export const RESOLVE_KINDS: ReadonlySet<string> = new Set(["play", "playEp", "probePlay", "trailer"]);
 
 /** Вид маршрута для отчёта и лимитов: `list:<источник>`, `panel:<тип>`, `probe:<страница>`, иначе `Route.k`. */
 export function kindOf(dataId: string): string {

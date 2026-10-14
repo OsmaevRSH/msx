@@ -86,7 +86,8 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     // Option Shortcut: MSX ищет `key` в опциях элемента в фокусе — пункт и у корня (вкладки), и у каждой серии.
     const seasons = { label: "Сезоны…", action: panelAction(P, ids.panel("seasons", BIG, 1)), key: "red" };
     assert.equal(s.options?.headline, "Тестовый сериал «Большой»");
-    assert.deepEqual(s.options?.items, [seasons]);
+    // v1.16: за «Сезоны…» — отметка сезона целиком (season-mark.test.ts); красная остаётся ярлыком «Сезоны…».
+    assert.deepEqual(s.options?.items, [seasons, { label: "Отметить сезон", action: commitMsg(msgs.act("item", "season", BIG, 1, 1)) }]);
     for (const e of eps(s)) assert.deepEqual(e.options?.items?.[0], seasons);
   });
 
@@ -122,11 +123,12 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     assert.equal(e4.action, resolveAction(P, ids.playEp(BIG, m4, 1, 4)));
     assert.equal(e4.properties, undefined);
     assert.deepEqual((e4.options?.items ?? []).slice(1).map((i) => ({ label: i.label, action: i.action })), [
+      { label: "Отметить сезон", action: commitMsg(msgs.act("item", "season", BIG, 1, 1)) },
       { label: "Отметить просмотренной", action: commitMsg(msgs.act("item", "watched", BIG, 1, 4, 1)) },
       { label: "Смотреть с начала", action: resolveAction(P, ids.playEp(BIG, m4, 1, 4, { start: true })) },
     ]);
-    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[1]?.label, "Снять отметку");
-    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[1]?.action, commitMsg(msgs.act("item", "watched", BIG, 1, 1, 0)));
+    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[2]?.label, "Снять отметку");
+    assert.equal(ep(s, mid(BIG, 1)).options?.items?.[2]?.action, commitMsg(msgs.act("item", "watched", BIG, 1, 1, 0)));
   });
 
   it("more than 5 seasons → one «Сезон N ▾» button opening the seasons panel", async () => {

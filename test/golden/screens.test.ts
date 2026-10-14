@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { setTimeout as realSleep } from "node:timers/promises";
 import { sleep } from "../../src/core/clock.ts";
 import { encodeListKey, ids, msgs } from "../../src/router/ids.ts";
-import { FIX, findItem } from "../../tools/kpmock/fixtures.ts";
+import { FIX, castOf, findItem } from "../../tools/kpmock/fixtures.ts";
 import { answerIssues } from "../../tools/crawl-rules.ts";
 import { FAKE_EPOCH } from "../helpers/fake-clock.ts";
 import { createTestApp } from "../helpers/harness.ts";
@@ -130,6 +130,12 @@ describe("golden JSON of the key screens (stage 32)", () => {
     const t = await make({ loggedIn: true });
     t.mock.setScenario({ rules: [{ path: ".*", drop: true }] });
     golden(t, "error-slow", ids.item(FIX.MOVIE_SIMPLE), await t.request(ids.item(FIX.MOVIE_SIMPLE)));
+  });
+
+  it("v1.16: the card of a film with a trailer, the filmography of an actor, the trailer resolve", LIMIT, async () => {
+    await snap("item-movie-simple", ids.item(FIX.MOVIE_SIMPLE));
+    await snap("person-cast", ids.person("cast", castOf(findItem(FIX.SERIAL_BIG)!)[0]!));
+    await snap("resolve-trailer-2006", ids.playTrailer(FIX.MOVIE_SIMPLE));
   });
 
   it("resolve play:2001:continue", LIMIT, async () => {
