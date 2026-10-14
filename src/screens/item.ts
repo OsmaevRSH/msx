@@ -5,7 +5,7 @@ import { cacheKeys } from "../cache/repo.ts";
 import type { Got } from "../cache/swr.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { fmtMinutes, fmtRating, ruTitle } from "../core/format.ts";
-import { commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
+import { chain, commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot, MsxResolveResponse } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
 import type { ContinueTarget, EpRef } from "../playback/episodes.ts";
@@ -63,8 +63,10 @@ const L = {
 };
 /**
  * v1.16: ряд над «▶» — «Трейлер» (2 колонки) и «Буду смотреть» у сериала (3); тогда текст — три ряда сетки, иначе четыре.
- * В ряду сетки при 1920×1080 три строки текста по 80+ знаков (замер скриншотом): считаем по 70, сюжет — что осталось.
+ * В ряду сетки при 1920×1080 три строки текста по 82–87 знаков (замер скриншотом web MSX): строка фактов — до `LINE`
+ * знаков, сюжет с переносом по словам — по `CPL` на строку, сколько строк осталось.
  */
+const LINE = 80;
 const CPL = 70;
 const MAX_CAST = 6;
 /** Без `kp:*` трекер не считает трейлер просмотром (`load_without_kp`); «Назад» и конец ролика закрывают плеер, как эфир. */
@@ -302,18 +304,18 @@ function describe(item: ItemDetail, m: CardModel, rows: number): string {
   const studios = item.voice?.split(",").map((v) => v.trim()).filter((v) => v !== "") ?? [...new Set(m.unit?.audios.map(audioTitle))];
   const info = [head, facts, names(T.director, item.director), names(T.cast, item.cast), voices(studios)].filter((x) => x !== "");
   // Заголовок длиннее строки переносится и забирает строку текста.
-  const left = rows * 3 - (ruTitle(item.title).length > 48 ? 1 : 0) - info.reduce((n, x) => n + Math.ceil(x.length / CPL), 0) - 1;
+  const left = rows * 3 - (ruTitle(item.title).length > 48 ? 1 : 0) - info.reduce((n, x) => n + Math.ceil(x.length / LINE), 0) - 1;
   const plot = left > 0 ? clip((item.plot ?? "").replace(/\s+/g, " ").trim(), Math.min(PLOT_MAX, left * CPL)) : "";
   const text = info.join("{br}");
   return plot === "" ? text : `${text}{br}{br}${plot}`;
 }
 
-/** «Режиссёр: А, Б» — имена, пока строка не длиннее `CPL` (хотя бы одно), актёров не больше `MAX_CAST`. */
+/** «Режиссёр: А, Б» — имена, пока строка не длиннее `LINE` (хотя бы одно), актёров не больше `MAX_CAST`. */
 function names(label: string, list: string[] | undefined): string {
   let out = "";
   for (const n of (list ?? []).slice(0, MAX_CAST)) {
     const next = out === "" ? `${label}: ${n}` : `${out}, ${n}`;
-    if (out !== "" && next.length > CPL) break;
+    if (out !== "" && next.length > LINE) break;
     out = next;
   }
   return out;
@@ -323,7 +325,7 @@ function names(label: string, list: string[] | undefined): string {
 function voices(all: string[]): string {
   for (let k = Math.min(3, all.length); k > 0; k--) {
     const s = `${T.voices}: ${all.slice(0, k).join(", ")}${all.length > k ? ` ${T.andMore} ${all.length - k}` : ""}`;
-    if (s.length <= CPL || k === 1) return s;
+    if (s.length <= LINE || k === 1) return s;
   }
   return "";
 }
@@ -440,7 +442,8 @@ async function markSeason(ctx: AppContext, args: string[]): Promise<void> {
   for (const v of eps) ctx.overlay.set(id, n, v, { time: knownTime(ctx, id, n, v), status: desired === 1 ? 1 : -1 });
   ctx.repo.invalidateAfterProgress(id);
   ctx.log.info(TAG, "season", { id, n, desired, left: left.length });
-  if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
+  // Опции, из которых пришла команда, после перерисовки остались бы открытыми с прежними подписями — `cleanup` их закрывает.
+  if (showsTitle(ctx, id)) ctx.host.executeAction(chain(["cleanup", "reload:content"]));
   for (const v of left) {
     await ctx.outbox.setWatched(id, n, v, desired).catch((e: unknown) => ctx.log.warn(TAG, "season_unit_failed", { id, n, v, err: toKpError(e).code }));
   }

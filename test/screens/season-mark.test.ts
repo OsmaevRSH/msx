@@ -47,7 +47,7 @@ describe("season options v1.16", () => {
     assert.deepEqual(labels(s.options), ["Сезоны…", MARK]);
     assert.equal(row(s.options, MARK)?.action, act);
     assert.equal(row(s.options, MARK)?.key, undefined, "red stays the «Сезоны…» shortcut (V-23)");
-    for (const e of episodes(s)) assert.equal(row(e.options as MsxContentRoot, MARK)?.action, act, e.id);
+    for (const e of episodes(s)) assert.equal(row(e.options as MsxContentRoot, MARK)?.action, act, String(e.id));
     assert.deepEqual(labels(episodes(s)[0]?.options as MsxContentRoot), ["Сезоны…", MARK, "Снять отметку", "Смотреть с начала"]);
   });
 
@@ -77,7 +77,7 @@ describe("act:item:season — the whole season (CM-01, Р-20)", () => {
     assert.deepEqual(paths(t, n0), ["/v1/watching", "/v1/watching/toggle?season", "/v1/watching"]);
     assert.ok(statuses(t, BIG, 1).every((x) => x === 1));
     assert.ok(statuses(t, BIG, 2).every((x) => x === -1), "other seasons untouched");
-    assert.deepEqual(t.host.actions.map((a) => a.action), ["reload:content"]);
+    assert.deepEqual(t.host.actions.map((a) => a.action), ["[cleanup|reload:content]"], "the options it came from close");
     const s = await open(t, BIG, 1);
     assert.ok(episodes(s).every((e) => e.badge === "✓"), "overlay: ✓ on every episode");
     assert.equal(row(s.options, UNMARK)?.action, commitMsg(msgs.act("item", "season", BIG, 1, 0)));

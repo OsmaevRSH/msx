@@ -15,7 +15,8 @@ import type { TestApp } from "../helpers/harness.ts";
 
 const BIG = FIX.SERIAL_BIG;
 const P = "https://example.github.io/msx/app/index.html";
-/** Знаков в строке текста карточки при 1920×1080 с запасом (см. CPL в item.ts; замер скриншотом — 80+). */
+/** Знаков в строке при 1920×1080 с запасом (LINE и CPL в item.ts; замер скриншотом web MSX — 82–87): факты и сюжет. */
+const LINE = 80;
 const CPL = 70;
 
 let apps: TestApp[] = [];
@@ -37,8 +38,9 @@ const about = (s: MsxContentRoot): MsxContentItem => items(s).find((i) => i.type
 const lines = (s: MsxContentRoot): string[] => (about(s).text ?? "").split("{br}");
 const options = (s: MsxContentRoot): { label?: string; action?: string }[] => (s.options?.items ?? []).map((i) => ({ label: i.label, action: i.action }));
 const calls = (t: TestApp, path: string): number => t.mock.calls().filter((c) => c.path === path).length;
-/** Строк сетки, которые займёт текст: каждая строка — не меньше одной, длинная переносится. */
-const rowsOf = (s: MsxContentRoot): number => lines(s).reduce((n, l) => n + Math.max(1, Math.ceil(l.length / CPL)), 0);
+/** Строк, которые займёт текст: факты — по `LINE`, сюжет (последний, с переносом по словам) — по `CPL`. */
+const rowsOf = (s: MsxContentRoot): number =>
+  lines(s).reduce((n, l, i, all) => n + Math.max(1, Math.ceil(l.length / (i === all.length - 1 ? CPL : LINE))), 0);
 
 describe("card v1.16: secondary row — trailer and «Буду смотреть»", () => {
   it("serial in the list: «Трейлер» and «✓ В списке» above «▶»; the text takes three rows", async () => {
@@ -87,7 +89,7 @@ describe("card v1.16: facts in the middle", () => {
     assert.ok(cast?.startsWith(`В ролях: ${castOf(big).slice(0, 4).join(", ")}`), cast);
     const shown = (cast ?? "").slice("В ролях: ".length).split(", ");
     assert.ok(shown.length >= 4 && shown.length <= 6, cast);
-    assert.ok((cast ?? "").length <= CPL, cast);
+    assert.ok((cast ?? "").length <= LINE, cast);
     assert.equal(voices, "Озвучки: Студия Бета");
     assert.equal(blank, "");
     assert.match(lines(s)[6] ?? "", /^Синтетическое описание тайтла 2001/);
