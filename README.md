@@ -208,6 +208,7 @@ Chrome нужно запустить с флагом `--disable-features=LocalNe
 |---|---|
 | `npm run dev` | dev-сборка с наблюдением, статика :8080, mock :8787 |
 | `npm test` | unit, contract и golden-тесты (`node --test`) |
+| `npm run perf` | те же тесты с бюджетами по реальному времени (`KP_PERF=1`): init ≤ 100 мс, экран из памяти и L2 ≤ 50 мс, повтор из кэша краулера ≤ 100 мс — на спокойной машине |
 | `npm run typecheck` | `tsc` без сборки |
 | `npm run build` | боевая сборка в `dist/`: `app/app.js`, `app/probe.js`, `app/index.html`, `start.json`, `build-info.json` |
 | `npm run size` | бюджет: `app.js` ≤ 288 000 Б и ≤ 92 160 Б (90 КБ) gzip, `probe.js` ≤ 40 960 Б и ≤ 16 384 Б gzip, `index.html` < 1 КБ |
@@ -232,6 +233,8 @@ Chrome нужно запустить с флагом `--disable-features=LocalNe
 | E2E | web MSX в Chromium против плагина и `kpmock` на `127.0.0.1`: smoke, CE-01…CE-07, сценарии E-02…E-14 | `e2e/`, `npm run e2e` |
 | Пробник | CDG-01…CDG-12 на телевизоре | раздел «Диагностика» |
 | Приёмка | CAC-01…CAC-25 на телевизоре | ниже |
+
+Тесты не зависят от скорости машины: сроки — по поддельным часам (`test/helpers/fake-clock.ts`), «ответ без сети» — по журналу mock. Реальные миллисекунды на загруженной машине (CI, параллельные прогоны) говорят о нагрузке, а не о коде, поэтому бюджеты по реальному времени проверяет только `npm run perf`. Поддельные часы ждут запрос к mock до конца, сколько бы ни шёл ответ; не ждут только ответ, который mock задерживает намеренно дольше `ioGraceMs` (`delayMs`, `hang` в сценарии), — его сразу обгоняют поддельные таймауты. Решает номинальная задержка, а не реальное время.
 
 ### Приёмка на телевизоре
 
@@ -283,6 +286,8 @@ Workflow `.github/workflows/ci.yml`:
 | `test` | каждый push в `main` и pull request, ручной запуск | `npm ci`, `typecheck`, `npm test`, `crawl`, `privacy`, `build`, `size` |
 | `deploy` | push в `main` после `test`; ручной запуск из `main` с `deploy` (включён по умолчанию) | сборка с адресом Pages, `size`, `upload-pages-artifact`, `deploy-pages` |
 | `e2e` | только ручной запуск с `e2e` | Chromium с системными зависимостями, `npm run e2e`; при падении — трейсы Playwright в артефакте `e2e-test-results` |
+
+Если `npm test` или краулер упали в CI, лог шага без входа в GitHub не открыть, но упавшие тесты видны всем: аннотациями на странице прогона (до 10 на шаг — «набор › тест», файл и строка, первая строка ошибки), в API `https://api.github.com/repos/<владелец>/<репозиторий>/check-runs/<id задачи>/annotations` и в сводке шага.
 
 Ручной запуск: Actions → ci → Run workflow, ветка `main`; поля `sha` (собрать указанный коммит), `deploy`, `e2e`. Например, только e2e — снять `deploy`, включить `e2e`. Секретов нет; у токена workflow только чтение, `deploy` дополнительно получает `pages: write` и `id-token: write`. Зависимости npm кэшируются; install-скрипт esbuild разрешён в `allowScripts` в `package.json`.
 
