@@ -1,5 +1,6 @@
 import type { MsxContentItem, MsxContentRoot, MsxMenuRoot } from "../src/msx/types.ts";
 import { decodeListKey, ids, isPanelId, parseDataId } from "../src/router/ids.ts";
+import { hasFilters } from "../src/screens/filters.ts";
 import { WINDOW } from "../src/screens/list.ts";
 import { MENU_FLAG, refreshMenu } from "../src/screens/menu.ts";
 
@@ -25,7 +26,10 @@ export function neverSend(msg: string): boolean {
   return NEVER_SEND.has(msg.split(":").slice(0, 3).join(":"));
 }
 
-/** Вид маршрута для отчёта и лимитов: `list:<источник>`, `panel:<тип>`, `probe:<страница>`, иначе `Route.k`. */
+/**
+ * Вид маршрута для отчёта и лимитов: `list:<источник>`, `panel:<тип>`, `probe:<страница>`, иначе `Route.k`. Каталог с
+ * фильтрами (спец. §11.5) — `list:catalog:filtered`: обход доходит до списков, выбранных в панелях фильтров.
+ */
 export function kindOf(dataId: string): string {
   const r = parseDataId(dataId);
   switch (r.k) {
@@ -35,6 +39,7 @@ export function kindOf(dataId: string): string {
       try {
         // Вкладка полки — свой вид: обход доходит до каждой выбранной в панели типа (v1.14).
         const k = decodeListKey(r.key);
+        if (k.src === "catalog" && hasFilters(k)) return "list:catalog:filtered";
         return ["fresh", "popular", "hot"].includes(k.src) && k.type ? `list:${k.src}:${k.type}` : `list:${k.src}`;
       } catch {
         return "list:bad";

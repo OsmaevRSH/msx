@@ -19,6 +19,7 @@ const DAY = 24 * HOUR;
 const LONG_PLOT = "Длинный сюжет. ".repeat(60);
 const CATALOG: ListSource = { kind: "catalog", type: "movie", sort: "-updated" };
 const FOLDER1: ListSource = { kind: "folder", folder: 1 };
+const FILTERED: ListSource = { kind: "catalog", type: "serial", sort: "-updated", year: "1990-2009", country: "1", kp: "6", fin: "1" };
 /** 31 карточек для лимита «последние 30 карточек в L2» (спец. §8.1). */
 const MANY = Array.from({ length: 31 }, (_, i) => 5001 + i);
 
@@ -136,6 +137,9 @@ describe("Repo", () => {
       { name: "genres", path: "/v1/genres", ttl: DAY, l2: true, call: (x) => x.genres("movie") },
       { name: "locations", path: "/v1/references/server-location", ttl: DAY, l2: true, call: (x) => x.serverLocations() },
       { name: "voiceovers", path: "/v1/references/voiceover-type", ttl: DAY, l2: true, call: (x) => x.voiceoverTypes() },
+      { name: "countries", path: "/v1/countries", ttl: DAY, l2: true, call: (x) => x.countries() },
+      // Фильтры каталога — на сессию (спец. §11.5): первая порция с фильтром в L2 не пишется, 10 мин в L1, как каталог.
+      { name: "filtered", path: "/v1/items", ttl: 10 * MIN, l2: false, call: (x) => x.listPage(FILTERED, 1) },
       { name: "shelf", path: "/v1/items/popular", ttl: 10 * MIN, l2: true, call: (x) => x.shelf("popular", "movie") },
       { name: "search", path: "/v1/items/search", ttl: 5 * MIN, l2: false, call: (x) => x.search("Простой", 1) },
       { name: "similar", path: "/v1/items/similar", ttl: HOUR, l2: false, call: (x) => x.listPage({ kind: "similar", id: FIX.MOVIE_SIMPLE }, 1) },
@@ -166,6 +170,11 @@ describe("Repo", () => {
     const sc = env.calls("/v1/items/hot")[0];
     assert.deepEqual([q(sc).get("type"), q(sc).get("perpage")], ["serial", "7"]);
     assert.equal(q(env.calls("/v1/history")[0]).get("perpage"), "50");
+    const fc = env.calls("/v1/items").find((c) => q(c).has("year"));
+    assert.ok(fc !== undefined, "filtered catalog request");
+    assert.deepEqual(["type", "year", "country", "conditions[]", "finished", "perpage"].map((n) => q(fc).get(n)), [
+      "serial", "1990-2009", "1", "kinopoisk_rating>=6", "1", "48",
+    ]);
   });
 
   it("search: stale-max 1 h — after it the network is awaited", async () => {
@@ -448,6 +457,13 @@ describe("Repo", () => {
     const m = /^list:([A-Za-z0-9_-]+):1:$/.exec(k);
     assert.ok(m, k);
     assert.deepEqual(JSON.parse(b64urlDecode(m[1])), { kind: "catalog", type: "movie", sort: "-rating" });
+    // Фильтры (спец. §11.5) — в ключе в постоянном порядке; без них ключ прежний: кэш L2 после обновления не теряется.
+    const f = cacheKeys.list({ fin: "1", kp: "7", country: "1", year: "2010-2019", kind: "catalog", type: "serial", sort: "-updated", quality: "4" }, 1);
+    assert.deepEqual(JSON.parse(b64urlDecode(/^list:([A-Za-z0-9_-]+):1:$/.exec(f)?.[1] ?? "")), {
+      kind: "catalog", type: "serial", sort: "-updated", quality: "4", year: "2010-2019", country: "1", kp: "7", fin: "1",
+    });
+    assert.notEqual(f, cacheKeys.list({ kind: "catalog", type: "serial", sort: "-updated", quality: "4", year: "2010-2019", country: "1", kp: "8", fin: "1" }, 1));
+    assert.equal(cacheKeys.list({ kind: "catalog", type: "movie", sort: "-rating", year: "", country: undefined }, 1), k);
     assert.ok(!cacheKeys.item(12).startsWith(cacheKeys.item(1)));
     assert.ok(!cacheKeys.list(CATALOG, 10).startsWith(cacheKeys.list(CATALOG, 1)));
     assert.ok(!cacheKeys.list({ kind: "folder", folder: 12 }, 1).startsWith(cacheKeys.listSource(FOLDER1)));

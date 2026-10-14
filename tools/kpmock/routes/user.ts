@@ -1,4 +1,4 @@
-import { AUTHORS, COUNTRIES, GENRES, VOICE_TYPES } from "../fixtures.ts";
+import { ALL_COUNTRIES, AUTHORS, GENRES, VOICE_TYPES } from "../fixtures.ts";
 import { HttpError, requireAuth } from "../router.ts";
 import type { Router } from "../router.ts";
 import type { MockState } from "../state.ts";
@@ -66,9 +66,10 @@ export function register(r: Router, s: MockState, base: () => string): void {
     return { status: 200, json: { status: 200, items: genres(ctx.query.get("type")) } };
   });
 
+  /** 102 страны, `{id, title}` (research kinopub-api §6.1; aqualhume `content.md`). */
   r.add("GET", "/v1/countries", (ctx) => {
     requireAuth(ctx);
-    return { status: 200, json: { status: 200, items: COUNTRIES.map((c) => ({ ...c })) } };
+    return { status: 200, json: { status: 200, items: ALL_COUNTRIES.map((c) => ({ ...c })) } };
   });
 
   r.add("GET", "/v1/references/:name", (ctx) => {

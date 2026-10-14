@@ -128,7 +128,15 @@ describe("golden JSON of the key screens (stage 32)", () => {
     await snap("panel-type", ids.panel("type", encodeListKey({ src: "fresh" })));
   });
 
-  it("v1.18: «Скорость серверов KinoPub» before a run and with a stored run (de is the fastest)", LIMIT, async () => {
+  it("v1.18: «Сериалы» with filters, its «Сортировка и фильтры» panel, the country panel", LIMIT, async () => {
+    const serials = encodeListKey({ src: "catalog", type: "serial", sort: "-updated", year: "2010-2019", country: "1", kp: "6", fin: "1" });
+    const t = await make({ loggedIn: true });
+    golden(t, "list-serials-filtered", ids.list(serials), await t.request(ids.list(serials)));
+    golden(t, "panel-filters", ids.panel("filters", serials), await t.request(ids.panel("filters", serials)));
+    await snap("panel-country", ids.panel("country", MOVIES));
+  });
+
+  it("v1.19: «Скорость серверов KinoPub» before a run and with a stored run (de is the fastest)", LIMIT, async () => {
     await snap("probe-cdn", ids.probe("cdn"));
     const t = await make({ loggedIn: true });
     const row = (code: string, latencyMs: number, mbps: number, segMs: number) => ({ code, ok: true, acc: "full", latencyMs, mbps, segMs, bytes: 3_150_000 });

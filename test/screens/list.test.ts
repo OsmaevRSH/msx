@@ -212,17 +212,20 @@ describe("listScreen (S5, CC-05)", () => {
     assert.match(mixed.extension ?? "", /^\{ico:msx-red:stop\} Обновлённые · Мультфильмы · \d+ шт\.$/);
   });
 
-  it("V-12: options show the current values; each item closes the options before its panel", async () => {
+  it("V-12, §11.5: the red button of a catalog opens «Сортировка и фильтры» at once; its rows show the current values and close it before their panel", async () => {
     const t = await make();
     const key = catalogKey("movie", { genre: "9", sort: "-kinopoisk_rating" });
     const s: MsxContentRoot = await t.request(ids.list(key));
-    assert.equal(s.options?.headline, "Сортировка и жанр");
-    assert.deepEqual(options(s).map((i) => [i.id, i.label, i.action]), [
-      ["o_sort", "Сортировка: Рейтинг КП", chain(["back", panelAction(TEST_P, ids.panel("sort", key))])],
-      ["o_genre", "Жанр: Драма", chain(["back", panelAction(TEST_P, ids.panel("genre", key))])],
+    assert.equal(s.options?.headline, "Сортировка и фильтры");
+    assert.deepEqual(options(s).map((i) => [i.id, i.key, i.action]), [["o_filters", "red", chain(["cleanup", panelAction(TEST_P, ids.panel("filters", key))])]]);
+    const p: MsxContentRoot = await t.request(ids.panel("filters", key));
+    assert.deepEqual(items(p).slice(0, 2).map((i) => [i.id, i.label, i.action]), [
+      ["f_sort", "Сортировка: Рейтинг КП", chain(["back", panelAction(TEST_P, ids.panel("sort", key))])],
+      ["f_genre", "Жанр: Драма", chain(["back", panelAction(TEST_P, ids.panel("genre", key))])],
     ]);
-    const cartoons: MsxContentRoot = await t.request(ids.list(catalogKey("movie,serial", { genre: "23" })));
-    assert.deepEqual(options(cartoons).map((i) => i.label), ["Сортировка: Обновлённые", "Жанр: Мультфильмы"]);
+    const cartoons = catalogKey("movie,serial", { genre: "23" });
+    await t.request(ids.list(cartoons));
+    assert.deepEqual(items(await t.request(ids.panel("filters", cartoons))).slice(0, 2).map((i) => i.label), ["Сортировка: Обновлённые", "Жанр: Мультфильмы"]);
   });
 
   it("V-31: a folder is titled by its name; an empty folder explains how to fill it", async () => {

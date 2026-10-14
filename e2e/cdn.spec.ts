@@ -4,7 +4,7 @@ import { ids } from "../src/router/ids.ts";
 import { MOCK_URL, P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press } from "./fixtures.ts";
 import { answer, answered, attachDiagnostics, callsSince, installTimeline, mark, selected } from "./flows-kit.ts";
 
-// «Скорость серверов KinoPub» (v1.18, спец. §11 S12, §16.7) в web MSX: «Настройки» → строка теста → «Проверить» →
+// «Скорость серверов KinoPub» (v1.19, спец. §11 S12, §16.7) в web MSX: «Настройки» → строка теста → «Проверить» →
 // таблица по локациям → «Выбрать самый быстрый» → `serverLocation` устройства в mock, со сверкой чтением. CDN mock — с
 // CORS и тремя локациями разной скорости: Германия быстрее всех, текущий сервер устройства — Нидерланды. Скриншот
 // экрана с результатами — `KP_CDN_SHOT=<путь> npm run e2e -- e2e/cdn.spec.ts`.

@@ -1,0 +1,61 @@
+{
+  "type": "list",
+  "headline": "Сортировка и фильтры",
+  "cache": false,
+  "reuse": false,
+  "template": {
+    "type": "control",
+    "layout": "0,0,8,1",
+    "enumerate": false
+  },
+  "items": [
+    {
+      "id": "f_sort",
+      "icon": "sort",
+      "label": "Сортировка: Обновлённые",
+      "action": "[back|panel:request:interaction:panel:sort:Y2F0YWxvZ3x0eXBlPXNlcmlhbHxzb3J0PS11cGRhdGVkfHllYXI9MjAxMC0yMDE5fGNvdW50cnk9MXxrcD02fGZpbj0x@https://example.github.io/msx/app/index.html]"
+    },
+    {
+      "id": "f_genre",
+      "icon": "category",
+      "label": "Жанр: все жанры",
+      "action": "[back|panel:request:interaction:panel:genre:Y2F0YWxvZ3x0eXBlPXNlcmlhbHxzb3J0PS11cGRhdGVkfHllYXI9MjAxMC0yMDE5fGNvdW50cnk9MXxrcD02fGZpbj0x@https://example.github.io/msx/app/index.html]"
+    },
+    {
+      "id": "f_year",
+      "icon": "date-range",
+      "label": "Год: 2010-е",
+      "action": "[back|panel:request:interaction:panel:year:Y2F0YWxvZ3x0eXBlPXNlcmlhbHxzb3J0PS11cGRhdGVkfHllYXI9MjAxMC0yMDE5fGNvdW50cnk9MXxrcD02fGZpbj0x@https://example.github.io/msx/app/index.html]"
+    },
+    {
+      "id": "f_country",
+      "icon": "public",
+      "label": "Страна: США",
+      "action": "[back|panel:request:interaction:panel:country:Y2F0YWxvZ3x0eXBlPXNlcmlhbHxzb3J0PS11cGRhdGVkfHllYXI9MjAxMC0yMDE5fGNvdW50cnk9MXxrcD02fGZpbj0x@https://example.github.io/msx/app/index.html]"
+    },
+    {
+      "id": "f_kp",
+      "icon": "star",
+      "label": "Рейтинг: КП ≥ 6",
+      "action": "[back|panel:request:interaction:panel:kp:Y2F0YWxvZ3x0eXBlPXNlcmlhbHxzb3J0PS11cGRhdGVkfHllYXI9MjAxMC0yMDE5fGNvdW50cnk9MXxrcD02fGZpbj0x@https://example.github.io/msx/app/index.html]"
+    },
+    {
+      "id": "f_uhd",
+      "icon": "check-box-outline-blank",
+      "label": "4K",
+      "action": "interaction:commit:message:act:panel:filter:uhd:1"
+    },
+    {
+      "id": "f_fin",
+      "icon": "check-box",
+      "label": "Завершённые",
+      "action": "interaction:commit:message:act:panel:filter:fin:"
+    },
+    {
+      "id": "f_reset",
+      "icon": "clear",
+      "label": "Сбросить фильтры",
+      "action": "interaction:commit:message:act:panel:filter:reset"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "type": "list",
+  "headline": "Страна",
+  "cache": false,
+  "reuse": false,
+  "template": {
+    "type": "button",
+    "layout": "0,0,4,1"
+  },
+  "items": [
+    {
+      "label": "{ico:check} Любая",
+      "action": "interaction:commit:message:act:panel:filter:country:",
+      "focus": true
+    },
+    {
+      "label": "США",
+      "action": "interaction:commit:message:act:panel:filter:country:1"
+    },
+    {
+      "label": "Россия",
+      "action": "interaction:commit:message:act:panel:filter:country:2"
+    },
+    {
+      "label": "Франция",
+      "action": "interaction:commit:message:act:panel:filter:country:3"
+    },
+    {
+      "label": "Великобритания",
+      "action": "interaction:commit:message:act:panel:filter:country:5"
+    },
+    {
+      "label": "Южная Корея",
+      "action": "interaction:commit:message:act:panel:filter:country:7"
+    },
+    {
+      "label": "Германия",
+      "action": "interaction:commit:message:act:panel:filter:country:4"
+    },
+    {
+      "label": "Япония",
+      "action": "interaction:commit:message:act:panel:filter:country:6"
+    },
+    {
+      "label": "Италия",
+      "action": "interaction:commit:message:act:panel:filter:country:8"
+    },
+    {
+      "label": "СССР",
+      "action": "interaction:commit:message:act:panel:filter:country:9"
+    },
+    {
+      "label": "Китай",
+      "action": "interaction:commit:message:act:panel:filter:country:10"
+    },
+    {
+      "label": "Другие страны…",
+      "action": "[back|panel:request:interaction:panel:countries:Y2F0YWxvZ3x0eXBlPW1vdmllfHNvcnQ9LXVwZGF0ZWQ@https://example.github.io/msx/app/index.html]"
+    }
+  ]
+}
