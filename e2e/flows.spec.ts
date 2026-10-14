@@ -136,25 +136,44 @@ test("E-12: префетч по фокусу — ArrowRight ×3, через 350 
     { message: "префетч первой плитки", timeout: 5000 }).toBe(true);
   await sleep(300);
   const c0 = await callCount();
-  const m = await mark(page);
-  for (let n = 0; n < 3; n++) await page.keyboard.press("ArrowRight");
-  const target = tiles[3];
-  const tl = await until(page, (x) => x.filter(isPf).at(-1)?.v === msgs.pf(target), 3000, "pf четвёртой плитки", m);
-  expect(tl.filter(isPf).map((e) => e.v), "pf на каждое движение фокуса").toEqual(tiles.slice(1, 4).map((id) => msgs.pf(id)));
-  const loaded = async (): Promise<string[]> => (await callsSince(c0, ITEM_PATH)).map((c) => c.path);
-  await expect.poll(loaded, { message: "карточка последнего фокуса", timeout: 5000 }).toEqual([`/v1/items/${target}`]);
-  // Время `pf` в плагине — по часам страницы (`timeOrigin`), запрос — по часам mock: та же машина, допуск на округление.
-  const pfAt = (await kp(page, () => performance.timeOrigin)) + tl.filter(isPf).at(-1)!.t;
-  expect((await callsSince(c0, ITEM_PATH))[0].t - pfAt, "запрос не раньше 350 мс после последнего pf").toBeGreaterThanOrEqual(345);
-  await sleep(500);
-  expect(await loaded(), "промежуточные плитки не грузились").toEqual([`/v1/items/${target}`]);
+  // Журнал запросов транспорта плагина — по тем же часам страницы (`performance.now()`), что и `pf` в хронологии: часы
+  // страницы и mock не сравниваются (их расхождение под нагрузкой — не про префетч).
+  await kp(page, (k) => {
+    const tr = k.ctx.transport;
+    const f = tr.fetch;
+    k.sent = [];
+    k.unsent = (): void => {
+      tr.fetch = f;
+    };
+    tr.fetch = (url: string, init: unknown) => {
+      k.sent.push({ t: Math.round(performance.now()), path: new URL(url).pathname });
+      return f(url, init);
+    };
+  });
+  try {
+    const m = await mark(page);
+    for (let n = 0; n < 3; n++) await page.keyboard.press("ArrowRight");
+    const target = tiles[3];
+    const tl = await until(page, (x) => x.filter(isPf).at(-1)?.v === msgs.pf(target), 3000, "pf четвёртой плитки", m);
+    expect(tl.filter(isPf).map((e) => e.v), "pf на каждое движение фокуса").toEqual(tiles.slice(1, 4).map((id) => msgs.pf(id)));
+    const loaded = async (): Promise<string[]> => (await callsSince(c0, ITEM_PATH)).map((c) => c.path);
+    await expect.poll(loaded, { message: "карточка последнего фокуса", timeout: 5000 }).toEqual([`/v1/items/${target}`]);
+    const sent = (await kp(page, (k) => k.sent as { t: number; path: string }[])).filter((r) => ITEM_PATH.test(r.path));
+    expect(sent.map((r) => r.path), "плагин запросил одну карточку — последнего фокуса").toEqual([`/v1/items/${target}`]);
+    // Таймер префетча ставится по `pf`, который уже в хронологии: раньше 350 мс запрос уйти не мог; допуск — на округление меток.
+    expect(sent[0].t - tl.filter(isPf).at(-1)!.t, "запрос не раньше 350 мс после последнего pf").toBeGreaterThanOrEqual(345);
+    await sleep(500);
+    expect(await loaded(), "промежуточные плитки не грузились").toEqual([`/v1/items/${target}`]);
 
-  const c1 = await callCount();
-  await page.keyboard.press("Enter");
-  await answered(page, ids.item(target), m);
-  await expectContent(page, `Тестовый сериал ${target}`);
-  await sleep(1000);
-  expect(await callsSince(c1, ITEM_PATH), "карточка из кэша префетча — без запроса").toEqual([]);
+    const c1 = await callCount();
+    await page.keyboard.press("Enter");
+    await answered(page, ids.item(target), m);
+    await expectContent(page, `Тестовый сериал ${target}`);
+    await sleep(1000);
+    expect(await callsSince(c1, ITEM_PATH), "карточка из кэша префетча — без запроса").toEqual([]);
+  } finally {
+    await kp(page, (k) => k.unsent());
+  }
 });
 
 test("E-05: сортировка и жанр — выбор в панели, replace:content по флагу списка, sort и genre в запросе", async () => {
