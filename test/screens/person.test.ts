@@ -7,7 +7,7 @@ import { FIX, castOf, directorOf, findItem } from "../../tools/kpmock/fixtures.t
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
-// Тайтлы актёра или режиссёра (v1.16): `person:<cast|director>:<b64url имени>` → поиск `field=cast|director` (HC
+// Тайтлы актёра или режиссёра (v1.18): `person:<cast|director>:<b64url имени>` → поиск `field=cast|director` (HC
 // `video.md`), плитки — окном списков (`fill`), найденное — в памяти списков; возврат — без сети.
 
 const BIG = FIX.SERIAL_BIG;

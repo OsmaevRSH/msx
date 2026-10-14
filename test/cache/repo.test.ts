@@ -328,7 +328,7 @@ describe("Repo", () => {
     const v = got.value.videos[0];
     assert.deepEqual([v.subtitles, v.files[0].urls, v.files[0].quality], [[], {}, "1080p"]);
     assert.ok((got.value.plot ?? "").length <= 600);
-    assert.deepEqual(got.value.trailer, {}, "v1.16: the signed trailer url is not stored, the trailer itself is");
+    assert.deepEqual(got.value.trailer, {}, "v1.18: the signed trailer url is not stored, the trailer itself is");
     const serial = await cold.item(FIX.SERIAL_BIG);
     assert.equal(serial.value.seasons[0].episodes[3].watching.time, 600);
     assert.deepEqual(serial.value.seasons[0].episodes[0].subtitles, []);

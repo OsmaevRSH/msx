@@ -86,7 +86,7 @@ describe("seasonScreen: SERIAL_BIG season 1 (S9)", () => {
     // Option Shortcut: MSX ищет `key` в опциях элемента в фокусе — пункт и у корня (вкладки), и у каждой серии.
     const seasons = { label: "Сезоны…", action: panelAction(P, ids.panel("seasons", BIG, 1)), key: "red" };
     assert.equal(s.options?.headline, "Тестовый сериал «Большой»");
-    // v1.16: за «Сезоны…» — отметка сезона целиком (season-mark.test.ts); красная остаётся ярлыком «Сезоны…».
+    // v1.18: за «Сезоны…» — отметка сезона целиком (season-mark.test.ts); красная остаётся ярлыком «Сезоны…».
     assert.deepEqual(s.options?.items, [seasons, { label: "Отметить сезон", action: commitMsg(msgs.act("item", "season", BIG, 1, 1)) }]);
     for (const e of eps(s)) assert.deepEqual(e.options?.items?.[0], seasons);
   });

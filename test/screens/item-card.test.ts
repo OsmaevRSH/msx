@@ -10,7 +10,7 @@ import { FIX, castOf, directorOf, findItem } from "../../tools/kpmock/fixtures.t
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
-// Карточка v1.16 (пакет «Карточка»): «Буду смотреть», трейлер, актёры и режиссёр, статус сериала, «просмотрено N из M»,
+// Карточка v1.18 (пакет «Карточка»): «Буду смотреть», трейлер, актёры и режиссёр, статус сериала, «просмотрено N из M»,
 // озвучки; тексты укладываются в строки сетки 1920×1080 (9 строк под заголовком на три ряда, 12 — на четыре).
 
 const BIG = FIX.SERIAL_BIG;
@@ -42,7 +42,7 @@ const calls = (t: TestApp, path: string): number => t.mock.calls().filter((c) =>
 const rowsOf = (s: MsxContentRoot): number =>
   lines(s).reduce((n, l, i, all) => n + Math.max(1, Math.ceil(l.length / (i === all.length - 1 ? CPL : LINE))), 0);
 
-describe("card v1.16: secondary row — trailer and «Буду смотреть»", () => {
+describe("card v1.18: secondary row — trailer and «Буду смотреть»", () => {
   it("serial in the list: «Трейлер» and «✓ В списке» above «▶»; the text takes three rows", async () => {
     const t = await make();
     const s = await open(t, BIG);
@@ -77,7 +77,7 @@ describe("card v1.16: secondary row — trailer and «Буду смотреть�
   });
 });
 
-describe("card v1.16: facts in the middle", () => {
+describe("card v1.18: facts in the middle", () => {
   it("serial: «Выходит», «просмотрено 3 из 200», director, cast (4–6 names in one line), voice-overs", async () => {
     const t = await make();
     const s = await open(t, BIG);
@@ -124,7 +124,7 @@ describe("card v1.16: facts in the middle", () => {
   });
 });
 
-describe("card v1.16: options — search by director and cast", () => {
+describe("card v1.18: options — search by director and cast", () => {
   it("director rows, then up to 6 cast rows → the person list; playback and refresh stay last", async () => {
     const t = await make();
     const s = await open(t, BIG);
@@ -145,7 +145,7 @@ describe("card v1.16: options — search by director and cast", () => {
   });
 });
 
-describe("card v1.16: trailer resolve play:<id>:trailer — video without progress", () => {
+describe("card v1.18: trailer resolve play:<id>:trailer — video without progress", () => {
   it("dataId grammar: play:<id>:trailer is a resolve route of its own", () => {
     assert.equal(ids.playTrailer(BIG), "play:2001:trailer");
     assert.deepEqual(parseDataId("play:2001:trailer"), { k: "trailer", id: BIG });

@@ -127,8 +127,8 @@ describe("kpmock watching and history", () => {
       const noSeason = await get("/v1/watching/toggle", { id: FIX.SERIAL_BIG, video: 1 });
       assert.equal(noSeason.status, 404);
       assert.deepEqual(await noSeason.json(), NOT_FOUND);
-      // v1.16: без `video` — весь сезон (HC `watching.md`, openapi `video` required: false; test/kpmock/card.test.ts),
-      // а не 400, как считал mock до v1.16.
+      // v1.18: без `video` — весь сезон (HC `watching.md`, openapi `video` required: false; test/kpmock/card.test.ts),
+      // а не 400, как считал mock до v1.18.
       assert.equal((await get("/v1/watching/toggle", { id: FIX.SERIAL_BIG, season: 11 })).status, 404);
     });
 

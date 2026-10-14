@@ -18,7 +18,7 @@ export type Route =
   | { k: "play"; id: number; what: "continue" | "start" }
   | { k: "playEp"; id: number; mid: number; s: number; e: number; start: boolean; at?: number }
   | { k: "probePlay"; variant: ProbeVariant; id: number; mid: number; s: number; e: number }
-  /** v1.16: трейлер — resolve без прогресса (`play:<id>:trailer`); тайтлы актёра или режиссёра (`person:<поле>:<b64url имени>`). */
+  /** v1.18: трейлер — resolve без прогресса (`play:<id>:trailer`); тайтлы актёра или режиссёра (`person:<поле>:<b64url имени>`). */
   | { k: "trailer"; id: number }
   | { k: "person"; field: "cast" | "director"; q: string }
   | { k: "unknown"; raw: string };
