@@ -6,28 +6,10 @@
   "headline": "Скорость серверов KinoPub",
   "template": {
     "type": "control",
-    "layout": "0,0,12,1"
+    "layout": "0,0,12,1",
+    "enumerate": false
   },
   "items": [
-    {
-      "type": "space",
-      "layout": "0,0,12,1",
-      "offset": "0,0.5,0,-0.5",
-      "headline": "Проверка"
-    },
-    {
-      "id": "cdn_run",
-      "label": "Проверить",
-      "extensionLabel": "31.12.2025 23:59 · 9,0 МБ за 11,4 с",
-      "action": "[info:Проверка серверов: 10–30 секунд|interaction:commit:message:act:probe:cdnRun]"
-    },
-    {
-      "id": "cdn_best",
-      "label": "Выбрать самый быстрый",
-      "extensionLabel": "Германия",
-      "action": "interaction:commit:message:act:probe:cdnSet:de",
-      "focus": true
-    },
     {
       "type": "space",
       "layout": "0,0,12,1",
@@ -50,7 +32,20 @@
       "id": "cdn_ru",
       "label": "Россия",
       "extensionLabel": "148 мс · 3,2 Мбит/с · сегмент 7,1 с",
-      "action": "interaction:commit:message:act:probe:cdnSet:ru",
+      "action": "interaction:commit:message:act:probe:cdnSet:ru"
+    },
+    {
+      "id": "cdn_best",
+      "label": "Выбрать самый быстрый",
+      "extensionLabel": "Германия",
+      "action": "interaction:commit:message:act:probe:cdnSet:de",
+      "focus": true
+    },
+    {
+      "id": "cdn_run",
+      "label": "Проверить",
+      "extensionLabel": "31.12.2025 23:59 · 9,0 МБ за 11,4 с",
+      "action": "[info:Проверка серверов: 10–30 секунд|interaction:commit:message:act:probe:cdnRun]",
       "break": "context:end"
     }
   ],
@@ -64,7 +59,7 @@
           "offset": "0,1,0,0",
           "color": "transparent",
           "selection": {
-            "action": "focus:cdn_run"
+            "action": "focus:cdn_nl"
           }
         }
       ]
@@ -79,7 +74,7 @@
           "offset": "0,-1,0,0",
           "color": "transparent",
           "selection": {
-            "action": "focus:cdn_ru"
+            "action": "focus:cdn_run"
           }
         }
       ]

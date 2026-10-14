@@ -46,7 +46,7 @@ const GROUP_OFFSET = "0,0.5,0,-0.5";
 const GRID = { width: 12, height: 6, w: 12, h: 1 };
 
 const T = {
-  headline: "Скорость серверов KinoPub", check: "Проверка", run: "Проверить", running: "Идёт проверка…",
+  headline: "Скорость серверов KinoPub", run: "Проверить", running: "Идёт проверка…",
   started: "Проверка серверов: 10–30 секунд", already: "Проверка уже идёт", stopVideo: "Сначала закройте видео",
   best: "Выбрать самый быстрый", noRun: "Сначала проверьте", isBest: "Текущий — самый быстрый",
   noCompare: "Без CORS не сравнить — выберите строку", noAnswers: "Нет ответов — проверьте VPN",
@@ -56,7 +56,7 @@ const T = {
   legend: "Серверы: задержка · скорость · первый сегмент",
   legendNode: "Серверы: ≈ задержка до CDN — без CORS скорость не измерить",
   legendFront: "Серверы: ≈ задержка до плейлистов — без CORS сам CDN не виден",
-  noSpeed: "скорость не измерена", playlists: "до плейлистов", seg: "сегмент",
+  noSpeed: "скорость не измерена", playlists: "до плейлистов", seg: "сегмент", noLocs: "KinoPub не отдал список серверов",
 };
 const ERRORS: Record<string, string> = { net: "нет ответа", timeout: "нет ответа за срок", csp: "хост не разрешён (CSP)", format: "не плейлист" };
 
@@ -229,7 +229,10 @@ function bestLabel(run: CdnRun | undefined, best: string | undefined, cur: strin
   return run.rows.some((r) => r.ok) ? T.noCompare : T.noAnswers;
 }
 
-/** `probe:cdn`: «Проверить», «Выбрать самый быстрый» и строка на сервер; выбор строки — этот сервер. */
+/**
+ * `probe:cdn`: строка на сервер (выбор строки — этот сервер), под ними «Выбрать самый быстрый» и «Проверить»;
+ * `enumerate: false` — без счётчика MSX «(1/6)» в заголовке.
+ */
 export async function cdnScreen(ctx: AppContext): Promise<MsxContentRoot> {
   if (!ctx.auth.isLoggedIn()) throw new KpError("KP-AUTH", "login required");
   const [got, dev] = await Promise.all([ctx.repo.serverLocations(), softDevice(ctx)]);
@@ -247,25 +250,27 @@ export async function cdnScreen(ctx: AppContext): Promise<MsxContentRoot> {
   const last = run === undefined ? `≈ 10–30 с, до ${locs.length * (CAP_BYTES / MB)} МБ`
     : `${fmtDate(run.at / 1000)} ${fmtTime(run.at)} · ${fmtMb(run.bytes)} за ${fmtSec(run.ms)}${run.stopped ? " · прервана" : ""}`;
   const pick = best !== undefined && best !== cur && !busy;
+  // Таблица, под ней действия: при 3 серверах экран — ровно 6 строк, всё видно без прокрутки. «Проверить» — последней:
+  // нижний страж ведёт на неё, а «Выбрать самый быстрый» бывает выключена.
   const items: MsxContentItem[] = [
-    head(T.check),
-    {
-      id: "cdn_run", label: T.run, extensionLabel: busy ? T.running : last,
-      action: busy ? `info:${T.already}` : chain([`info:${T.started}`, commitMsg(msgs.act("probe", "cdnRun"))]),
-    },
-    { id: "cdn_best", label: T.best, extensionLabel: bestLabel(run, best, cur, name), ...(pick ? { action: setAct(best) } : { enable: false }) },
     head({ full: T.legend, node: T.legendNode, front: T.legendFront }[worst(run)]),
     ...locs.map((l): MsxContentItem => ({
       id: rowId(l.location), label: `${l.location === cur ? CHECK : ""}${name(l.location)}${l.location === best ? T.fastest : ""}`,
       extensionLabel: rowText(byCode.get(l.location)), action: setAct(l.location),
     })),
+    ...(locs.length === 0 ? [{ id: "cdn_none", label: T.noLocs, enable: false }] : []),
+    { id: "cdn_best", label: T.best, extensionLabel: bestLabel(run, best, cur, name), ...(pick ? { action: setAct(best) } : { enable: false }) },
+    {
+      id: "cdn_run", label: T.run, extensionLabel: busy ? T.running : last,
+      action: busy ? `info:${T.already}` : chain([`info:${T.started}`, commitMsg(msgs.act("probe", "cdnRun"))]),
+    },
   ];
   // После проверки фокус — на «Выбрать самый быстрый», если есть что выбирать.
   const focus = items.findIndex((i) => i.id === (pick ? "cdn_best" : "cdn_run"));
   items[focus] = { ...items[focus], focus: true };
   const framed = gridEdges(items, GRID, { top: "overlay", bottom: true });
   const root: MsxContentRoot = {
-    type: "list", flag: FLAG, cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items: framed.items,
+    type: "list", flag: FLAG, cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1", enumerate: false }, items: framed.items,
   };
   if (framed.inserts !== undefined) root.inserts = framed.inserts;
   return root;

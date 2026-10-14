@@ -55,10 +55,11 @@ test("E-30: «Скорость серверов KinoPub» — «Проверит
 
   const c0 = (await mock.calls()).length;
   await press(page, "cdn_run", "Проверить");
-  await expect
-    .poll(async () => ((await content(page).innerText()).match(/Мбит\/с/g) ?? []).length, { message: "три строки со скоростью", timeout: 45_000 })
-    .toBe(3);
+  const speeds = async (): Promise<number> =>
+    ((await answer(page, ids.probe("cdn"))).items as { extensionLabel?: string }[]).filter((i) => /Мбит\/с/.test(i.extensionLabel ?? "")).length;
+  await expect.poll(speeds, { message: "три строки со скоростью (ответ после проверки)", timeout: 45_000 }).toBe(3);
   await expectContent(page, "Германия · самый быстрый");
+  await expect(content(page), "все три строки и действия — на одном экране").toContainText("Мбит/с");
   const cdn = await callsSince(c0, /^\/cdn\//);
   expect(cdn.map((c) => c.q.get("loc")), "локации по очереди, по одному файлу WebM на каждую").toEqual(["nl", "de", "ru"]);
   const shown = await answer(page, ids.probe("cdn"));
@@ -67,7 +68,14 @@ test("E-30: «Скорость серверов KinoPub» — «Проверит
   const de = shown.items.find((i: { id?: string }) => i.id === "cdn_de");
   expect(String(de?.extensionLabel)).toMatch(/^\d+ мс · \d+(,\d)? Мбит\/с · сегмент \d+,\d с$/);
   await noNotification(page);
-  if (process.env.KP_CDN_SHOT) await page.screenshot({ path: process.env.KP_CDN_SHOT });
+  if (process.env.KP_CDN_SHOT) {
+    // Как остальные превью: 1920×1080, затем обратно к размеру e2e.
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: process.env.KP_CDN_SHOT });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.waitForTimeout(1000);
+  }
 
   const c1 = (await mock.calls()).length;
   await press(page, "cdn_best", "Выбрать самый быстрый");

@@ -10,6 +10,7 @@ import type { CdnRow } from "../../src/probe/cdn.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
 import { edgeIssues, rootIssues } from "../../tools/crawl-rules.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
+import { startMock } from "../../tools/kpmock/server.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 import { MOVIE, kpProps, load, player } from "../progress/progress-rig.ts";
@@ -96,6 +97,24 @@ describe("the screen probe:cdn (S12 «Скорость серверов KinoPub�
     ]);
     assert.equal(byId(s, "cdn_de").action, commitMsg(msgs.act("probe", "cdnSet", "de")));
     assert.equal(cdnCalls(t).length, 0, "opening the screen does not test");
+  });
+
+  it("no locations in the reference: an explanation row (the bottom edge guard needs an item); a failed reference — S14", async () => {
+    const mock = await startMock({
+      port: 0, extraRoutes: (r) => r.add("GET", "/v1/references/server-location", () => ({ status: 200, json: { status: 200, items: [] } })),
+    });
+    try {
+      const t = await make({ loggedIn: true, mock });
+      const s = await screen(t);
+      assert.deepEqual([byId(s, "cdn_none").label, byId(s, "cdn_none").enable], ["KinoPub не отдал список серверов", false]);
+      assert.deepEqual(edgeIssues(s, "probe:cdn"), []);
+      assert.equal(byId(s, "cdn_run").extensionLabel, "≈ 10–30 с, до 0 МБ");
+    } finally {
+      await mock.close();
+    }
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/references/server-location$", status: 404 }] });
+    assert.match(JSON.stringify(await screen(t)), /KP-404/);
   });
 
   it("the TV's own `loc` (CDN panel) is the current one", async () => {
