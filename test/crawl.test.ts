@@ -158,7 +158,7 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
     assert.deepEqual(via("out", "settings"), ["init"]);
     assert.equal(via("out", "probe").filter((v) => v === "login" || v === "settings").length, 1);
     assert.ok(r.nodes >= 60, `nodes: ${r.nodes}`);
-    // v1.19: «Скорость серверов KinoPub» — строка «Настроек»; экран и выбор сервера обходятся, сам тест — нет.
+    // v1.20: «Скорость серверов KinoPub» — строка «Настроек»; экран и выбор сервера обходятся, сам тест — нет.
     assert.deepEqual(via("in", "probe:cdn"), ["settings"]);
     assert.ok(trace.some((l) => l.includes(" msg:act:probe:cdnSet:")), "a server row is chosen");
     assert.deepEqual(trace.filter((l) => l.includes("cdnRun")), [], "the test itself is never run");
@@ -174,7 +174,7 @@ describe("crawl: the action graph from init through kpmock (§14.1, CNFR-16, CD-
       "list:folder", "panel:tile",
       // v1.18: фильтры каталога — панель красной кнопки, панели значений и список с выбранным фильтром (§11.5).
       "panel:filters", "panel:year", "panel:country", "panel:countries", "panel:kp", "list:catalog:filtered",
-      // v1.19: тест скорости CDN.
+      // v1.20: тест скорости CDN.
       "probe:cdn",
     ]) {
       assert.ok(r.maxBytes[k] !== undefined, `${k} not crawled: ${Object.keys(r.maxBytes).join(" ")}`);

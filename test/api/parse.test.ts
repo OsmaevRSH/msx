@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   bool01, num, parseBookmarkFolder, parseCollection, parseDeviceCode, parseDeviceInfo, parseFile, parseHistory, parseHistoryPage,
   parseItemDetail, parseItemSummary, parseMediaLinks, parseMediaUnit, parsePage, parseSerialWatching, parseSubtitle, parseToggle,
-  parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
+  parseTokenPair, parseTrailer, parseTvChannel, parseUser, parseWatching, str,
 } from "../../src/api/parse.ts";
 
 // Образцы — из docs/research/kinopub-api.md (§4–§8), ссылки и токены заменены синтетическими.
@@ -225,6 +225,38 @@ describe("cards (research §6.3)", () => {
     assert.deepEqual(parseMediaUnit({ id: 1, watched: 1 }).watching, { status: 1, time: 0 });
     assert.deepEqual(parseMediaUnit({ id: 1, watching: { time: "120.5" } }).watching, { status: 0, time: 120.5 });
     assert.deepEqual(parseMediaUnit({ id: 1, watching: { status: 7 } }).watching, { status: -1, time: 0 });
+  });
+
+  it("v1.19: «Буду смотреть» from in_watchlist, else its alias subscribed; neither — unknown", () => {
+    assert.equal(parseItemDetail(SERIAL_CARD).watchlist, true);
+    assert.equal(parseItemDetail({ id: 1, in_watchlist: false, subscribed: true }).watchlist, false);
+    assert.equal(parseItemDetail({ id: 1, in_watchlist: null, subscribed: "1" }).watchlist, true);
+    assert.equal(parseItemDetail(MOVIE_CARD).watchlist, undefined);
+  });
+
+  it("v1.19: director and cast — comma strings to names (≤ 3 and ≤ 8); empty strings — absent", () => {
+    const d = parseItemDetail({ id: 1, director: "Режиссёр 1, Режиссёр 2", cast: " А, Б ,, В, Г, Д, Е, Ж, З, И, К " });
+    assert.deepEqual(d.director, ["Режиссёр 1", "Режиссёр 2"]);
+    assert.deepEqual(d.cast, ["А", "Б", "В", "Г", "Д", "Е", "Ж", "З"]);
+    assert.deepEqual(parseItemDetail({ id: 1, director: "a,b,c,d" }).director, ["a", "b", "c"]);
+    const none = parseItemDetail(LIST_ITEM);
+    assert.equal(none.director, undefined);
+    assert.equal(none.cast, undefined);
+  });
+
+  it("v1.19: trailer with url or id; the url only when a player can play it (not YouTube)", () => {
+    assert.deepEqual(parseItemDetail(LIST_ITEM).trailer, { url: "https://cdn.example/t.mp4" });
+    assert.deepEqual(parseItemDetail({ id: 1, trailer: { id: 69880, file: "/trailers/c/ce/69880.mp4" } }).trailer, {});
+    assert.deepEqual(parseItemDetail({ id: 1, trailer: { id: "udNj4", url: "http://www.youtube.com/watch?v=udNj4" } }).trailer, {});
+    for (const t of [null, {}, { id: "", url: "" }, "x"]) assert.equal(parseItemDetail({ id: 1, trailer: t }).trailer, undefined);
+  });
+
+  it("v1.19: items/trailer — a file before the url; an object or an array (HC video.md, Kodi)", () => {
+    const files = [{ url: "https://cdn.example/t/720.mp4", quality: 720 }, { url: "https://cdn.example/t/360.mp4" }];
+    assert.equal(parseTrailer({ status: 200, trailer: { id: "l_5", url: "https://youtube.com/watch?v=l_5", files } }), files[0].url);
+    assert.equal(parseTrailer({ trailer: [{ id: 1, url: "https://cdn.example/t/master-v1a1.m3u8?loc=nl" }] }), "https://cdn.example/t/master-v1a1.m3u8?loc=nl");
+    assert.equal(parseTrailer({ trailer: { id: 1, url: "https://www.youtube.com/watch?v=x", files: [{ url: "" }] } }), undefined);
+    for (const x of [null, {}, { trailer: null }, { trailer: [] }, { trailer: "x" }]) assert.equal(parseTrailer(x), undefined);
   });
 });
 

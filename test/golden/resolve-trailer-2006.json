@@ -1,0 +1,9 @@
+{
+  "url": "http://kpmock.invalid/cdn/media/sample.webm?trailer=62006",
+  "label": "Тестовый фильм «Простой» · Трейлер",
+  "properties": {
+    "control:type": "extended",
+    "trigger:back": "player:eject",
+    "trigger:complete": "player:eject"
+  }
+}

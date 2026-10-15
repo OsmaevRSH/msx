@@ -1,4 +1,4 @@
-import { catalog, findItem } from "../fixtures.ts";
+import { castOf, catalog, directorOf, findItem, trailerOf } from "../fixtures.ts";
 import type { FxItem, FxUnit } from "../fixtures.ts";
 import { HttpError, requireAuth } from "../router.ts";
 import type { HandlerCtx, MockResponse, Router } from "../router.ts";
@@ -26,6 +26,12 @@ export function posters(base: string, id: number): Record<"small" | "medium" | "
   };
 }
 
+/** Трейлер элемента списка и карточки — `{id, file}`, как в фикстурах Kodi; без трейлера — `null` (HC: концерт). */
+function trailer(id: number): { id: number; file: string } | null {
+  const t = trailerOf(id);
+  return t === undefined ? null : { id: t, file: `/trailers/${t % 10}/${(t % 256).toString(16).padStart(2, "0")}/${t}.mp4` };
+}
+
 /** Сериал окончен: каждый второй сериал, ТВ-шоу и док. сериал; фильмы — никогда (`finished: false`). */
 export const isFinished = (it: FxItem): boolean => SERIES_TYPES.has(it.type) && it.id % 2 === 0;
 
@@ -41,14 +47,14 @@ export function listItem(it: FxItem, base: string): Record<string, unknown> {
   return {
     id: it.id, type: it.type, subtype: it.subtype, title: it.title,
     year: it.id % 7 === 0 ? String(it.year) : it.year,
-    cast: "", director: "", voice: authors.length > 0 ? authors.join(", ") : null,
+    cast: castOf(it).join(", "), director: directorOf(it).join(", "), voice: authors.length > 0 ? authors.join(", ") : null,
     genres: it.genres.map((g) => ({ ...g })), countries: it.countries.map((c) => ({ ...c })),
     duration: { average: units.length > 0 ? Math.round(total / units.length) : 0, total },
     langs: first?.audios.length ?? 0, ac3: first?.audios.some((a) => a.codec === "ac3") ? 1 : 0,
     quality: it.quality, subtitles: first?.subsFull.length ?? 0, plot: it.plot,
     imdb_rating: it.id % 5 === 0 ? String(it.imdb_rating) : it.imdb_rating, kinopoisk_rating: it.kinopoisk_rating,
     rating: it.rating, views: it.views, comments: 0,
-    posters: posters(base, it.id),
+    posters: posters(base, it.id), trailer: trailer(it.id),
     finished: isFinished(it), advert: false, poor_quality: false,
     in_watchlist: false, subscribed: false, created_at: it.created_at, updated_at: it.updated_at,
   };
@@ -213,11 +219,14 @@ export function register(r: Router, s: MockState, base: () => string): void {
     });
   }
 
+  // `field=cast|director` — одно поле на запрос; без него и с любым другим значением — по названию (HC `video.md`, 2026-09-26).
   r.add("GET", "/v1/items/search", (ctx) => {
     requireAuth(ctx);
     const q = (ctx.query.get("q") ?? "").trim().toLowerCase();
     if (q === "") throw new HttpError(400, { status: 400, error: "Missing required parameter: q" });
-    return listResponse(ctx, filtered(ctx.query).filter((it) => it.title.toLowerCase().includes(q)));
+    const field = ctx.query.get("field");
+    const text = (it: FxItem): string => (field === "cast" ? castOf(it) : field === "director" ? directorOf(it) : [it.title]).join(", ");
+    return listResponse(ctx, filtered(ctx.query).filter((it) => text(it).toLowerCase().includes(q)));
   });
 
   r.add("GET", "/v1/items/similar", (ctx) => {

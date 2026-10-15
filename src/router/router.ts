@@ -11,12 +11,13 @@ import { probeOnReady, withProbe } from "../probe/lazy.ts";
 import { bookmarksScreen } from "../screens/bookmarks.ts";
 import { errorScreen, errorText, isErrorScreen, slowScreen } from "../screens/error.ts";
 import { homeScreen, warmHome } from "../screens/home.ts";
-import { itemScreen, onItemAct } from "../screens/item.ts";
+import { itemScreen, onItemAct, trailerResolve } from "../screens/item.ts";
 import { listScreen, onExtend } from "../screens/list.ts";
 import { loginScreen, onLoginAct } from "../screens/login.ts";
 import { buildMenu } from "../screens/menu.ts";
 import { onOrderAct } from "../screens/order-edit.ts";
 import { onPanelAct, panelScreen } from "../screens/panels.ts";
+import { personScreen } from "../screens/person.ts";
 import { onSearchInput, rememberSearch, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
 import { onSettingsAct, settingsScreen } from "../screens/settings.ts";
@@ -61,6 +62,8 @@ const ROUTES: RouteTable = {
   play: (ctx, r) => resolvePlay(ctx, r),
   playEp: (ctx, r) => resolvePlay(ctx, r),
   probePlay: (ctx, r) => withProbe(ctx, (m) => m.probeResolve(ctx, r)),
+  trailer: (ctx, r) => trailerResolve(ctx, r.id),
+  person: (ctx, r) => personScreen(ctx, r.field, r.q),
   unknown: (ctx) => errorScreen(ctx, new KpError("KP-BAD", "unknown route")),
 };
 
@@ -72,7 +75,7 @@ const PUBLIC = new Set<Route["k"]>(["init", "login", "probe", "dev", "unknown"])
  */
 const GUEST = new Set<Route["k"]>([...PUBLIC, "settings"]);
 /** Ответ для `video:resolve:…`: ошибка — `{ error }`, а не экран. */
-const RESOLVE = new Set<Route["k"]>(["play", "playEp", "probePlay"]);
+const RESOLVE = new Set<Route["k"]>(["play", "playEp", "probePlay", "trailer"]);
 
 const isObj = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);

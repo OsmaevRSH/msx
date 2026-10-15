@@ -4,7 +4,7 @@ import { HttpError, requireAuth } from "../router.ts";
 import type { HandlerCtx, MockResponse, Router } from "../router.ts";
 import { watchKey } from "../state.ts";
 import type { HistoryRec, MockState } from "../state.ts";
-import { SERIES_TYPES, listItem, posters } from "./catalog.ts";
+import { NOT_FOUND as ITEM_NOT_FOUND, SERIES_TYPES, listItem, missingParam, posters } from "./catalog.ts";
 
 // Просмотры и история (research kinopub-api §8.1, §8.3; Plan B §9.3, §12.3; спец. §10.3, §14.2).
 // `video` и `season` — номера (`number`), а не id; у фильма сезон 0.
@@ -51,6 +51,19 @@ function target(ctx: HandlerCtx): Target {
   return { item, season, unit, key: watchKey(item.id, season, unit.number) };
 }
 
+/**
+ * `toggle` без `video` (v1.19): все серии сезона, у фильма — все видео (HC `watching.md`: «Если отсутствует, модификации
+ * подвергаются все эпизоды сезона»; Kodi — сезон и фильм из частей). Сериал без `season` или неизвестный сезон — 404.
+ */
+function scope(ctx: HandlerCtx): Target[] {
+  const item = findItem(num(ctx.query, "id") ?? -1);
+  if (!item) throw new HttpError(404, NOT_FOUND);
+  const season = isSeries(item) ? num(ctx.query, "season") ?? -1 : 0;
+  const units = season === 0 ? item.videos ?? [] : item.seasons?.find((x) => x.number === season)?.episodes ?? [];
+  if (units.length === 0) throw new HttpError(404, NOT_FOUND);
+  return units.map((unit) => ({ item, season, unit, key: watchKey(item.id, season, unit.number) }));
+}
+
 /** Запись истории — на единицу (item, season, video); обновлённая переезжает в начало. */
 function touchHistory(s: MockState, t: Target, time: number, now: number): void {
   const i = s.history.findIndex((h) => h.item === t.item.id && h.season === t.season && h.video === t.unit.number);
@@ -79,6 +92,11 @@ function statusesOf(s: MockState, it: FxItem): Status[] {
 /** Сериал в «Я смотрю»: выбор `togglewatchlist`, иначе — начат и не досмотрен (или вышли новые серии). */
 function listed(s: MockState, id: number, statuses: Status[]): boolean {
   return s.watchlist.get(id) ?? (statuses.some((x) => x !== -1) && (statuses.some((x) => x !== 1) || (s.newEpisodes.get(id) ?? 0) > 0));
+}
+
+/** `in_watchlist` и `subscribed` карточки (v1.19): то же правило; фильм в списке не бывает. */
+export function inWatchlist(s: MockState, it: FxItem): boolean {
+  return isSeries(it) && listed(s, it.id, statusesOf(s, it));
 }
 
 function watchUnit(s: MockState, itemId: number, season: number, u: FxUnit): Record<string, unknown> {
@@ -160,12 +178,12 @@ export function register(r: Router, s: MockState, base: () => string): void {
     return { status: 200, json: { status: 200 } };
   });
 
+  // Переключатель: всё в области просмотрено → снять отметки, иначе — отметить всё (у сезона — как у Apple-клиента).
   r.add("GET", "/v1/watching/toggle", (ctx) => {
     requireAuth(ctx);
-    const t = target(ctx);
-    const prev = s.watching.get(t.key);
-    const status: -1 | 1 = prev?.status === 1 ? -1 : 1;
-    s.watching.set(t.key, { time: prev?.time ?? 0, status, updated: nowSec() });
+    const ts = num(ctx.query, "video") === undefined ? scope(ctx) : [target(ctx)];
+    const status: -1 | 1 = ts.every((t) => s.watching.get(t.key)?.status === 1) ? -1 : 1;
+    for (const t of ts) s.watching.set(t.key, { time: s.watching.get(t.key)?.time ?? 0, status, updated: nowSec() });
     // toggle_lost_response (спец. §14.2, CM-01): переключение применено, а ответ клиент не получит.
     if (ctx.scenario.toggleLostResponse > 0) {
       ctx.scenario.toggleLostResponse -= 1;
@@ -203,10 +221,12 @@ export function register(r: Router, s: MockState, base: () => string): void {
   });
 
   // «Я смотрю» («Буду смотреть», research kinopub-api §8.1): переключатель, ответ — новое состояние `watching`.
+  // Строго (v1.19, как v1.14): без `id` — 400 Yii; неизвестный, удалённый и не сериал — 404 (HC: «id — идентификатор сериала»).
   r.add("GET", "/v1/watching/togglewatchlist", (ctx) => {
     requireAuth(ctx);
+    if (num(ctx.query, "id") === undefined) throw missingParam("id");
     const item = findItem(num(ctx.query, "id") ?? -1);
-    if (!item) throw new HttpError(404, { status: 404, error: "Not found" });
+    if (!item || item.deleted || !isSeries(item)) throw new HttpError(404, ITEM_NOT_FOUND);
     const watching = !listed(s, item.id, statusesOf(s, item));
     s.watchlist.set(item.id, watching);
     // watchlistLostResponse (CM-01): переключение применено, а ответ клиент не получит.

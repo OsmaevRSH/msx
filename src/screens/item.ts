@@ -1,18 +1,19 @@
 import type { AppContext } from "../app/context.ts";
 import type { Audio, ItemDetail, MediaUnit } from "../api/models.ts";
 import type { ReqClass } from "../api/transport.ts";
+import { cacheKeys } from "../cache/repo.ts";
 import type { Got } from "../cache/swr.ts";
-import { toKpError } from "../core/errors.ts";
+import { KpError, toKpError } from "../core/errors.ts";
 import { fmtMinutes, fmtRating, ruTitle } from "../core/format.ts";
-import { commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
-import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
+import { chain, commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
+import type { MsxContentItem, MsxContentRoot, MsxResolveResponse } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
 import type { ContinueTarget, EpRef } from "../playback/episodes.ts";
 import { parseSubsValue, pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
 import type { SelectPrefs } from "../playback/select.ts";
 import { qualityLabel } from "../playback/url.ts";
 import { encodeListKey, ids, msgs, parseDataId } from "../router/ids.ts";
-import { errorScreen } from "./error.ts";
+import { errorScreen, errorText } from "./error.ts";
 import { audioTitle, playerProps, subsTitle } from "./player.ts";
 import type { PlayerPropsInput } from "./player.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
@@ -35,6 +36,19 @@ const T = {
   refresh: "Обновить",
   kp: "КП",
   imdb: "IMDb",
+  trailer: "Трейлер",
+  inList: "✓ В списке",
+  toList: "★ Буду смотреть",
+  director: "Режиссёр",
+  cast: "В ролях",
+  voices: "Озвучки",
+  andMore: "и ещё",
+  watched: "просмотрено",
+  of: "из",
+  onAir: "Выходит",
+  ended: "Завершён",
+  noTrailer: "Трейлер недоступен",
+  more: "{ico:msx-red:stop} Ещё",
 };
 /** V-15: значения без префиксов «Озвучка:», «Качество:», «Субтитры:» — иконки MSX. */
 const ICO = { audio: "{ico:record-voice-over}", quality: "{ico:hd}", subs: "{ico:subtitles}" };
@@ -47,6 +61,16 @@ const L = {
   main: "3,4,5,1", second: "8,4,2,1", similar: "10,4,2,1", similarWide: "8,4,4,1",
   bm: "0,5,3,1", audio: "3,5,3,1", quality: "6,5,2,1", subs: "8,5,4,1",
 };
+/**
+ * v1.19: ряд над «▶» — «Трейлер» (2 колонки) и «Буду смотреть» у сериала (3); тогда текст — три ряда сетки, иначе четыре.
+ * В ряду сетки при 1920×1080 три строки текста по 82–87 знаков (замер скриншотом web MSX): строка фактов — до `LINE`
+ * знаков, сюжет с переносом по словам — по `CPL` на строку, сколько строк осталось.
+ */
+const LINE = 80;
+const CPL = 70;
+const MAX_CAST = 6;
+/** Без `kp:*` трекер не считает трейлер просмотром (`load_without_kp`); «Назад» и конец ролика закрывают плеер, как эфир. */
+const TRAILER_PROPS = { "control:type": "extended", "trigger:back": "player:eject", "trigger:complete": "player:eject" };
 /** Главная кнопка: на ней фокус при открытии и после плеера (V-16). */
 const MAIN_ID = "b_main";
 
@@ -54,6 +78,8 @@ const TAG = "item";
 const PLOT_MAX = 600;
 /** Plan B §7.7: условное обновление ждёт свежую карточку не дольше 3 с. */
 const REFRESH_WAIT_MS = 3000;
+/** Сверка перед переключателем ждёт свежую карточку дольше сроков транспорта: по таймеру отдался бы кэш (CM-01). */
+const TOGGLE_WAIT_MS = 60_000;
 /** Панель опций (красная кнопка) — сетка 8×6, строка на пункт. */
 const OPTION_TEMPLATE: MsxContentItem = { type: "button", layout: "0,0,8,1" };
 
@@ -115,6 +141,9 @@ interface CardModel {
   /** Фильм из одного видео: отметка «просмотрено» — в опциях карточки. */
   film?: { ref: EpRef; status: -1 | 0 | 1 };
   inBookmarks: boolean;
+  /** Сериал: «Буду смотреть» и просмотрено серий из всех (с оверлеем). */
+  wl?: boolean;
+  seen?: [number, number];
 }
 
 function model(ctx: AppContext, item: ItemDetail, fetchedAt: number): CardModel {
@@ -130,13 +159,17 @@ function model(ctx: AppContext, item: ItemDetail, fetchedAt: number): CardModel 
   if (!isSerial(item) && refs.length === 1) {
     out.film = { ref: first, status: mergedState(item, first, ctx.overlay.get, fetchedAt).status };
   }
+  if (isSerial(item)) {
+    out.wl = item.watchlist === true;
+    out.seen = [refs.filter((r) => mergedState(item, r, ctx.overlay.get, fetchedAt).status === 1).length, refs.length];
+  }
   return out;
 }
 
 /** Персональная часть карточки (Plan B §7.7): подпись главной кнопки, её серия, закладки, статус фильма. */
 export function itemHash(ctx: AppContext, item: ItemDetail, fetchedAt: number): string {
   const m = model(ctx, item, fetchedAt);
-  return personalHash({ b: m.label, m: m.target?.ref.mid ?? 0, bm: m.inBookmarks, w: m.film?.status ?? null });
+  return personalHash({ b: m.label, m: m.target?.ref.mid ?? 0, bm: m.inBookmarks, w: m.film?.status ?? null, l: m.wl, s: m.seen });
 }
 
 export function itemRefreshSpec(ctx: AppContext, id: number, hash: string): RefreshSpec {
@@ -161,7 +194,8 @@ export async function itemScreen(ctx: AppContext, id: number): Promise<MsxConten
   const item = got.value;
   const m = model(ctx, item, got.fetchedAt);
   const root: MsxContentRoot = {
-    type: "pages", flag: itemFlag(id), cache: false, options: cardOptions(ctx, item, m), pages: [{ items: cardItems(ctx, item, m) }],
+    type: "pages", flag: itemFlag(id), cache: false, extension: T.more, options: cardOptions(ctx, item, m),
+    pages: [{ items: cardItems(ctx, item, m) }],
   };
   if (ctx.prefs.get().cardBackgrounds) root.background = item.posters.wide ?? item.posters.big;
   if (m.target !== undefined) prefetchLinks(ctx, m.target.ref.mid);
@@ -175,9 +209,19 @@ function cardItems(ctx: AppContext, item: ItemDetail, m: CardModel): MsxContentI
   const { P } = ctx;
   const id = item.id;
   const withProps = ctx.flags.get().playerPropsIn === "item";
+  // v1.19: ряд над «▶» — трейлер и «Буду смотреть»; без них текст занимает и этот ряд.
+  const row: MsxContentItem[] = [];
+  if (item.trailer !== undefined) {
+    row.push({ id: "b_trailer", type: "button", layout: "3,3,2,1", label: `{ico:movie} ${T.trailer}`, action: resolveAction(P, ids.playTrailer(id)), properties: TRAILER_PROPS });
+  }
+  if (m.wl !== undefined) {
+    row.push({ id: "b_wl", type: "button", layout: `${row.length > 0 ? 5 : 3},3,3,1`, label: m.wl ? T.inList : T.toList, action: commitMsg(msgs.act("item", "wl", id, m.wl ? 0 : 1)) });
+  }
+  const rows = row.length > 0 ? 3 : 4;
   const out: MsxContentItem[] = [
     { type: "space", layout: "0,0,3,5", image: item.posters.big, imageFiller: "fit" },
-    { type: "space", layout: "3,0,9,4", headline: ruTitle(item.title), text: describe(item) },
+    { type: "space", layout: `3,0,9,${rows}`, headline: ruTitle(item.title), text: describe(item, m, rows) },
+    ...row,
   ];
   const bm: MsxContentItem = {
     id: "b_bm", type: "button", layout: L.bm, label: m.inBookmarks ? T.inBookmarks : T.toBookmarks,
@@ -230,26 +274,60 @@ function prefButtons(ctx: AppContext, item: ItemDetail, unit: MediaUnit, mid: nu
 function cardOptions(ctx: AppContext, item: ItemDetail, m: CardModel): MsxContentRoot {
   const rows: OptionRow[] = [];
   if (m.film !== undefined) rows.push(watchedRow(m.film.ref, m.film.status, true));
+  // v1.19: тайтлы режиссёра и актёров — поиск `field=director|cast` по одному имени (HC `video.md`).
+  const person = (field: "cast" | "director", label: string, n: string): OptionRow => ({
+    label: `{ico:search} ${label}: ${n}`, action: contentAction(ctx.P, ids.person(field, n)),
+  });
+  rows.push(...(item.director ?? []).map((n) => person("director", T.director, n)), ...(item.cast ?? []).slice(0, MAX_CAST).map((n) => person("cast", T.cast, n)));
   rows.push({ label: T.mode, action: panelAction(ctx.P, ids.panel("mode", item.id)) });
   rows.push({ label: T.refresh, action: commitMsg(msgs.act("item", "refresh", item.id)) });
   return optionsRoot(rows, ruTitle(item.title));
 }
 
-/** «2023 · Драма, Триллер · США{br}КП 7,9 · IMDb 8,1 · 2 ч 01 мин{br}{br}сюжет» — пустые части опускаются. */
-function describe(item: ItemDetail): string {
+/**
+ * «2023 · Драма, Триллер · США{br}КП 7,9 · IMDb 8,1 · 45 мин · Выходит · просмотрено 12 из 30{br}Режиссёр: …{br}В ролях: …
+ * {br}Озвучки: А, Б, В и ещё 2{br}{br}сюжет» — пустые части опускаются. Сюжет — сколько осталось строк в `rows` рядах.
+ */
+function describe(item: ItemDetail, m: CardModel, rows: number): string {
   const line = (parts: (string | undefined)[]): string => parts.filter((p): p is string => p !== undefined && p !== "").join(" · ");
   const head = line([
     item.year !== undefined && item.year > 0 ? String(item.year) : undefined,
     item.genres.map((g) => g.title).join(", "),
     item.countries.join(", "),
   ]);
+  const seen = m.seen !== undefined && m.seen[0] > 0 ? `${T.watched} ${m.seen[0]} ${T.of} ${m.seen[1]}` : undefined;
   const facts = line([
     rating(T.kp, item.kpRating), rating(T.imdb, item.imdbRating),
     item.durationAvg !== undefined && item.durationAvg > 0 ? fmtMinutes(item.durationAvg) : undefined,
+    m.seen === undefined || item.finished === undefined ? undefined : item.finished ? T.ended : T.onAir, seen,
   ]);
-  const plot = clip((item.plot ?? "").replace(/\s+/g, " ").trim(), PLOT_MAX);
-  const text = [head, facts].filter((s) => s !== "").join("{br}");
+  const studios = item.voice?.split(",").map((v) => v.trim()).filter((v) => v !== "") ?? [...new Set(m.unit?.audios.map(audioTitle))];
+  const info = [head, facts, names(T.director, item.director), names(T.cast, item.cast), voices(studios)].filter((x) => x !== "");
+  // Заголовок длиннее строки переносится и забирает строку текста.
+  const left = rows * 3 - (ruTitle(item.title).length > 48 ? 1 : 0) - info.reduce((n, x) => n + Math.ceil(x.length / LINE), 0) - 1;
+  const plot = left > 0 ? clip((item.plot ?? "").replace(/\s+/g, " ").trim(), Math.min(PLOT_MAX, left * CPL)) : "";
+  const text = info.join("{br}");
   return plot === "" ? text : `${text}{br}{br}${plot}`;
+}
+
+/** «Режиссёр: А, Б» — имена, пока строка не длиннее `LINE` (хотя бы одно), актёров не больше `MAX_CAST`. */
+function names(label: string, list: string[] | undefined): string {
+  let out = "";
+  for (const n of (list ?? []).slice(0, MAX_CAST)) {
+    const next = out === "" ? `${label}: ${n}` : `${out}, ${n}`;
+    if (out !== "" && next.length > LINE) break;
+    out = next;
+  }
+  return out;
+}
+
+/** «Озвучки: А, Б, В и ещё 2» — до трёх студий в строку, остальные числом. */
+function voices(all: string[]): string {
+  for (let k = Math.min(3, all.length); k > 0; k--) {
+    const s = `${T.voices}: ${all.slice(0, k).join(", ")}${all.length > k ? ` ${T.andMore} ${all.length - k}` : ""}`;
+    if (s.length <= LINE || k === 1) return s;
+  }
+  return "";
 }
 
 function rating(name: string, v: number | undefined): string | undefined {
@@ -270,13 +348,17 @@ function subsName(unit: MediaUnit, sp: SelectPrefs, audio: Audio | undefined): s
 
 // --- Сообщения `act:item:*` ---
 
-/** `act:item:<name>:<args…>`: `watched`, `refresh`. */
+/** `act:item:<name>:<args…>`: `watched`, `refresh`, `wl`, `season`. */
 export async function onItemAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
   switch (name) {
     case "watched":
       return markWatched(ctx, args);
     case "refresh":
       return refreshCard(ctx, args);
+    case "wl":
+      return watchlist(ctx, args);
+    case "season":
+      return markSeason(ctx, args);
     default:
       ctx.log.warn(TAG, "unknown_act", { name });
   }
@@ -309,6 +391,69 @@ async function refreshCard(ctx: AppContext, args: string[]): Promise<void> {
   }
   await freshItem(ctx, id, "fg");
   if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
+}
+
+/** Сверка «Буду смотреть» по свежей карточке; кэш вместо неё (нет связи) — ошибка, а не повод переключать (CM-01). */
+async function inList(ctx: AppContext, id: number): Promise<boolean> {
+  const got = await ctx.repo.item(id, { freshWithinMs: 0, waitMs: TOGGLE_WAIT_MS, cls: "fg" });
+  if (got.offline !== undefined) throw new KpError(got.offline, "item-offline");
+  return got.value.watchlist === true;
+}
+
+/**
+ * `wl:<id>:<0|1>` — «Буду смотреть» (v1.19): переключатель — только при расхождении со свежей карточкой и не больше двух
+ * раз (CM-01: ответ мог потеряться, состояние — смениться на другом ТВ). Карточка после сверки свежая, «Я смотрю» и
+ * главная — устаревшие; перерисовка — только текущего экрана.
+ */
+async function watchlist(ctx: AppContext, args: string[]): Promise<void> {
+  const [id, want] = [int(args[0], 1), args[1]];
+  if (id === undefined || (want !== "0" && want !== "1")) return ctx.log.warn(TAG, "wl_bad_args", { args });
+  try {
+    for (let i = 0; (await inList(ctx, id)) !== (want === "1") && i < 2; i++) await ctx.api.toggleWatchlist(id, "fg");
+  } catch (e) {
+    ctx.log.warn(TAG, "wl_failed", { id, err: toKpError(e).code });
+    return ctx.host.executeAction(`info:${errorText(e).text}`);
+  }
+  ctx.cache.markStale(cacheKeys.serials());
+  if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
+}
+
+/**
+ * `season:<id>:<n>:<0|1>` — весь сезон (v1.19). Сверка `watching?id=` (Р-20) → `toggle` сезона без `video` (HC
+ * `watching.md`: «модификации подвергаются все эпизоды сезона») только при расхождении → снова сверка; не больше двух
+ * переключений: сервер ставит сезону состояние, противоположное целому, и смешанный сезон снимается за два. Что не сошлось
+ * (ошибка, сбой связи) — по сериям через outbox: у каждой своя сверка. Оверлей и перерисовка — до него.
+ */
+async function markSeason(ctx: AppContext, args: string[]): Promise<void> {
+  const [id, n, desired] = [int(args[0], 1), int(args[1], 1), int(args[2], 0)];
+  if (id === undefined || n === undefined || (desired !== 0 && desired !== 1)) return ctx.log.warn(TAG, "season_bad_args", { args });
+  const got = ctx.repo.peekItem(id);
+  const eps = got === undefined ? [] : orderedUnits(got.value).filter((r) => r.season === n).map((r) => r.video);
+  let left = eps;
+  try {
+    for (let i = 0; ; i++) {
+      left = (await ctx.api.watching(id, "fg")).filter((u) => u.season === n && (u.status === 1 ? 1 : 0) !== desired).map((u) => u.number);
+      if (left.length === 0 || i === 2) break;
+      await ctx.api.toggleSeason(id, n, "fg");
+    }
+  } catch (e) {
+    ctx.log.warn(TAG, "season_failed", { id, n, err: toKpError(e).code });
+  }
+  for (const v of eps) ctx.overlay.set(id, n, v, { time: knownTime(ctx, id, n, v), status: desired === 1 ? 1 : -1 });
+  ctx.repo.invalidateAfterProgress(id);
+  ctx.log.info(TAG, "season", { id, n, desired, left: left.length });
+  // Опции, из которых пришла команда, после перерисовки остались бы открытыми с прежними подписями — `cleanup` их закрывает.
+  if (showsTitle(ctx, id)) ctx.host.executeAction(chain(["cleanup", "reload:content"]));
+  for (const v of left) {
+    await ctx.outbox.setWatched(id, n, v, desired).catch((e: unknown) => ctx.log.warn(TAG, "season_unit_failed", { id, n, v, err: toKpError(e).code }));
+  }
+}
+
+/** `play:<id>:trailer` (v1.19): ссылка свежей карточки, иначе `items/trailer`; без `kp:*` — без прогресса и `marktime`. */
+export async function trailerResolve(ctx: AppContext, id: number): Promise<MsxResolveResponse> {
+  const got = await ctx.repo.item(id);
+  const url = (got.stale ? undefined : got.value.trailer?.url) ?? (await ctx.api.trailer(id));
+  return url === undefined ? { error: T.noTrailer } : { url, label: `${ruTitle(got.value.title)} · ${T.trailer}`, properties: TRAILER_PROPS };
 }
 
 /** Позиция, которую знает ТВ: KinoPub при переключении отметки её не сбрасывает. */

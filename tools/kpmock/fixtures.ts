@@ -291,6 +291,31 @@ export function findUnit(mid: number): { item: FxItem; unit: FxUnit; season: num
   return byMid?.get(mid);
 }
 
+// --- Актёры, режиссёры, трейлер (v1.19): синтетические имена (греческие буквы), арифметика от id ---
+
+const CAST = ["Анна Альфа", "Борис Бета", "Вера Гамма", "Глеб Дельта", "Дина Эпсилон", "Егор Дзета", "Жанна Эта", "Захар Тета",
+  "Ирина Йота", "Кирилл Каппа", "Лидия Лямбда", "Марк Мю", "Нина Ню", "Олег Кси", "Полина Омикрон", "Роман Пи"];
+const DIRECTORS = ["Сергей Ро", "Тамара Сигма", "Ульяна Тау", "Фёдор Фи", "Христина Хи"];
+
+/** 4–10 актёров подряд из 16 по кругу; у концертов нет ни актёров, ни режиссёра. */
+export function castOf(it: FxItem): string[] {
+  if (it.type === "concert") return [];
+  return Array.from({ length: 4 + (it.id % 7) }, (_, k) => CAST[(it.id * 5 + k) % CAST.length] as string);
+}
+
+/** Режиссёр, у каждого 4-го id — двое. */
+export function directorOf(it: FxItem): string[] {
+  if (it.type === "concert") return [];
+  const out = [DIRECTORS[it.id % DIRECTORS.length] as string];
+  if (it.id % 4 === 0) out.push(DIRECTORS[(it.id + 2) % DIRECTORS.length] as string);
+  return out;
+}
+
+/** id трейлера; у каждого 5-го тайтла (id ≡ 3 mod 5, в том числе MOVIE_MULTI) трейлера нет. */
+export function trailerOf(id: number): number | undefined {
+  return id % 5 === 3 ? undefined : 60_000 + id;
+}
+
 // --- Подборки и каналы эфира (v1.11, research kinopub-api §6.1, §7.4) ---
 
 export interface FxCollection { id: number; title: string; watchers: number; views: number; created: number; updated: number; items: number[] }

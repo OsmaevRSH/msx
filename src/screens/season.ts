@@ -3,13 +3,13 @@ import type { ItemDetail, MediaUnit } from "../api/models.ts";
 import type { Got } from "../cache/swr.ts";
 import { KpError } from "../core/errors.ts";
 import { fmtMinutes, ruTitle } from "../core/format.ts";
-import { panelAction, replaceContent, resolveAction } from "../msx/actions.ts";
+import { commitMsg, panelAction, replaceContent, resolveAction } from "../msx/actions.ts";
 import { gridEdges, guard } from "../msx/edges.ts";
 import type { Grid } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { continueTarget, episodeName, findUnit, mergedState, orderedUnits } from "../playback/episodes.ts";
 import type { EpRef } from "../playback/episodes.ts";
-import { ids } from "../router/ids.ts";
+import { ids, msgs } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
 import {
   freshItem, isSerial, optionsRoot, playerInput, prefetchLinks, scheduleScreenRefresh, watchedRow,
@@ -25,6 +25,7 @@ import type { RefreshSpec } from "./refresh.ts";
 const T = {
   season: "Сезон", of: "из", parts: "Части", episode: "Серия", part: "Часть", fromStart: "Смотреть с начала", more: "▾",
   seasons: "Сезоны", pickSeason: "Сезоны…", current: "{ico:check}", episodes: "Серии",
+  markSeason: "Отметить сезон", unmarkSeason: "Снять отметки сезона",
 };
 /** V-23: вкладки уходят за верх экрана, когда фокус на серии, — подсказка красной кнопки видна всегда. */
 const SEASONS_HINT = `{ico:msx-red:stop} ${T.seasons}`;
@@ -154,16 +155,19 @@ export async function seasonScreen(ctx: AppContext, id: number, n: number, from?
   // Красная кнопка открывает панель сезонов сразу (Option Shortcut): MSX ищет его в опциях элемента в фокусе, поэтому
   // пункт есть и у корня, и у каждой серии. Без `back` в начале: у ярлыка опции не открыты, и `back` ушёл бы с экрана.
   const seasonsRow: OptionRow[] = many ? [{ label: T.pickSeason, action: panelAction(ctx.P, ids.panel("seasons", id, n)), key: "red" }] : [];
+  // v1.19: весь сезон — `act:item:season` (сверка и `toggle` без `video`); у частей фильма сезона нет.
+  if (m.serial) {
+    const all = m.episodes.every((e) => e.status === 1);
+    seasonsRow.push({ label: all ? T.unmarkSeason : T.markSeason, action: commitMsg(msgs.act("item", "season", id, n, all ? 0 : 1)) });
+  }
   const root: MsxContentRoot = {
     type: "list", compress: true, flag: seasonFlag(id, n), cache: false,
     headline: `${title} · ${m.serial ? `${T.season} ${n}${many ? ` ${T.of} ${m.seasons.length}` : ""}` : T.parts}`,
     template, items: m.episodes.map((e) => episodeItem(ctx, item, m, e, withProps, seasonsRow)),
   };
   if (m.serial) root.header = tabItems(ctx, id, n, m);
-  if (many) {
-    root.extension = SEASONS_HINT;
-    root.options = optionsRoot(seasonsRow, title);
-  }
+  if (many) root.extension = SEASONS_HINT;
+  if (seasonsRow.length > 0) root.options = optionsRoot(seasonsRow, title);
   // Переходы между частями не запускают видео, но поля для `{context:…}` у каждого элемента — строки (Р-36).
   fitParts(ctx, root, id, n, m, from, withProps ? idleContextFields() : {});
 

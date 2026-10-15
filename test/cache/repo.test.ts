@@ -40,6 +40,7 @@ function rawCard(id: number): unknown {
     item: {
       id, type: "movie", subtype: "", title: `Карточка ${id} / Card ${id}`, year: 2020, quality: 1080, plot: LONG_PLOT,
       genres: [], countries: [], posters: { small: "s", medium: "m", big: "b" }, bookmarks: [], videos: [unit],
+      trailer: { id: 7, url: "http://cdn.test/cdn/trailers/t/7.mp4" },
     },
   };
 }
@@ -315,13 +316,14 @@ describe("Repo", () => {
     assert.deepEqual(cls("/v1/items/hot"), ["fg"]);
   });
 
-  it("compact card in kp.l2.*: no stream urls, no subtitles, plot ≤ 600; L1 keeps the full card; cold start hydrates", async () => {
+  it("compact card in kp.l2.*: no stream or trailer urls, no subtitles, plot ≤ 600; L1 keeps the full card; cold start hydrates", async () => {
     const r = env.rig();
     const { mem, l2, repo } = setup(r);
     const full = await r.run(repo.item(9001));
     assert.equal(full.value.videos[0].subtitles.length, 1);
     assert.ok(full.value.videos[0].files[0].urls.hls?.includes("cdn/hls"));
     assert.equal(full.value.plot?.length, LONG_PLOT.length);
+    assert.equal(full.value.trailer?.url, "http://cdn.test/cdn/trailers/t/7.mp4");
     await r.run(repo.item(FIX.SERIAL_BIG));
     l2.flush();
     const raw = dump(mem);
@@ -335,6 +337,7 @@ describe("Repo", () => {
     const v = got.value.videos[0];
     assert.deepEqual([v.subtitles, v.files[0].urls, v.files[0].quality], [[], {}, "1080p"]);
     assert.ok((got.value.plot ?? "").length <= 600);
+    assert.deepEqual(got.value.trailer, {}, "v1.19: the signed trailer url is not stored, the trailer itself is");
     const serial = await cold.item(FIX.SERIAL_BIG);
     assert.equal(serial.value.seasons[0].episodes[3].watching.time, 600);
     assert.deepEqual(serial.value.seasons[0].episodes[0].subtitles, []);

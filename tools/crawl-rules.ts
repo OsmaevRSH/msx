@@ -14,7 +14,7 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Ответ для `video:resolve:…`, а не экран: свои правила (`url` или `error`, свойства — строки). */
-export const RESOLVE_KINDS: ReadonlySet<string> = new Set(["play", "playEp", "probePlay"]);
+export const RESOLVE_KINDS: ReadonlySet<string> = new Set(["play", "playEp", "probePlay", "trailer"]);
 
 /**
  * Сообщения, которые краулер не отправляет, хотя проверяет их грамматику и обходит экран с ними: тест скорости CDN
