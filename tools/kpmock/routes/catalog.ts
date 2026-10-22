@@ -178,8 +178,21 @@ export function paginate<T>(all: T[], q: URLSearchParams, scenario: Scenario): {
   return { items, pagination: { total, current, perpage, total_items: all.length } };
 }
 
-function listResponse(ctx: HandlerCtx, all: FxItem[]): MockResponse {
-  const page = paginate(all, ctx.query, ctx.scenario);
+/**
+ * Больше на страницу каталога и полок живой API не отдаёт (Yii `Pagination::$pageSizeLimit`, M-9); mock пишет об этом в
+ * консоль. Поиск пока без потолка: на `perpage=1000` опирается contract-тест фильмографии (`test/kpmock/card.test.ts`).
+ */
+const PERPAGE_MAX = 50;
+
+function listResponse(ctx: HandlerCtx, all: FxItem[], clamp = true): MockResponse {
+  let q = ctx.query;
+  const asked = positiveInt(q, "perpage", DEFAULT_PERPAGE);
+  if (clamp && asked > PERPAGE_MAX) {
+    console.warn(`kpmock: perpage ${asked} → ${PERPAGE_MAX} on ${ctx.url.pathname}`);
+    q = new URLSearchParams(q);
+    q.set("perpage", String(PERPAGE_MAX));
+  }
+  const page = paginate(all, q, ctx.scenario);
   return { status: 200, json: { status: 200, items: page.items.map((it) => listItem(it, ctx.base)), pagination: page.pagination } };
 }
 
@@ -226,7 +239,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
     if (q === "") throw new HttpError(400, { status: 400, error: "Missing required parameter: q" });
     const field = ctx.query.get("field");
     const text = (it: FxItem): string => (field === "cast" ? castOf(it) : field === "director" ? directorOf(it) : [it.title]).join(", ");
-    return listResponse(ctx, filtered(ctx.query).filter((it) => text(it).toLowerCase().includes(q)));
+    return listResponse(ctx, filtered(ctx.query).filter((it) => text(it).toLowerCase().includes(q)), false);
   });
 
   r.add("GET", "/v1/items/similar", (ctx) => {

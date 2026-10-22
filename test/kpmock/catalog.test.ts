@@ -32,6 +32,15 @@ describe("kpmock catalog, items, media links, CDN", () => {
     assert.equal(r.status, 200, `${path} → ${r.status}`);
     return (await r.json()) as T;
   };
+  /** Весь список постранично: /v1/items* отдаёт не больше 50 на страницу (M-9). */
+  const pages = async (path: string): Promise<ListBody> => {
+    const items: ListItem[] = [];
+    for (let page = 1; ; page++) {
+      const b = await json<ListBody>(`${path}${path.includes("?") ? "&" : "?"}perpage=50&page=${page}`);
+      items.push(...b.items);
+      if (page >= b.pagination.total) return { ...b, items };
+    }
+  };
 
   before(async () => { mock = await startMock({ port: 0 }); });
   after(async () => { await mock.close(); });
@@ -58,24 +67,24 @@ describe("kpmock catalog, items, media links, CDN", () => {
     });
 
     it("type list and genre filter: type=movie,serial&genre=23", async () => {
-      const b = await json<ListBody>("/v1/items?type=movie,serial&genre=23&perpage=500");
+      const b = await pages("/v1/items?type=movie,serial&genre=23");
       assert.deepEqual([...new Set(b.items.map((it) => it.type))].sort(), ["movie", "serial"]);
       assert.ok(b.items.every((it) => it.genres.some((g) => g.id === FIX.GENRE_ANIM)));
-      const or = await json<ListBody>("/v1/items?type=movie&genre=23,1&perpage=500");
+      const or = await pages("/v1/items?type=movie&genre=23,1");
       assert.ok(or.items.length > b.items.filter((it) => it.type === "movie").length);
       assert.ok(or.items.every((it) => it.genres.some((g) => g.id === 23 || g.id === 1)));
     });
 
     it("sorts: -year descending, year- the same, title ascending", async () => {
-      const desc = await json<ListBody>("/v1/items?type=movie&sort=-year&perpage=100");
+      const desc = await pages("/v1/items?type=movie&sort=-year");
       const years = desc.items.map((it) => Number(it.year));
       for (let i = 1; i < years.length; i++) assert.ok(years[i - 1] >= years[i], `year order at ${i}`);
-      const suffix = await json<ListBody>("/v1/items?type=movie&sort=year-&perpage=100");
+      const suffix = await pages("/v1/items?type=movie&sort=year-");
       assert.deepEqual(suffix.items.map((it) => it.id), desc.items.map((it) => it.id));
       const fallback = await json<ListBody>("/v1/items?sort=constructor&perpage=5");
       const updated = await json<ListBody>("/v1/items?sort=-updated&perpage=5");
       assert.deepEqual(fallback.items.map((it) => it.id), updated.items.map((it) => it.id));
-      const asc = await json<ListBody>("/v1/items?sort=title&perpage=100");
+      const asc = await pages("/v1/items?sort=title");
       for (let i = 1; i < asc.items.length; i++) {
         assert.ok(asc.items[i - 1].title.localeCompare(asc.items[i].title, "ru") <= 0, `title order at ${i}`);
       }
@@ -84,15 +93,15 @@ describe("kpmock catalog, items, media links, CDN", () => {
     // Фильтры каталога (спец. §11.5) — как живой API 2026-09-26 (kinopub-apple-client `docs/providers/kinopub/video.md:477-497`).
     const cond = (...c: string[]): string => new URLSearchParams(c.map((v) => ["conditions[]", v])).toString();
     const ids = (b: ListBody): number[] => b.items.map((it) => it.id);
-    const movies = (): Promise<ListBody> => json<ListBody>("/v1/items?type=movie&perpage=500");
+    const movies = (): Promise<ListBody> => pages("/v1/items?type=movie");
 
     it("year: one year or Y1-Y2 inclusive; anything else finds nothing", async () => {
       const all = await movies();
-      const range = await json<ListBody>("/v1/items?type=movie&year=2010-2019&perpage=500");
+      const range = await pages("/v1/items?type=movie&year=2010-2019");
       const want = all.items.filter((it) => Number(it.year) >= 2010 && Number(it.year) <= 2019).map((it) => it.id);
       assert.ok(want.length > 0 && want.length < all.items.length, `${want.length}`);
       assert.deepEqual(ids(range), want);
-      const one = await json<ListBody>("/v1/items?type=movie&year=2005&perpage=500");
+      const one = await pages("/v1/items?type=movie&year=2005");
       assert.ok(one.items.length > 0 && one.items.every((it) => Number(it.year) === 2005));
       for (const bad of ["abc", "2010-", "20", "2010-2019-2020"]) {
         assert.deepEqual((await json<ListBody>(`/v1/items?type=movie&year=${bad}`)).items, [], bad);
@@ -100,9 +109,9 @@ describe("kpmock catalog, items, media links, CDN", () => {
     });
 
     it("country: an id, a comma list is OR; a country without titles — an empty list", async () => {
-      const us = await json<ListBody>("/v1/items?country=1&perpage=1000");
+      const us = await pages("/v1/items?country=1");
       assert.ok(us.items.length > 0 && us.items.every((it) => it.countries.some((c) => c.id === 1)));
-      const or = await json<ListBody>("/v1/items?country=1,2&perpage=1000");
+      const or = await pages("/v1/items?country=1,2");
       assert.ok(or.items.length > us.items.length);
       assert.ok(or.items.every((it) => it.countries.some((c) => c.id === 1 || c.id === 2)));
       assert.deepEqual((await json<ListBody>("/v1/items?country=50")).items, []);
@@ -110,29 +119,29 @@ describe("kpmock catalog, items, media links, CDN", () => {
 
     it("conditions[]: >= and <= on kinopoisk_rating, imdb_rating, year — all of them (AND); other fields and conditions without [] are ignored", async () => {
       const all = await movies();
-      const kp7 = await json<ListBody>(`/v1/items?type=movie&perpage=500&${cond("kinopoisk_rating>=7")}`);
+      const kp7 = await pages(`/v1/items?type=movie&${cond("kinopoisk_rating>=7")}`);
       const want = all.items.filter((it) => it.kinopoisk_rating >= 7).map((it) => it.id);
       assert.ok(want.length > 0 && want.length < all.items.length, `${want.length}`);
       assert.deepEqual(ids(kp7), want);
-      const both = await json<ListBody>(`/v1/items?type=movie&perpage=500&${cond("kinopoisk_rating>=7", "year<=1999", "imdb_rating>=6.5")}`);
+      const both = await pages(`/v1/items?type=movie&${cond("kinopoisk_rating>=7", "year<=1999", "imdb_rating>=6.5")}`);
       assert.deepEqual(ids(both), all.items.filter((it) => it.kinopoisk_rating >= 7 && Number(it.year) <= 1999 && Number(it.imdb_rating) >= 6.5).map((it) => it.id));
       assert.ok(both.items.length > 0 && both.items.length < kp7.items.length);
       for (const ignored of [cond("quality>=4"), cond("finished=1"), cond("kinopoisk_rating=>7"), "conditions=kinopoisk_rating%3E%3D7"]) {
-        assert.deepEqual(ids(await json<ListBody>(`/v1/items?type=movie&perpage=500&${ignored}`)), ids(all), ignored);
+        assert.deepEqual(ids(await pages(`/v1/items?type=movie&${ignored}`)), ids(all), ignored);
       }
     });
 
     it("finished: any value but 0 and empty keeps finished series only (the API looks at the presence)", async () => {
-      const serials = await json<ListBody>("/v1/items?type=serial&perpage=500");
+      const serials = await pages("/v1/items?type=serial");
       const done = serials.items.filter((it) => it.finished).map((it) => it.id);
       assert.ok(done.length > 0 && done.length < serials.items.length);
-      for (const v of ["1", "y", "n"]) assert.deepEqual(ids(await json<ListBody>(`/v1/items?type=serial&perpage=500&finished=${v}`)), done, v);
-      for (const v of ["0", ""]) assert.deepEqual(ids(await json<ListBody>(`/v1/items?type=serial&perpage=500&finished=${v}`)), ids(serials), v);
+      for (const v of ["1", "y", "n"]) assert.deepEqual(ids(await pages(`/v1/items?type=serial&finished=${v}`)), done, v);
+      for (const v of ["0", ""]) assert.deepEqual(ids(await pages(`/v1/items?type=serial&finished=${v}`)), ids(serials), v);
     });
 
     it("filters narrow each other, the genre and the type, and keep the sort", async () => {
-      const q = `type=movie,serial&genre=23&year=1990-2009&country=1,2&quality=3&sort=-kinopoisk_rating&perpage=500&${cond("kinopoisk_rating>=6")}`;
-      const b = await json<ListBody>(`/v1/items?${q}`);
+      const q = `type=movie,serial&genre=23&year=1990-2009&country=1,2&quality=3&sort=-kinopoisk_rating&${cond("kinopoisk_rating>=6")}`;
+      const b = await pages(`/v1/items?${q}`);
       assert.ok(b.items.length > 0);
       for (const it of b.items) {
         assert.ok(["movie", "serial"].includes(it.type) && it.genres.some((g) => g.id === 23), `${it.id}`);
@@ -163,8 +172,23 @@ describe("kpmock catalog, items, media links, CDN", () => {
       assert.deepEqual(raw.items, []);
     });
 
+    it("M-9: perpage above 50 on /v1/items and the shelves is cut to 50, as Yii pageSizeLimit of the live API; the mock warns about it", async (t) => {
+      const warn = t.mock.method(console, "warn", () => undefined);
+      for (const path of ["/v1/items?type=movie", "/v1/items/fresh?type=movie", "/v1/items/hot?type=serial"]) {
+        const b = await json<ListBody>(`${path}&perpage=100&page=2`);
+        assert.equal(b.items.length, 50, path);
+        assert.deepEqual([b.pagination.perpage, b.pagination.current], [50, 2], path);
+        assert.equal(b.pagination.total, Math.ceil(b.pagination.total_items / 50), path);
+      }
+      assert.equal(warn.mock.callCount(), 3);
+      assert.match(String(warn.mock.calls[0]?.arguments[0]), /perpage 100 → 50 .*\/v1\/items/);
+      assert.equal((await json<ListBody>("/v1/items?type=movie&perpage=50")).items.length, 50);
+      assert.equal((await json<ListBody>("/v1/items?type=movie&perpage=48")).items.length, 48);
+      assert.equal(warn.mock.callCount(), 3, "50 and below — no warning");
+    });
+
     it("never lists the deleted title", async () => {
-      const all = await json<ListBody>("/v1/items?perpage=1000");
+      const all = await pages("/v1/items");
       assert.equal(all.pagination.total_items, 505);
       assert.ok(!all.items.some((it) => it.id === FIX.MOVIE_DELETED));
       const found = await json<ListBody>("/v1/items/search?q=удалённый");
@@ -172,7 +196,7 @@ describe("kpmock catalog, items, media links, CDN", () => {
     });
 
     it("SERIAL_LONG is only reachable by id: not in lists, search or similar", async () => {
-      const all = await json<ListBody>("/v1/items?perpage=1000");
+      const all = await pages("/v1/items");
       assert.ok(!all.items.some((it) => it.id === FIX.SERIAL_LONG));
       assert.deepEqual((await json<ListBody>("/v1/items/search?q=длинный")).items, []);
       const similar = await json<ListBody>(`/v1/items/similar?id=${FIX.SERIAL_BIG}`);
@@ -181,7 +205,7 @@ describe("kpmock catalog, items, media links, CDN", () => {
     });
 
     it("tolerance: year as a string for every 7th id, imdb_rating for every 5th; posters on the mock", async () => {
-      const b = await json<ListBody>("/v1/items?perpage=1000");
+      const b = await pages("/v1/items");
       const byId = new Map(b.items.map((it) => [it.id, it]));
       assert.equal(typeof byId.get(1002)?.year, "number");
       assert.equal(typeof byId.get(1002)?.imdb_rating, "number");
@@ -225,7 +249,7 @@ describe("kpmock catalog, items, media links, CDN", () => {
     });
 
     it("search: case-insensitive title substring with pagination", async () => {
-      const b = await json<ListBody>(`/v1/items/search?q=${encodeURIComponent("тестовый сериал")}&field=title&perpage=200`);
+      const b = await pages(`/v1/items/search?q=${encodeURIComponent("тестовый сериал")}&field=title`);
       assert.ok(b.items.length > 0);
       assert.ok(b.items.every((it) => it.type === "serial"));
       assert.equal(b.pagination.total_items, 152);
