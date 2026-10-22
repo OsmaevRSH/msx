@@ -5,7 +5,7 @@ import type {
   Page, SerialWatching, ServerLocation, TokenPairRaw, TvChannel, User, WatchingUnit,
 } from "./models.ts";
 import {
-  errorText, num, obj, objs, parseBookmarkFolder, parseCollection, parseDeviceCode, parseDeviceInfo, parseGenre, parseHistory,
+  bool01, errorText, num, obj, objs, parseBookmarkFolder, parseCollection, parseDeviceCode, parseDeviceInfo, parseGenre, parseHistory,
   parseHistoryPage, parseItemDetail, parseItemList, parseItems, parseListItem, parseMediaLinks, parsePage, parseSerialWatching,
   parseServerLocation, parseToggle, parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
 } from "./parse.ts";
@@ -263,10 +263,14 @@ export class KpApi {
     return parseToggle(await this.call({ path: "/v1/watching/toggle", query: { id, season }, retry: "none", timeoutMs: PROGRESS_MS, cls }));
   }
 
-  /** Переключатель «Я смотрю» (`togglewatchlist`): не повторяется вслепую (спец. §5.3, CM-01); ответ — новое состояние. */
+  /**
+   * Переключатель «Я смотрю» (`togglewatchlist`): не повторяется вслепую (спец. §5.3, CM-01); ответ — новое состояние,
+   * `true`, `1` или `"1"` (API-16). Без поля — `KP-BAD`: ответ неизвестен, вызывающий сверяет состояние.
+   */
   async toggleWatchlist(id: number, cls?: ReqClass | Priority): Promise<{ watching: boolean }> {
-    const json = await this.call({ path: "/v1/watching/togglewatchlist", query: { id }, retry: "none", timeoutMs: PROGRESS_MS, cls });
-    return { watching: obj(json).watching === true };
+    const w = obj(await this.call({ path: "/v1/watching/togglewatchlist", query: { id }, retry: "none", timeoutMs: PROGRESS_MS, cls })).watching;
+    if (w === undefined || w === null) throw new KpError("KP-BAD", "watchlist-no-field");
+    return { watching: bool01(w) === 1 };
   }
 
   async history(page: number, perpage: number, cls?: Cls): Promise<HistoryEntry[]> {

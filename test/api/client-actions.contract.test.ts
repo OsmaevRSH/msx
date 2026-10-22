@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { KpApi } from "../../src/api/client.ts";
+import type { Transport } from "../../src/api/transport.ts";
+import { KpError } from "../../src/core/errors.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { kp, q, useKpApiMock } from "./kpapi-rig.ts";
 
@@ -62,5 +65,20 @@ describe("KpApi tile actions against kpmock (contract)", () => {
     await r.run(r.api.historyClearItem(FIX.SERIAL_BIG));
     assert.equal(env.calls("/v1/history/clear-for-item").length, 2);
     assert.deepEqual((await r.run(r.api.history(1, 50))).map((e) => e.item.id), [FIX.MOVIE_SIMPLE, FIX.SERIAL_SMALL]);
+  });
+});
+
+// API-16: ответ `togglewatchlist` разбирается как остальные флаги (`1`, `"1"`, `true`); без поля — ответ неизвестен.
+describe("toggleWatchlist answer (API-16)", () => {
+  const api = (json: unknown): KpApi =>
+    new KpApi({ send: async () => ({ status: 200, json, ms: 1 }) } as unknown as Transport, { access: () => ({ token: "t", gen: 1 }), refresh: async () => undefined });
+
+  it("watching: true, 1 and \"1\" mean «in the list»; false, 0 and \"0\" — not", async () => {
+    for (const v of [true, 1, "1"]) assert.deepEqual(await api({ status: 200, watching: v }).toggleWatchlist(1), { watching: true }, String(v));
+    for (const v of [false, 0, "0"]) assert.deepEqual(await api({ status: 200, watching: v }).toggleWatchlist(1), { watching: false }, String(v));
+  });
+
+  it("no watching field → KP-BAD «watchlist-no-field»: the caller treats the answer as lost and re-checks", async () => {
+    await assert.rejects(api({ status: 200 }).toggleWatchlist(1), (e: unknown) => e instanceof KpError && e.code === "KP-BAD" && e.message === "watchlist-no-field");
   });
 });
