@@ -28,9 +28,9 @@ describe("Repo: a fg caller joining a bg request", () => {
   it("prefetch, then open the same card: the queued bg request is promoted — one request, fg, never bg-dropped", async () => {
     const r = env.rig();
     const repo = setup(r);
-    // Заняты 3 слота переднего плана и единственный фоновый: префетч встаёт в очередь фоновых.
+    // Заняты все 3 слота (QA-API-5): 2 переднего плана и единственный фоновый — префетч встаёт в очередь фоновых.
     const releases: (() => void)[] = [];
-    const held = (["fg", "fg", "fg", "bg"] as const).map((c) => r.limiter.run(c, () => new Promise<void>((res) => releases.push(res))));
+    const held = (["fg", "fg", "bg"] as const).map((c) => r.limiter.run(c, () => new Promise<void>((res) => releases.push(res))));
     const prefetch = repo.item(CARD, { cls: "bg" });
     const open = repo.item(CARD);
     // Экран ждёт ещё один запрос переднего плана дольше 200 мс — фоновые из очереди сбрасываются.

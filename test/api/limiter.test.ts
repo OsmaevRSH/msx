@@ -76,27 +76,34 @@ describe("Limiter", () => {
     assert.deepEqual(l.inFlight(), { fg: 0, bg: 0 });
   });
 
-  it("bg has its own single slot and does not take fg slots", async () => {
+  // QA-API-5 (CNFR-18): не больше 3 запросов всего, фоновые — 1 из них; раньше было 3 + 1.
+  it("1 bg + 4 fg: at most 3 in flight in total, the bg takes one of the 3 slots", async () => {
     const c = new FakeClock();
     const l = new Limiter(c);
     const bg1 = gate("bg1");
     const bg2 = gate("bg2");
-    const fgs = [gate("f1"), gate("f2"), gate("f3")];
+    const fgs = [gate("f1"), gate("f2"), gate("f3"), gate("f4")];
     const pb1 = l.run("bg", bg1.fn);
     const pb2 = l.run("bg", bg2.fn);
     const pf = fgs.map((g) => l.run("fg", g.fn));
     await settle(c);
     assert.equal(bg1.started, true);
     assert.equal(bg2.started, false, "only one bg at a time");
-    assert.deepEqual(fgs.map((g) => g.started), [true, true, true]);
-    assert.deepEqual(l.inFlight(), { fg: 3, bg: 1 });
+    assert.deepEqual(fgs.map((g) => g.started), [true, true, false, false]);
+    assert.deepEqual(l.inFlight(), { fg: 2, bg: 1 });
     bg1.release();
     await pb1;
     await settle(c);
-    assert.equal(bg2.started, true);
-    bg2.release();
+    assert.deepEqual(fgs.map((g) => g.started), [true, true, true, false], "a freed slot goes to the waiting fg first");
+    assert.equal(bg2.started, false);
+    assert.deepEqual(l.inFlight(), { fg: 3, bg: 0 });
     fgs.forEach((g) => g.release());
-    await Promise.all([pb2, ...pf]);
+    await Promise.all(pf);
+    await c.advance(1000);
+    assert.equal(bg2.started, true, "the 6th start waits for the 5-per-second window");
+    bg2.release();
+    await pb2;
+    assert.deepEqual(l.inFlight(), { fg: 0, bg: 0 });
   });
 
   it("10 requests in a row take at least 1 s (≤ 5 per second)", async () => {
@@ -128,8 +135,8 @@ describe("Limiter", () => {
   it("a queued bg request is dropped when a fg request waits longer than 200 ms", async () => {
     const c = new FakeClock(0, 0);
     const l = new Limiter(c);
-    const busy = [gate("f1"), gate("f2"), gate("f3"), gate("b1")];
-    const pBusy = busy.map((g, i) => l.run(i < 3 ? "fg" : "bg", g.fn));
+    const busy = [gate("f1"), gate("f2"), gate("b1")];
+    const pBusy = busy.map((g, i) => l.run(i < 2 ? "fg" : "bg", g.fn));
     await settle(c);
     const queuedBg = gate("b2");
     const pQueuedBg = l.run("bg", queuedBg.fn);
@@ -147,7 +154,7 @@ describe("Limiter", () => {
     assert.equal(err.code, "KP-NET");
     assert.equal(err.message, "bg-dropped");
     assert.equal(queuedBg.started, false);
-    assert.equal(busy[3].started, true, "a bg request already in flight is not touched");
+    assert.equal(busy[2].started, true, "a bg request already in flight is not touched");
 
     busy.forEach((g) => g.release());
     await Promise.all(pBusy);
@@ -177,6 +184,48 @@ describe("Limiter", () => {
     await Promise.all(ps);
   });
 
+  it("after on429() one request at a time in total: a queued bg waits for the end of the 30 s window", async () => {
+    const c = new FakeClock(0, 0);
+    const l = new Limiter(c);
+    l.on429();
+    const bg = gate("bg");
+    const pb = l.run("bg", bg.fn);
+    await settle(c);
+    assert.equal(bg.started, false, "no bg while the limiter is slow, even with every slot free");
+    const f1 = gate("f1");
+    const p1 = l.run("fg", f1.fn);
+    await settle(c);
+    assert.equal(f1.started, true);
+    f1.release();
+    await p1;
+    await c.advance(29_000);
+    assert.equal(bg.started, false);
+    await c.advance(1000);
+    assert.equal(bg.started, true, "the bg starts by itself when the window ends");
+    bg.release();
+    await pb;
+  });
+
+  it("a bg already in flight at the 429: no fg starts beside it until it ends", async () => {
+    const c = new FakeClock(0, 0);
+    const l = new Limiter(c);
+    const bg = gate("bg");
+    const pb = l.run("bg", bg.fn);
+    await settle(c);
+    l.on429();
+    const f1 = gate("f1");
+    const p1 = l.run("fg", f1.fn);
+    await settle(c);
+    assert.equal(f1.started, false);
+    assert.deepEqual(l.inFlight(), { fg: 0, bg: 1 });
+    bg.release();
+    await pb;
+    await settle(c);
+    assert.equal(f1.started, true);
+    f1.release();
+    await p1;
+  });
+
   it("a repeated 429 extends the 30 s window", async () => {
     const c = new FakeClock(0, 0);
     const l = new Limiter(c);
@@ -190,10 +239,10 @@ describe("Limiter", () => {
   });
 
   describe("promotion: a fg caller joins a queued bg request (single-flight)", () => {
-    /** 3 fg и единственный bg в полёте: новые запросы встают в очередь. */
+    /** 2 fg и единственный bg в полёте — все 3 слота заняты: новые запросы встают в очередь. */
     const busy = async (c: FakeClock, l: Limiter): Promise<{ gs: Gate[]; ps: Promise<string>[] }> => {
-      const gs = [gate("f1"), gate("f2"), gate("f3"), gate("b1")];
-      const ps = gs.map((g, i) => l.run(i < 3 ? "fg" : "bg", g.fn));
+      const gs = [gate("f1"), gate("f2"), gate("b1")];
+      const ps = gs.map((g, i) => l.run(i < 2 ? "fg" : "bg", g.fn));
       await settle(c);
       return { gs, ps };
     };
@@ -224,7 +273,7 @@ describe("Limiter", () => {
       await held.ps[0];
       assert.equal(card.started, true, "first free fg slot");
       assert.equal(other.started, false);
-      assert.deepEqual(l.inFlight(), { fg: 3, bg: 1 });
+      assert.deepEqual(l.inFlight(), { fg: 2, bg: 1 });
       card.release();
       assert.equal(await pCard, "card");
       await c.advance(1000);

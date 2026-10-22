@@ -2,9 +2,9 @@ import type { Clock, TimerId } from "../core/clock.ts";
 import { KpError } from "../core/errors.ts";
 import type { Priority, ReqClass } from "./transport.ts";
 
-// Спец. §8.5, CNFR-18: 3 запроса переднего плана + 1 фоновый, не больше 5 стартов за любую секунду;
-// после 429 или «ответа без CORS» — передний план по одному 30 с.
-const FG_MAX = 3;
+// Спец. §8.5, CNFR-18 (QA-API-5): не больше 3 запросов всего, фоновые — 1 из них, не больше 5 стартов за любую секунду;
+// после 429 или «ответа без CORS» — 30 с по одному запросу, фоновые не стартуют.
+const MAX = 3;
 const BG_MAX = 1;
 const RATE_MAX = 5;
 const RATE_WINDOW_MS = 1000;
@@ -81,8 +81,9 @@ export class Limiter {
     this.slowUntil = this.clock.perf() + SLOW_MS;
   }
 
+  /** Потолок одновременных запросов всего: передний план занимает и его, и фоновый слот, если он свободен. */
   fgLimit(): number {
-    return this.clock.perf() < this.slowUntil ? 1 : FG_MAX;
+    return this.clock.perf() < this.slowUntil ? 1 : MAX;
   }
 
   inFlight(): { fg: number; bg: number } {
@@ -129,12 +130,10 @@ export class Limiter {
     if (fg.length > 0 && bg.length > 0 && now - (fg[0] as Waiter).at >= BG_DROP_AFTER_MS) {
       for (const w of bg.splice(0)) w.drop(new KpError("KP-NET", "bg-dropped"));
     }
-    while (fg.length > 0 && this.active.fg < this.fgLimit() && this.starts.length < RATE_MAX) {
-      (fg.shift() as Waiter).start();
-    }
-    while (bg.length > 0 && this.active.bg < BG_MAX && this.starts.length < RATE_MAX) {
-      (bg.shift() as Waiter).start();
-    }
+    const cap = this.fgLimit();
+    const free = (): boolean => this.active.fg + this.active.bg < cap && this.starts.length < RATE_MAX;
+    while (fg.length > 0 && free()) (fg.shift() as Waiter).start();
+    while (bg.length > 0 && cap === MAX && this.active.bg < BG_MAX && free()) (bg.shift() as Waiter).start();
   }
 
   /** Один таймер на ближайший момент, когда очередь может сдвинуться без завершения запроса. */
@@ -144,7 +143,7 @@ export class Limiter {
     const bg = this.queues.bg;
     let at = Number.POSITIVE_INFINITY;
     if ((fg.length > 0 || bg.length > 0) && this.starts.length >= RATE_MAX) at = Math.min(at, (this.starts[0] as number) + RATE_WINDOW_MS);
-    if (fg.length > 0 && this.slowUntil > now) at = Math.min(at, this.slowUntil);
+    if ((fg.length > 0 || bg.length > 0) && this.slowUntil > now) at = Math.min(at, this.slowUntil);
     if (fg.length > 0 && bg.length > 0) at = Math.min(at, (fg[0] as Waiter).at + BG_DROP_AFTER_MS);
     if (this.wake !== undefined) {
       if (this.wake.at <= at) return;
