@@ -197,9 +197,10 @@ export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, s
   return out;
 }
 
-/** `{ url, label, properties }`; при `playerPropsIn: item` статические свойства уже в элементе (CDG-06). */
+/**
+ * `{ url, label, properties }` — полные свойства и при `playerPropsIn: item` (CDG-06): у resolve от ⏭/⏮ и автоперехода
+ * своих свойств элемента нет, без них серия шла бы без прогресса и наших кнопок (QA-PLAY-6).
+ */
 export function buildResolveResponse(ctx: AppContext, r: ResolvedPlay): MsxResolveResponse {
-  const dynamic = dynamicProps(ctx, r);
-  const properties = ctx.flags.get().playerPropsIn === "resolve" ? { ...playerProps(ctx, r.props), ...dynamic } : dynamic;
-  return { url: r.url, label: r.label, properties };
+  return { url: r.url, label: r.label, properties: { ...playerProps(ctx, r.props), ...dynamicProps(ctx, r) } };
 }

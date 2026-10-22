@@ -126,6 +126,16 @@ describe("reportPages: text pages for a photo (spec §13)", () => {
     assert.ok(all.some((l) => l.includes("boom")), "warnings and errors page");
   });
 
+  it("QA-PLAY-11: without video:play the TTFF line is the estimate «TTFF ≈ …»; a real TTFF wins", async () => {
+    const t = await make();
+    const line = (): string | undefined => reportPages(buildReport(t.ctx)).flat().find((l) => l.startsWith("TTFF"));
+    assert.equal(line(), "TTFF: нет замеров");
+    t.ctx.metrics.record("ttff_est", 2500);
+    assert.equal(line(), "TTFF ≈ 2,5 с / 2,5 с, n 1");
+    t.ctx.metrics.record("ttff", 1900);
+    assert.equal(line(), "TTFF 1,9 с / 1,9 с, n 1");
+  });
+
   it("a dev flag streamMode=hls2 is stored and shown in the report", async () => {
     const storage = new MemoryStorage();
     const t = await make({ storage });

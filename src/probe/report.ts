@@ -156,8 +156,10 @@ function checkLines(r: Report, from: number, to: number): string[] {
 function metricLines(r: Report): string[] {
   const { values, counters } = r.metrics;
   const out = [T.metrics];
-  const ttff = values.ttff;
-  out.push(ttff === undefined ? `TTFF: ${T.noValues}` : `TTFF ${fmtSec(ttff.p50)} / ${fmtSec(ttff.p95)}, n ${ttff.n}`);
+  // QA-PLAY-11: автостарт без `video:play` даёт только оценку `ttff_est` — «TTFF ≈ …».
+  const ttff = values.ttff ?? values.ttff_est;
+  const tag = values.ttff === undefined ? "TTFF ≈" : "TTFF";
+  out.push(ttff === undefined ? `TTFF: ${T.noValues}` : `${tag} ${fmtSec(ttff.p50)} / ${fmtSec(ttff.p95)}, n ${ttff.n}`);
   const resolve = values.resolve;
   if (resolve !== undefined) out.push(`resolve ${ms(resolve.p50)} / ${ms(resolve.p95)} мс, n ${resolve.n}`);
   const api = Object.entries(values).filter(([k]) => k.startsWith("api:")).sort((a, b) => b[1].n - a[1].n).slice(0, TOP_API);

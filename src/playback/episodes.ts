@@ -106,13 +106,15 @@ export function episodeName(r: { season: number; video: number }, form: "long" |
 
 /**
  * Подпись главной кнопки карточки (Plan B §8.3 S8): «▶ Смотреть», «▶ Продолжить с 1:02:15», «▶ Продолжить: 2 сезон,
- * 5 серия», «▶ Смотреть: 2 сезон, 6 серия», «▶ Смотреть снова» (всегда с первой серии). У фильма из частей — «▶ Часть 2».
+ * 5 серия», «▶ Смотреть: 2 сезон, 6 серия», «▶ Смотреть снова» (всегда с первой серии). У фильма из частей — «▶ Часть 2»
+ * и «▶ Продолжить: Часть 2 с 12:31» (QA-PLAY-12).
  */
 export function mainButtonLabel(item: ItemDetail, t: { ref: EpRef; position: number | "none"; again: boolean }): string {
   const serial = isSerial(item);
   if (t.again) return "▶ Смотреть снова";
   if (typeof t.position === "number") {
-    return serial ? `▶ Продолжить: ${episodeName(t.ref)}` : `▶ Продолжить с ${fmtClock(t.position)}`;
+    if (serial) return `▶ Продолжить: ${episodeName(t.ref)}`;
+    return `▶ Продолжить${item.videos.length > 1 ? `: Часть ${t.ref.video}` : ""} с ${fmtClock(t.position)}`;
   }
   if (orderedUnits(item)[0]?.mid === t.ref.mid) return "▶ Смотреть";
   return serial ? `▶ Смотреть: ${episodeName(t.ref)}` : `▶ Часть ${t.ref.video}`;

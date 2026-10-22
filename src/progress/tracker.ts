@@ -121,9 +121,10 @@ export class ProgressTracker {
     }
     const s = this.sessionFor(fresh);
     if (s === undefined || position === undefined) return;
-    if (!s.started && moved(s, position)) this.markStarted(s, false);
+    if (!s.started && moved(s, position)) this.markStarted(s, position);
     this.emit({ kind: "snapshot", s, pos: position });
-    if (!this.trusted(s, position)) return;
+    // Таймер идёт с `video:load` (QA-PLAY-7): до старта его снимок — только проверка старта, без прогресса.
+    if ((source === "timer" && !s.started) || !this.trusted(s, position)) return;
     s.lastPos = position;
     const kind: MarkKind = source === "timer" ? "hb" : "snapshot";
     this.watch(s, position, kind);
@@ -172,7 +173,7 @@ export class ProgressTracker {
       if (!this.recentlyClosed()) this.armed = true;
       return;
     }
-    if (!s.started) this.markStarted(s, true);
+    if (!s.started) this.markStarted(s);
     if (this.ctx.flags.get().heartbeat === "timer") this.ctx.heartbeat.start();
   }
 
@@ -180,7 +181,7 @@ export class ProgressTracker {
     this.ctx.heartbeat.stop();
     const s = this.current;
     if (s === undefined) return;
-    if (!s.started && moved(s, pos)) this.markStarted(s, false);
+    if (!s.started && moved(s, pos)) this.markStarted(s, pos);
     // Plan B §9.2: пауза без позиции пропускается; откат без подтверждения — тоже, ожидающий снимок остаётся.
     const p = pos !== undefined && this.trusted(s, pos) ? pos : undefined;
     if (p !== undefined) {
@@ -200,7 +201,7 @@ export class ProgressTracker {
     this.armed = false;
     const s = this.current;
     if (s === undefined) return;
-    if (!s.started && moved(s, evPos)) this.markStarted(s, false);
+    if (!s.started && moved(s, evPos)) this.markStarted(s, evPos);
     this.cancelPending();
     const pos = evPos !== undefined && evPos > 0 && this.trusted(s, evPos) ? evPos : s.lastPos;
     s.ended = endedFlag || (pos !== undefined && s.duration > 0 && pos >= s.duration - END_SLACK_SEC);
@@ -238,6 +239,8 @@ export class ProgressTracker {
     this.ctx.log.info(TAG, "load", { item: s.itemId, mid: s.mid, season: s.season, video: s.video, probe: s.probe, peak: s.peak, run: s.run });
     this.emit({ kind: "load", s });
     this.ctx.clock.setTimeout(() => this.checkStart(s), START_CHECK_MS);
+    // QA-PLAY-7: автостарт `video:play` не шлёт, а старт бывает позже ранней проверки — таймер идёт с `video:load`.
+    if (this.ctx.flags.get().heartbeat === "timer") this.ctx.heartbeat.start();
   }
 
   /** Ранняя проверка старта (фикс 35a): только признак старта, прогресс она не пишет и heartbeat не трогает. */
@@ -245,7 +248,8 @@ export class ProgressTracker {
     if (this.current !== s || s.started) return;
     this.ctx.host.requestData("video").then((d: unknown) => {
       const f = sessionFromProps(propsFrom(d), 0);
-      if (this.current === s && !s.started && (f === undefined || sameRun(s, f)) && moved(s, positionFrom(d).position)) this.markStarted(s, false);
+      const pos = positionFrom(d).position;
+      if (this.current === s && !s.started && (f === undefined || sameRun(s, f)) && moved(s, pos)) this.markStarted(s, pos);
     }, () => undefined);
   }
 
@@ -297,18 +301,22 @@ export class ProgressTracker {
     return j.ok;
   }
 
-  private markStarted(s: PlaybackSession, fromPlay: boolean): void {
+  /**
+   * Признак старта; `pos` — старт по позиции, без `video:play`. TTFF тогда неизвестен, и пишется оценка `ttff_est`:
+   * время с resolve минус уже сыгранное с `from` (QA-PLAY-11). В событии `started` — только настоящий TTFF.
+   */
+  private markStarted(s: PlaybackSession, pos?: number): void {
     s.started = true;
-    const resolvedAt = fromPlay ? this.ctx.state.resolveAt.get(s.mid) : undefined;
-    if (resolvedAt === undefined) {
+    const at = this.ctx.state.resolveAt.get(s.mid);
+    const ms = at === undefined ? -1 : this.ctx.clock.perf() - at - (pos === undefined ? 0 : Math.max(0, pos - s.from) * 1000);
+    if (ms < 0) {
       this.ctx.log.info(TAG, "started", { mid: s.mid });
       this.emit({ kind: "started", s });
       return;
     }
-    const ttffMs = this.ctx.clock.perf() - resolvedAt;
-    this.ctx.metrics.record("ttff", ttffMs);
-    this.ctx.log.info(TAG, "started", { mid: s.mid, ttffMs });
-    this.emit({ kind: "started", s, ttffMs });
+    this.ctx.metrics.record(pos === undefined ? "ttff" : "ttff_est", ms);
+    this.ctx.log.info(TAG, "started", { mid: s.mid, [pos === undefined ? "ttffMs" : "ttffEst"]: ms });
+    this.emit(pos === undefined ? { kind: "started", s, ttffMs: ms } : { kind: "started", s });
   }
 
   // --- Позиция: оверлей, «просмотрено», marktime ---

@@ -4,7 +4,7 @@ import type { TimerId } from "../core/clock.ts";
 const TAG = "progress";
 
 /**
- * Запасной heartbeat, если тики плеера не работают (спец. §10.1, CDG-07): между `video:play` и `pause`/`stop`
+ * Запасной heartbeat, если тики плеера не работают (спец. §10.1, CDG-07): от `video:load` или `video:play` до `pause`/`stop`
  * раз в период спрашивает у MSX `requestData("video")` и отдаёт ответ трекеру как снимок.
  * Период — те же `heartbeatTicks` сборки в секундах (Р-26: 60, в e2e — 10).
  */

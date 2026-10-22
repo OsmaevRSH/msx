@@ -163,10 +163,10 @@ describe("resolvePlay: «Продолжить» и свойства (CC-08)", ()
     assert.equal(props(await play(reloaded, ids.playContinue(BIG)))["kp:r"], (FAKE_EPOCH + 60_001).toString(36));
   });
 
-  it("playerPropsIn: item → the static kp:* are in the item, the launch nonce is still in the resolve response", async () => {
+  it("playerPropsIn: item → the resolve response still carries kp:* and the launch nonce (QA-PLAY-6: ⏭ and autonext)", async () => {
     const t = await make({ flags: { playerPropsIn: "item" } });
     const p = props(await play(t, ids.playContinue(BIG)));
-    assert.equal(p["kp:m"], undefined);
+    assert.equal(p["kp:m"], String(BIG * 1000 + 4));
     assert.equal(p["kp:r"], (FAKE_EPOCH + 1).toString(36));
   });
 

@@ -409,14 +409,17 @@ describe("buildResolveResponse and playerPropsIn", () => {
     assert.equal(props["trigger:load"], "info:Предыдущий запуск не удался — пробую другой способ воспроизведения");
   });
 
-  it("item → only dynamic properties: no button:*, of kp:* only the launch nonce, no triggers but trigger:load", async () => {
+  it("QA-PLAY-6: item → the full properties too: a resolve from ⏭ or the autonext has no item properties of its own", async () => {
     const t = await make({ playerPropsIn: "item" });
     const res = buildResolveResponse(t.ctx, resolved({ step: 2 }));
     const props = res.properties ?? {};
-    assert.deepEqual(keys(props, /^button:/), []);
-    // Nonce знает только resolve; не применит MSX свойства resolve — трекер возьмёт окно 10 с (фикс 34b).
-    assert.deepEqual(keys(props, /^kp:/), ["kp:r"]);
-    assert.deepEqual(keys(props, /^trigger:/), ["trigger:load"]);
+    const full = buildResolveResponse((await make()).ctx, resolved({ step: 2 })).properties ?? {};
+    assert.deepEqual(keys(props, /^kp:/), keys(full, /^kp:/));
+    assert.ok(keys(props, /^kp:/).includes("kp:i") && keys(props, /^kp:/).includes("kp:r"));
+    assert.deepEqual(keys(props, /^button:/), keys(full, /^button:/));
+    assert.ok(keys(props, /^button:/).length > 0);
+    assert.deepEqual(keys(props, /^trigger:/), keys(full, /^trigger:/));
+    assert.ok(keys(props, /^trigger:/).includes("trigger:complete") && keys(props, /^trigger:/).includes("trigger:load"));
     assert.equal(props["resume:position"], "1287");
     assert.equal(res.url, URL);
     assert.equal(res.label, "Черное зеркало · 1 сезон, 2 серия");

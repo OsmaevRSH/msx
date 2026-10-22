@@ -112,6 +112,29 @@ describe("ProgressTracker: start without video:play (fix 35a)", () => {
     assert.deepEqual(marktimes(t), [], "the check only confirms the start");
   });
 
+  it("QA-PLAY-11: a start without video:play records ttff_est = time since resolve minus the time already played", async () => {
+    const t = await make();
+    t.ctx.state.resolveAt.set(EP.mid, t.clock.perf());
+    await t.clock.advance(1500);
+    t.host.responses.set("video", videoData(604, RESUMED));
+    load(t, RESUMED, 600);
+    await pass(t, 5100);
+    assert.equal(t.ctx.tracker.session()?.started, true);
+    const est = t.ctx.metrics.summary().values.ttff_est;
+    assert.equal(est?.n, 1);
+    assert.equal(est?.p50, 6500 - 4000, "the check ran 6.5 s after resolve, the video had played 4 s");
+    assert.equal(t.ctx.metrics.summary().values.ttff, undefined, "the real TTFF needs video:play");
+
+    // Старт по паузе: позиция 50 с начала, прошло 52 с после resolve — оценка 2 с.
+    const u = { ...EP, mid: EP.mid + 1, video: 6 };
+    t.ctx.state.resolveAt.set(u.mid, t.clock.perf());
+    await t.clock.advance(52_000);
+    load(t, kpProps(u, { "kp:r": "p" }), 0);
+    player(t, "pause", { state: 2, position: 50, duration: u.duration });
+    const both = t.ctx.metrics.summary().values.ttff_est;
+    assert.deepEqual([both?.n, both?.min, both?.max], [2, 2000, 2500]);
+  });
+
   it("early check: the position still at the start → not started; after video:play or for a replaced launch → no request", async () => {
     const t = await make();
     const ev = recordEvents(t);

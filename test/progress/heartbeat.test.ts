@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { TrackerEvent } from "../../src/progress/tracker.ts";
-import { EP, load, marktimes, pass, player, recordEvents, useApps, videoData, waitFor } from "./progress-rig.ts";
+import { EP, kpProps, load, marktimes, pass, player, recordEvents, useApps, videoData, waitFor } from "./progress-rig.ts";
 
 const make = useApps();
 
@@ -63,5 +63,36 @@ describe("HeartbeatTimer (спец. §10.1, CDG-07)", () => {
     assert.equal(videoRequests(t.host), 2);
     await waitFor(t, () => marktimes(t).length === 1, "marktime after restart", 5000);
     assert.deepEqual(marktimes(t).map((m) => m.time), [130]);
+  });
+
+  it("QA-PLAY-7: autostart without video:play — the timer runs from video:load and writes progress", async () => {
+    const t = await make({ flags: { heartbeat: "timer" } });
+    t.host.responses.set("video", videoData(70));
+    load(t);
+    await pass(t, 60_000);
+    await waitFor(t, () => marktimes(t).length === 1, "heartbeat marktime without video:play", 5000);
+    assert.deepEqual(marktimes(t).map((m) => m.time), [70]);
+    assert.equal(t.ctx.tracker.session()?.started, true);
+    t.host.responses.set("video", videoData(130));
+    await pass(t, 60_000);
+    await waitFor(t, () => marktimes(t).length === 2, "the next beat", 5000);
+    assert.deepEqual(marktimes(t).map((m) => m.time), [70, 130]);
+  });
+
+  it("QA-PLAY-7: a slow start (still at 0 at the early check) is caught by the timer; a beat before the start writes nothing", async () => {
+    const t = await make({ flags: { heartbeat: "timer" } });
+    const resumed = kpProps(EP, { "resume:position": "600" });
+    t.host.responses.set("video", videoData(600, resumed));
+    load(t, resumed, 600);
+    await pass(t, 60_000);
+    assert.ok(videoRequests(t.host) >= 2, "the early check and one beat");
+    await pass(t, 3000);
+    assert.equal(t.ctx.tracker.session()?.started, false);
+    assert.deepEqual(marktimes(t), [], "no progress before the start");
+    t.host.responses.set("video", videoData(655, resumed));
+    await pass(t, 60_000);
+    await waitFor(t, () => marktimes(t).length === 1, "marktime after the slow start", 5000);
+    assert.deepEqual(marktimes(t).map((m) => m.time), [655]);
+    assert.equal(t.ctx.tracker.session()?.started, true);
   });
 });

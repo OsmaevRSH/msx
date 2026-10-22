@@ -268,4 +268,11 @@ describe("mainButtonLabel", () => {
     const parts = movie([DONE, NONE, NONE]);
     assert.equal(mainButtonLabel(parts, continueTarget(parts)), "▶ Часть 2");
   });
+
+  it("QA-PLAY-12: a film in parts names the part it continues", () => {
+    const second = movie([DONE, at(754), NONE]);
+    assert.equal(mainButtonLabel(second, continueTarget(second)), "▶ Продолжить: Часть 2 с 12:31");
+    const first = movie([at(754), NONE]);
+    assert.equal(mainButtonLabel(first, continueTarget(first)), "▶ Продолжить: Часть 1 с 12:31");
+  });
 });
