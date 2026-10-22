@@ -239,7 +239,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
     if (q === "") throw new HttpError(400, { status: 400, error: "Missing required parameter: q" });
     const field = ctx.query.get("field");
     const text = (it: FxItem): string => (field === "cast" ? castOf(it) : field === "director" ? directorOf(it) : [it.title]).join(", ");
-    return listResponse(ctx, filtered(ctx.query).filter((it) => text(it).toLowerCase().includes(q)), false);
+    return listResponse(ctx, filtered(ctx.query).filter((it) => text(it).toLowerCase().includes(q)));
   });
 
   r.add("GET", "/v1/items/similar", (ctx) => {

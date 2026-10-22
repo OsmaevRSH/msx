@@ -29,6 +29,15 @@ describe("kpmock: card package (v1.19)", () => {
     assert.equal(r.status, 200, `${path} → ${r.status}`);
     return (await r.json()) as T;
   };
+  /** Вся выдача поиска постранично: perpage не больше 50 (M-9). */
+  const search = async (q: Record<string, string>): Promise<ListBody["items"]> => {
+    const items: ListBody["items"] = [];
+    for (let page = 1; ; page++) {
+      const b = await json<ListBody & { pagination: { total: number } }>("/v1/items/search", { ...q, perpage: 50, page });
+      items.push(...b.items);
+      if (page >= b.pagination.total) return items;
+    }
+  };
   const card = async (id: number): Promise<Card> => (await json<{ item: Card }>(`/v1/items/${id}`, { nolinks: 1 })).item;
   const subscribed = async (): Promise<number[]> =>
     (await json<{ items: Serial[] }>("/v1/watching/serials", { subscribed: 1 })).items.map((s) => s.id);
@@ -158,13 +167,13 @@ describe("kpmock: card package (v1.19)", () => {
     it("field=cast finds the filmography of one name; field=director — of a director", async () => {
       const big = findItem(FIX.SERIAL_BIG)!;
       const actor = castOf(big)[0]!;
-      const byCast = await json<ListBody>("/v1/items/search", { q: actor, field: "cast", perpage: 1000 });
-      assert.ok(byCast.items.some((it) => it.id === FIX.SERIAL_BIG));
-      assert.ok(byCast.items.every((it) => it.cast.includes(actor)));
+      const byCast = await search({ q: actor, field: "cast" });
+      assert.ok(byCast.some((it) => it.id === FIX.SERIAL_BIG));
+      assert.ok(byCast.every((it) => it.cast.includes(actor)));
       const director = directorOf(big)[0]!;
-      const byDir = await json<ListBody>("/v1/items/search", { q: director, field: "director", perpage: 1000 });
-      assert.ok(byDir.items.some((it) => it.id === FIX.SERIAL_BIG));
-      assert.ok(byDir.items.every((it) => it.director.includes(director)));
+      const byDir = await search({ q: director, field: "director" });
+      assert.ok(byDir.some((it) => it.id === FIX.SERIAL_BIG));
+      assert.ok(byDir.every((it) => it.director.includes(director)));
     });
 
     it("a name is not found by title or without field; field=title,cast reads as the title (HC 2026-09-26)", async () => {

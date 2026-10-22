@@ -172,19 +172,20 @@ describe("kpmock catalog, items, media links, CDN", () => {
       assert.deepEqual(raw.items, []);
     });
 
-    it("M-9: perpage above 50 on /v1/items and the shelves is cut to 50, as Yii pageSizeLimit of the live API; the mock warns about it", async (t) => {
+    it("M-9: perpage above 50 on /v1/items, the shelves and the search is cut to 50, as Yii pageSizeLimit of the live API; the mock warns about it", async (t) => {
       const warn = t.mock.method(console, "warn", () => undefined);
-      for (const path of ["/v1/items?type=movie", "/v1/items/fresh?type=movie", "/v1/items/hot?type=serial"]) {
+      for (const path of ["/v1/items?type=movie", "/v1/items/fresh?type=movie", "/v1/items/hot?type=serial", "/v1/items/search?q=тестов"]) {
         const b = await json<ListBody>(`${path}&perpage=100&page=2`);
         assert.equal(b.items.length, 50, path);
         assert.deepEqual([b.pagination.perpage, b.pagination.current], [50, 2], path);
         assert.equal(b.pagination.total, Math.ceil(b.pagination.total_items / 50), path);
       }
-      assert.equal(warn.mock.callCount(), 3);
+      assert.equal(warn.mock.callCount(), 4);
       assert.match(String(warn.mock.calls[0]?.arguments[0]), /perpage 100 → 50 .*\/v1\/items/);
+      assert.match(String(warn.mock.calls[3]?.arguments[0]), /perpage 100 → 50 .*\/v1\/items\/search/);
       assert.equal((await json<ListBody>("/v1/items?type=movie&perpage=50")).items.length, 50);
       assert.equal((await json<ListBody>("/v1/items?type=movie&perpage=48")).items.length, 48);
-      assert.equal(warn.mock.callCount(), 3, "50 and below — no warning");
+      assert.equal(warn.mock.callCount(), 4, "50 and below — no warning");
     });
 
     it("never lists the deleted title", async () => {
