@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { contentAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids } from "../src/router/ids.ts";
 import type { ListKey } from "../src/router/ids.ts";
-import { content, expectContent, login, newMsxPage, noNotification, openMsx, mock } from "./fixtures.ts";
+import { P, content, exec, expectContent, login, newMsxPage, noNotification, openMsx, mock } from "./fixtures.ts";
 import { answered, attachDiagnostics, callCount, callsSince, installTimeline, mark, panel, red, selected, until } from "./flows-kit.ts";
 
 // Фильтры каталога (спец. §11.5, v1.18) в web MSX пультом: красная кнопка списка сразу открывает панель «Сортировка и
@@ -130,4 +131,24 @@ test("E-29: «Фильмы» из меню → красная → «Год: 2010
   await answered(page, ids.list(movies()), m5);
   await expectContent(page, "Обновлённые · 203 фильма");
   await expect(content(page)).not.toContainText("2010-е");
+});
+
+test("E-41: фильтры без результата — «Ничего не найдено с этими фильтрами» и «Сбросить фильтры» в фокусе; OK — полный список раздела, раздел без фильтров", async () => {
+  await noNotification(page);
+  const none = movies({ country: "50", kp: "8" });
+  const m0 = await mark(page);
+  await exec(page, contentAction(P, ids.list(none)));
+  await answered(page, ids.list(none), m0);
+  await expectContent(page, "Ничего не найдено с этими фильтрами");
+  // MSX мог оставить фокус в меню: «вправо» — в контент, на элемент с `focus: true`.
+  if ((await selected(page).count()) === 0) await page.keyboard.press("ArrowRight");
+  await expect(selected(page), "фокус — на «Сбросить фильтры», а не на «Назад»").toContainText("Сбросить фильтры");
+  const c0 = await callCount();
+  const m1 = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.list(movies()), m1);
+  await expectContent(page, "Обновлённые · 203 фильма");
+  await expect(content(page)).not.toContainText("Ничего не найдено");
+  await expect(menuSelected(page), "«Сбросить» не уводит из раздела").toHaveText("Фильмы");
+  expect((await callsSince(c0, /^\/v1\/items$/)).some((c) => c.q.get("country") !== null), "без страны").toBe(false);
 });
