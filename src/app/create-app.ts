@@ -1,6 +1,7 @@
 import { Breaker } from "../api/breaker.ts";
 import { KpApi } from "../api/client.ts";
 import { Limiter } from "../api/limiter.ts";
+import type { DeviceSettings } from "../api/models.ts";
 import { Transport } from "../api/transport.ts";
 import type { FetchLike } from "../api/transport.ts";
 import { AuthService } from "../auth/auth-service.ts";
@@ -85,13 +86,19 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   const breaker = new Breaker(clock);
   const transport = new Transport({ fetch: o.fetch, clock, log, metrics, flags, limiter, breaker });
   const tokens = new TokenStore(store, clock);
-  const auth = new AuthService({ tokens, clock, log, version: build.version });
+  // SET-2: 4K и HEVC нового устройства — по сохранённым prefs (выход их не сбрасывает).
+  const deviceDefaults = (): Partial<DeviceSettings> => {
+    const p = prefs.get();
+    return { support4k: p.maxQuality === 2160 ? 1 : 0, supportHevc: p.allowHevc ? 1 : 0 };
+  };
+  const auth = new AuthService({ tokens, clock, log, version: build.version, deviceDefaults });
   const api = new KpApi(transport, auth);
   auth.bindApi(api);
   const l2 = new L2(store, clock, undefined, log);
   store.onL2Purged(() => l2.resetIndex());
   const cache = new SwrCache({ l1: new Lru(), l2, clock, log });
   const repo = new Repo({ api, cache, clock, log });
+  auth.onDeviceSaved = () => repo.forgetDevice();
   const overlay = new Overlay(clock);
   const saved = store.get<unknown>("out", OVERLAY_KEY);
   if (typeof saved === "string") overlay.load(saved);

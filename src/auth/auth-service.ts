@@ -11,8 +11,10 @@ const HARDWARE = "Samsung Tizen";
 const DEFAULT_TITLE = "MSX TV";
 // Спец. §7.3: проактивный refresh после ready, если до истечения меньше 10 мин.
 const READY_FRESH_SEC = 600;
-// Plan B §6.2.1: SSL 1, HEVC 0, HDR 0, 4K 0, mixed 1 — h264-фолбэк в master HLS4.
-const DEVICE_SETTINGS: DeviceSettings = { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 0, mixedPlaylist: 1 };
+// Plan B §6.2.1: SSL 1 и mixed 1 — h264-фолбэк в master HLS4; при первом входе ещё HDR 0, а 4K и HEVC — из `prefs`
+// (SET-2; без них — 0). Повтор настройки (нет `id`) пишет только основу: 4K, HEVC и HDR мог сменить пользователь (SET-1).
+const BASE: Partial<DeviceSettings> = { supportSsl: 1, mixedPlaylist: 1 };
+const FIRST: Partial<DeviceSettings> = { ...BASE, supportHdr: 0, support4k: 0, supportHevc: 0 };
 
 export type LogoutReason = "refresh-rejected" | "logout";
 
@@ -30,20 +32,27 @@ const errData = (e: unknown): Record<string, unknown> => {
 export class AuthService implements TokenSource {
   onLoggedOut: ((reason: LogoutReason) => void) | undefined;
 
+  /** Регистрация устройства записала его настройки: кэш `device/info` устарел (create-app сбрасывает его). */
+  onDeviceSaved: (() => void) | undefined;
+
   private tokens: TokenStore;
   private clock: Clock;
   private log: Logger;
   private version: string;
+  private defaults: () => Partial<DeviceSettings>;
   private api: KpApi | undefined;
   private inflight: Promise<void> | undefined;
+  private setup: Promise<void> = Promise.resolve();
   // Растёт при входе и выходе: результат refresh прежнего сеанса не записывается поверх нового состояния.
   private epoch = 0;
 
-  constructor(deps: { tokens: TokenStore; clock: Clock; log: Logger; version: string }) {
+  /** `deviceDefaults` — 4K и HEVC нового устройства по сохранённым `prefs` (SET-2). */
+  constructor(deps: { tokens: TokenStore; clock: Clock; log: Logger; version: string; deviceDefaults?: () => Partial<DeviceSettings> }) {
     this.tokens = deps.tokens;
     this.clock = deps.clock;
     this.log = deps.log;
     this.version = deps.version;
+    this.defaults = deps.deviceDefaults ?? (() => ({}));
   }
 
   bindApi(api: KpApi): void {
@@ -94,7 +103,7 @@ export class AuthService implements TokenSource {
       await this.ensureFreshFor(READY_FRESH_SEC);
       const dev = this.tokens.device();
       const title = dev.title ?? DEFAULT_TITLE;
-      if (dev.id === undefined) await this.setupDevice(title);
+      if (dev.id === undefined) await this.setupDevice(title, false);
       else if (dev.notifiedVersion !== this.version) await this.notify(title, dev);
     } catch (e) {
       this.log.warn(TAG, "ready_failed", errData(e));
@@ -102,8 +111,8 @@ export class AuthService implements TokenSource {
   }
 
   /**
-   * Спец. §7.1 п. 4: пара пишется первой (до ожидания названия ТВ), затем `notify` → `info` → настройки устройства →
-   * сверка. Сбой шагов после записи пары логируется и не отменяет вход; `onReady` доделает недостающее.
+   * Спец. §7.1 п. 4: пара пишется первой, и вход на этом выполнен (SET-7): регистрация устройства — название ТВ,
+   * `notify` → `info` → настройки → сверка — идёт фоном, сбои только в журнал; `onReady` доделает недостающее.
    */
   async completeLogin(raw: TokenPairRaw, deviceTitle: string | Promise<string>): Promise<void> {
     this.epoch += 1;
@@ -111,8 +120,15 @@ export class AuthService implements TokenSource {
     const pair = this.tokens.save(raw);
     this.tokens.saveDevice({});
     this.log.info(TAG, "login", { gen: pair.gen });
-    const title = await deviceTitle;
-    if (this.saveDevice(epoch, { title })) await this.setupDevice(title);
+    this.setup = (async () => {
+      const title = await deviceTitle;
+      if (this.saveDevice(epoch, { title })) await this.setupDevice(title, true);
+    })().catch((e: unknown) => this.log.warn(TAG, "device_setup_failed", errData(e)));
+  }
+
+  /** Фоновая регистрация после входа закончилась (или её нет); не бросает. Экран настроек ждёт её перед чтением устройства. */
+  deviceReady(): Promise<void> {
+    return this.setup;
   }
 
   /** `device/unlink` (ошибка игнорируется) → удаление `kp.auth.*` → `onLoggedOut("logout")`. */
@@ -189,15 +205,18 @@ export class AuthService implements TokenSource {
     this.saveDevice(epoch, { ...dev, title, notifiedVersion: this.version });
   }
 
-  private async setupDevice(title: string): Promise<void> {
+  /** `first` — после входа: значения по умолчанию и `prefs`; иначе (нет `id` на старте) — `notify` по версии и основа. */
+  private async setupDevice(title: string, first: boolean): Promise<void> {
     const api = this.requireApi();
     const epoch = this.epoch;
-    const dev: StoredDevice = { title };
-    try {
-      await api.deviceNotify(title, HARDWARE, `kpmsx-client/${this.version}`);
-      dev.notifiedVersion = this.version;
-    } catch (e) {
-      this.log.warn(TAG, "notify_failed", errData(e));
+    const dev: StoredDevice = { ...this.tokens.device(), title };
+    if (first || dev.notifiedVersion !== this.version) {
+      try {
+        await api.deviceNotify(title, HARDWARE, `kpmsx-client/${this.version}`);
+        dev.notifiedVersion = this.version;
+      } catch (e) {
+        this.log.warn(TAG, "notify_failed", errData(e));
+      }
     }
     let info: DeviceInfo;
     try {
@@ -209,10 +228,14 @@ export class AuthService implements TokenSource {
     }
     dev.id = info.id;
     if (!this.saveDevice(epoch, dev)) return;
+    const want = first ? { ...FIRST, ...this.defaults() } : BASE;
     try {
-      const keys = deviceMismatch(await api.deviceSettingsSave(info, DEVICE_SETTINGS), await api.deviceInfo());
-      if (keys.length > 0) this.log.warn(TAG, "device_settings_mismatch", { keys });
-      else this.log.info(TAG, "device_ready", { id: info.id });
+      if ((Object.keys(want) as (keyof DeviceSettings)[]).some((k) => info.settings[k] !== want[k])) {
+        const keys = deviceMismatch(await api.deviceSettingsSave(info, want), await api.deviceInfo());
+        this.onDeviceSaved?.();
+        if (keys.length > 0) return this.log.warn(TAG, "device_settings_mismatch", { keys });
+      }
+      this.log.info(TAG, "device_ready", { id: info.id });
     } catch (e) {
       this.log.warn(TAG, "device_settings_failed", errData(e));
     }

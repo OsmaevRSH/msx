@@ -49,3 +49,17 @@ describe("auth.onLoggedOut (createApp)", () => {
     assert.equal(t.ctx.state.login, undefined);
   });
 });
+
+describe("device setup after login (createApp)", () => {
+  // SET-7: регистрация идёт фоном; устройство, прочитанное в кэш до её настроек (панель CDN), сбрасывается после них.
+  it("SET-7: device/info cached while the background setup runs is dropped once the setup saves the settings", async () => {
+    const t = await createTestApp();
+    apps.push(t);
+    t.ctx.prefs.update({ maxQuality: 2160 });
+    t.mock.setScenario({ rules: [{ path: "^/v1/device/\\d+/settings$", method: "POST", delayMs: 100 }] });
+    await t.run(t.ctx.auth.completeLogin({ ...t.mock.issueToken(), expiresIn: 3600 }, "MSX TV"));
+    assert.equal((await t.run(t.ctx.repo.deviceInfo())).value.settings.support4k, 0, "read before the setup saved 4K");
+    await t.run(t.ctx.auth.deviceReady());
+    assert.equal((await t.run(t.ctx.repo.deviceInfo())).value.settings.support4k, 1);
+  });
+});

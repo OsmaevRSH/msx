@@ -1,4 +1,5 @@
 import { Breaker } from "../../src/api/breaker.ts";
+import type { DeviceSettings } from "../../src/api/models.ts";
 import { KpApi } from "../../src/api/client.ts";
 import { Limiter } from "../../src/api/limiter.ts";
 import { Transport } from "../../src/api/transport.ts";
@@ -26,7 +27,7 @@ export interface AuthRig {
 
 export interface AuthEnv extends KpApiEnv {
   /** `login: true` — пара от `mock.issueToken()` уже сохранена (устройство «kpmock TV» в mock). */
-  authRig(opts?: { login?: boolean; version?: string }): AuthRig;
+  authRig(opts?: { login?: boolean; version?: string; defaults?: () => Partial<DeviceSettings> }): AuthRig;
   /** Ключи `kp.auth.*` в хранилище стенда. */
   authKeys(r: AuthRig): string[];
 }
@@ -45,7 +46,7 @@ export function useAuthMock(): AuthEnv {
       const flags = new FlagStore(new KvStore(new MemoryStorage()), { ...DEFAULT_FLAGS, apiBase: m.url, apiFallbackBase: m.url });
       const t = new Transport({ fetch: env.cors, clock, log, metrics: new Metrics(), flags, limiter: new Limiter(clock), breaker: new Breaker(clock) });
       const tokens = new TokenStore(store, clock);
-      const auth = new AuthService({ tokens, clock, log, version: opts?.version ?? VERSION });
+      const auth = new AuthService({ tokens, clock, log, version: opts?.version ?? VERSION, deviceDefaults: opts?.defaults });
       const api = new KpApi(t, auth);
       auth.bindApi(api);
       const loggedOut: string[] = [];

@@ -101,6 +101,7 @@ describe("loginScreen (S2)", () => {
     assert.ok(t.ctx.auth.isLoggedIn());
     assert.equal(oauthCalls(t), 4, "one code request and three polls (two pending)");
     assert.deepEqual(actions(t), [DONE]);
+    await t.run(t.ctx.auth.deviceReady());
     assert.deepEqual([...t.mock.state.devices.values()].map((d) => d.title), ["MSX QE55Q80"]);
   });
 
@@ -108,12 +109,14 @@ describe("loginScreen (S2)", () => {
     const a = await make();
     await a.request("login");
     await a.run(until(() => a.ctx.auth.isLoggedIn() && actions(a).includes(DONE)));
+    await a.run(a.ctx.auth.deviceReady());
     assert.deepEqual([...a.mock.state.devices.values()].map((d) => d.title), ["MSX TV"]);
 
     const b = await make();
     b.ctx.state.msxInfo = { platform: "tizen" };
     await b.request("login");
     await b.run(until(() => actions(b).includes(DONE)));
+    await b.run(b.ctx.auth.deviceReady());
     assert.deepEqual([...b.mock.state.devices.values()].map((d) => d.title), ["MSX tizen"]);
   });
 

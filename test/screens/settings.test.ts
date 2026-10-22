@@ -448,6 +448,19 @@ describe("onSettingsAct", () => {
     assert.ok(t.mock.state.tokens.has(other.access), "another TV's token survived");
   });
 
+  // SET-2: «Максимальное качество 2160p» и HEVC в prefs переживают выход — новое устройство получает 4K и HEVC.
+  it("SET-2: 2160p and HEVC on, logout, login again → the new KinoPub device has 4K and HEVC on, the screen agrees", async () => {
+    const t = await make();
+    await act(t, "quality", 2160);
+    await act(t, "hevc", 1);
+    await act(t, "logout");
+    await t.run(t.ctx.auth.completeLogin({ ...t.mock.issueToken(), expiresIn: 3600 }, "Новый ТВ"));
+    const s = await screen(t);
+    assert.deepEqual([ext(s, "quality"), ext(s, "uhd"), ext(s, "hevc")], ["2160p", "Вкл", "Вкл"]);
+    const dev = t.mock.state.devices.get([...t.mock.state.devices.keys()].at(-1) ?? -1)?.settings ?? {};
+    assert.deepEqual([dev.support4k, dev.supportHevc], [1, 1]);
+  });
+
   it("logout forgets the cached device: after a new login the screen and a save use the new KinoPub device", async () => {
     const t = await make();
     assert.equal(ext(await screen(t), "device"), "kpmock TV");

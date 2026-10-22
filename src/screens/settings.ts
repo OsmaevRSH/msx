@@ -103,8 +103,14 @@ const optsOf = (ctx: AppContext, d: Def): Opt[] | Promise<Opt[]> => (typeof d.op
 const setMsg = (key: string, v?: string): string => commitMsg(v === undefined ? msgs.act("set", key) : msgs.act("set", key, v));
 const current = (p: Prefs, d: Def, dev: DeviceInfo | undefined): Val => (d.field ? p[d.field] as Val : dev?.settings[d.dev!]);
 
-/** Устройство KinoPub из кэша `device/info` (Plan B §7.2): повторное открытие экрана и панелей не ждёт API. */
-const device = async (ctx: AppContext): Promise<DeviceInfo> => (await ctx.repo.deviceInfo()).value;
+/**
+ * Устройство KinoPub из кэша `device/info` (Plan B §7.2): повторное открытие экрана и панелей не ждёт API. Сразу после
+ * входа — после фоновой регистрации (SET-7, не дольше `WAIT_MS`): иначе в кэш попало бы устройство до её настроек.
+ */
+const device = async (ctx: AppContext): Promise<DeviceInfo> => {
+  await soft(ctx, ctx.auth.deviceReady());
+  return (await ctx.repo.deviceInfo()).value;
+};
 
 /** Экран и панели не ждут сеть дольше `WAIT_MS`; сбой части — прочерк в её строках. */
 function soft<V>(ctx: AppContext, p: Promise<V>): Promise<V | undefined> {

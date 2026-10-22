@@ -194,6 +194,18 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.equal(env.mock().state.devices.get(id)?.settings.mixedPlaylist, 1);
     });
 
+    // SET-1: вход без device/info, потом «4K: Вкл» с экрана настроек, перезапуск — повтор не сбрасывает 4K и HEVC.
+    it("SET-1: no device id → notify, info, the id and only the base flags (SSL, mixed); 4K, HEVC and HDR the user set stay", async () => {
+      const r = env.authRig({ login: true, defaults: () => ({ support4k: 0, supportHevc: 0 }) });
+      const id = env.mock().state.tokens.get(r.tokens.pair()?.access ?? "")?.deviceId ?? -1;
+      Object.assign(env.mock().state.devices.get(id)?.settings ?? {}, { support4k: 1, supportHevc: 1, supportHdr: 1 });
+      r.tokens.saveDevice({ title: "MSX UE55" });
+      await r.run(r.auth.onReady());
+      assert.deepEqual(r.tokens.device(), { id, notifiedVersion: VERSION, title: "MSX UE55" });
+      const s = env.mock().state.devices.get(id)?.settings ?? {};
+      assert.deepEqual([s.support4k, s.supportHevc, s.supportHdr, s.supportSsl, s.mixedPlaylist], [1, 1, 1, 1, 1]);
+    });
+
     it("never throws: a rejected refresh is reported through onLoggedOut", async () => {
       const r = env.authRig({ login: true });
       env.mock().setScenario({ refreshInvalid: true });
@@ -216,6 +228,7 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       const pair = { ...env.mock().issueToken(), expiresIn: 3600 };
       await r.run(r.auth.completeLogin(pair, "MSX QE65"));
       assert.equal(r.tokens.pair()?.access, pair.access);
+      await r.run(r.auth.deviceReady());
       assert.deepEqual(env.calls().map((c) => `${c.method} ${c.path}`).map((s) => s.replace(/\/\d+\//, "/:id/")), [
         "POST /v1/device/notify", "GET /v1/device/info", "POST /v1/device/:id/settings", "GET /v1/device/info",
       ]);
@@ -228,11 +241,35 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.equal(r.log.entries().some((e) => e.level === "warn"), false);
     });
 
+    // SET-7: «Вход выполнен» не ждёт регистрации устройства — она идёт фоном, сбои только в журнал.
+    it("SET-7: resolves right after the pair is saved; the device setup (5xx notify and info) goes on in the background", async () => {
+      const r = env.authRig();
+      env.mock().setScenario({ rules: [{ path: "^/v1/device/(notify|info)$", status: 500 }] });
+      const t0 = r.clock.now();
+      await r.run(r.auth.completeLogin({ ...env.mock().issueToken(), expiresIn: 3600 }, "MSX QE65"));
+      assert.ok(r.clock.now() - t0 < 1000, `${r.clock.now() - t0} fake ms`);
+      assert.equal(r.auth.isLoggedIn(), true);
+      await r.run(r.auth.deviceReady());
+      assert.ok(r.clock.now() - t0 >= 9000, "notify was retried after 3 s and 6 s in the background");
+      assert.deepEqual(r.tokens.device(), { title: "MSX QE65" });
+    });
+
+    // SET-2: после выхода и нового входа «2160p» и HEVC в prefs — новое устройство с 4K и HEVC.
+    it("SET-2: the first setup takes 4K and HEVC from the stored prefs on top of the defaults", async () => {
+      const r = env.authRig({ defaults: () => ({ support4k: 1, supportHevc: 1 }) });
+      await r.run(r.auth.completeLogin({ ...env.mock().issueToken(), expiresIn: 3600 }, "MSX QE65"));
+      await r.run(r.auth.deviceReady());
+      const s = env.mock().state.devices.get(r.tokens.device().id ?? -1)?.settings ?? {};
+      assert.deepEqual([s.support4k, s.supportHevc, s.supportHdr, s.supportSsl, s.mixedPlaylist], [1, 1, 0, 1, 1]);
+      assert.equal(r.log.entries().some((e) => e.level === "warn"), false);
+    });
+
     it("failed steps after saving the tokens are logged and do not cancel the login", async () => {
       const r = env.authRig();
       env.mock().setScenario({ rules: [{ path: "^/v1/device/notify$", status: 500 }, { path: "^/v1/device/info$", drop: true }] });
       const pair = { ...env.mock().issueToken(), expiresIn: 3600 };
       await r.run(r.auth.completeLogin(pair, "MSX QE65"));
+      await r.run(r.auth.deviceReady());
       assert.equal(r.auth.isLoggedIn(), true);
       assert.deepEqual(r.tokens.device(), { title: "MSX QE65" }, "neither id nor notifiedVersion: onReady will repeat the setup");
       assert.equal(env.calls("/v1/device/notify").length, 3, "notify is idempotent: auto retries 3 s, 6 s");
@@ -244,6 +281,7 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       env.mock().setScenario({ rules: [{ path: "^/v1/device/\\d+/settings$", method: "POST", status: 200 }] });
       const pair = { ...env.mock().issueToken(), expiresIn: 3600 };
       await r.run(r.auth.completeLogin(pair, "MSX QE65"));
+      await r.run(r.auth.deviceReady());
       const warn = r.log.entries().find((e) => e.level === "warn" && e.msg === "device_settings_mismatch");
       assert.ok(warn);
       assert.deepEqual(warn.data?.keys, ["mixedPlaylist"]);
@@ -254,6 +292,7 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       r.tokens.saveDevice({ id: 999_999, notifiedVersion: VERSION, title: "old" });
       const pair = { ...env.mock().issueToken(), expiresIn: 3600 };
       await r.run(r.auth.completeLogin(pair, "MSX new"));
+      await r.run(r.auth.deviceReady());
       assert.notEqual(r.tokens.device().id, 999_999);
       assert.equal(r.tokens.pair()?.gen, 2);
     });

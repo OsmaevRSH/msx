@@ -76,6 +76,7 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     assert.equal(r.polls.length, 4);
     assert.deepEqual(gaps(r.polls, t0), [5000, 5000, 5000, 5000]);
 
+    await r.run(r.auth.deviceReady());
     assert.ok(r.atNotify, "device/notify was called");
     assert.ok(r.atNotify.pair, "tokens.pair() is defined when device/notify is called");
     assert.ok(r.atNotify.writes.includes("kp.auth.pair"), "kp.auth.pair is written before device/notify");
@@ -94,6 +95,22 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     assert.equal(r.clock.pending(), 0, "no more polls after done");
     await r.clock.advance(60_000);
     assert.equal(env.calls("/oauth2/device").length, 5);
+  });
+
+  it("SET-7: «done» right after the pair is saved; the device setup (5xx notify and info) goes on in the background", async () => {
+    env.mock().setScenario({ pendingPolls: 0, rules: [{ path: "^/v1/device/(notify|info)$", status: 500 }] });
+    const r = flowRig(env);
+    let savedAt = -1;
+    const save = r.tokens.save.bind(r.tokens);
+    r.tokens.save = (raw) => {
+      savedAt = r.clock.now();
+      return save(raw);
+    };
+    await r.run(r.flow.start());
+    await r.next("done");
+    assert.ok(savedAt > 0 && r.clock.now() - savedAt < 1000, `${r.clock.now() - savedAt} fake ms from the pair to «done»`);
+    await r.run(r.auth.deviceReady());
+    assert.equal(env.calls("/v1/device/notify").length, 3);
   });
 
   it("slow_down at poll 1 → the next interval is 10 s and stays so", async () => {
@@ -267,6 +284,7 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     await r.clock.advance(1000);
     assert.equal(await r.run(r.flow.checkNow()), "pending");
     await r.next("done");
+    await r.run(r.auth.deviceReady());
     assert.deepEqual(gaps(r.polls, t0), [1000, 5000, 5000, 5000]);
     assert.equal(r.clock.pending(), 0);
   });
@@ -306,6 +324,7 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     const r = flowRig(env, () => Promise.reject(new Error("no info")));
     await r.run(r.flow.start());
     await r.next("done");
+    await r.run(r.auth.deviceReady());
     assert.equal(r.tokens.device().title, "MSX TV");
     assert.equal(env.mock().state.devices.get(r.tokens.device().id ?? -1)?.title, "MSX TV");
   });
