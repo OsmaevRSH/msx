@@ -42,7 +42,8 @@ const SPECS: Record<OrderKey, Spec> = {
 
 const T = {
   hint: "OK — показать или скрыть, {ico:arrow-upward} {ico:arrow-downward} — переместить, {ico:vertical-align-top} — в начало",
-  reset: "Сбросить по умолчанию",
+  /** QA-SET-11: значок — в начале надписи, как ☑ и 🔒 строк; `icon` кнопки MSX рисует по центру, поверх текста. */
+  reset: "{ico:restore} Сбросить по умолчанию",
   shown: "{ico:check-box}",
   hidden: "{ico:check-box-outline-blank}",
   lock: "{ico:lock}",
@@ -98,7 +99,7 @@ export function orderPanel(ctx: AppContext, key: OrderKey): MsxContentRoot {
       ...BUTTONS.map(([op, p, icon], k) => btn(`${p}_${id}`, `${5 + k},${y},1,1`, { icon, action: act(op, id) })),
     ]);
   }
-  rows.push((y) => [btn(RESET_ID, `0,${y},8,1`, { icon: "restore", label: T.reset, action: act("reset") })]);
+  rows.push((y) => [btn(RESET_ID, `0,${y},8,1`, { label: T.reset, action: act("reset") })]);
   const pages: MsxContentPage[] = [];
   for (let i = 0; i < rows.length; i += ROWS) pages.push({ items: rows.slice(i, i + ROWS).flatMap((row, y) => row(y)) });
   return { type: "list", headline: spec.headline, cache: false, reuse: false, pages };

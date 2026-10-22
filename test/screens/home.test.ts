@@ -8,7 +8,7 @@ import { RETRY_CONTENT } from "../../src/screens/error.ts";
 import { chain, commitMsg, contentAction, panelAction, replaceContent } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids, msgs } from "../../src/router/ids.ts";
-import { homeScreen, warmHome } from "../../src/screens/home.ts";
+import { forgetHome, homeScreen, warmHome } from "../../src/screens/home.ts";
 import { onOrderAct } from "../../src/screens/order-edit.ts";
 import { TILE_STYLE } from "../../src/screens/tiles.ts";
 import { MAX_BYTES, bytes } from "../../src/screens/list.ts";
@@ -195,11 +195,13 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     const t = await make();
     const tiles = shelf(await open(t), "Продолжить просмотр");
     assert.deepEqual(tiles.map((i) => i.layout), ["0,1,2,4", "2,1,2,4", "4,1,2,4"]);
-    const [big, movie] = tiles;
+    const [big, movie, small] = tiles;
     assert.equal(big?.action, contentAction(P, ids.item(FIX.SERIAL_BIG)));
     assert.deepEqual(big?.selection, { headline: "Тестовый сериал «Большой»", action: commitMsg(msgs.pf(FIX.SERIAL_BIG)) });
     assert.equal(big?.tag, "1×4");
-    assert.equal(big?.badge, "+2");
+    // QA-API-2: «+N» — только при остатке 1–5: у «Большого» осталось 197 серий из 200, у «Короткого» — 5 из 6.
+    assert.equal(big?.badge, undefined);
+    assert.equal(small?.badge, "+5");
     assert.equal(big?.progressColor, "msx-blue");
     // Тег, бейдж и прогресс — на постере (`imageBoundary`), под ним название и год с рейтингом.
     assert.deepEqual([big?.imageBoundary, big?.titleHeader], [true, "{col:msx-white}Тестовый{br}сериал «Большой»"]);
@@ -210,15 +212,17 @@ describe("homeScreen: layout (Plan B S4, спец. §8.4)", () => {
     assert.equal(movie?.progress, 0.22);
   });
 
-  it("«Продолжить»: a serial episode marked on this TV after the history entry gives the tag (Р-21)", async () => {
-    const t = await make({ clock: new FakeClock(Date.now()) });
+  it("«Продолжить»: a serial episode marked on this TV after the history was loaded gives the tag (Р-21)", async () => {
+    // Часы ТВ (FakeClock, 2026-01-01) отстают от KinoPub (mock, сейчас): сравнение — с загрузкой истории, по часам ТВ.
+    const t = await make();
     const big = (s: MsxContentRoot): MsxContentItem | undefined => shelf(s, "Продолжить просмотр").find((i) => i.id === `c${FIX.SERIAL_BIG}`);
     const before = big(await open(t));
     assert.equal(before?.tag, "1×4");
+    await t.clock.advance(1000);
     t.ctx.overlay.set(FIX.SERIAL_BIG, 1, 5, { time: 0, status: 1 });
     // Прогресс — 4 из 200 серий вместо 3: после округления до сотых те же 0,02, его проверяет continue.test.ts.
     const after = big(await open(t));
-    assert.deepEqual([after?.tag, after?.badge], ["1×5", "+2"]);
+    assert.deepEqual([after?.tag, after?.badge], ["1×5", undefined]);
   });
 
   it("«Продолжить» holds a row of 6 titles, x = 0…10", async () => {
@@ -491,17 +495,22 @@ describe("homeScreen: conditional redraw (спец. §6.3, D-40)", () => {
     assert.equal((await open(t)).headline, ENDED);
   });
 
-  it("after playback the home under the player is redrawn with the TV overlay (trackScreen)", async () => {
+  it("after playback the home under the player is redrawn with the new position (trackScreen)", async () => {
     const t = await make({ clock: new FakeClock(Date.now()) });
     await open(t);
     await t.clock.advance(1000);
     t.ctx.overlay.set(FIX.MOVIE_SIMPLE, 0, 1, { time: 4000, status: 0 });
+    // Трекер сверяет экраны после того, как `marktime` дошёл до KinoPub: история, загруженная после записи оверлея, —
+    // уже с этой позицией (оверлей главнее только загруженной раньше истории).
+    const h = t.mock.state.history.find((x) => x.item === FIX.MOVIE_SIMPLE);
+    assert.ok(h);
+    Object.assign(h, { time: 4000, lastSeen: Math.floor(Date.now() / 1000) });
     refreshAfterPlayback(t.ctx, FIX.MOVIE_SIMPLE);
     await until(() => refreshed(t, cacheKeys.history()), "history refresh");
     await t.clock.advance(RECHECK_MS);
     await until(() => actions(t).length > 0, "replace");
     assert.deepEqual(actions(t), [REPLACE]);
-    assert.equal(shelf(await open(t), "Продолжить просмотр")[1]?.progress, 0.74);
+    assert.equal(shelf(await open(t), "Продолжить просмотр").find((i) => i.id === `c${FIX.MOVIE_SIMPLE}`)?.progress, 0.74);
   });
 });
 
@@ -805,6 +814,35 @@ describe("homeScreen: «Продолжить просмотр» is not lost sile
   });
 });
 
+// QA-SET-8: после выхода главная следующего аккаунта не показывает полки прежнего. Кэш при выходе чистит пакет D
+// (здесь — `cache.delete`), память сборок полок — `forgetHome` (вызов при выходе — в `create-app.ts`, пакет F).
+describe("forgetHome (QA-SET-8, logout)", () => {
+  const forgetCache = (t: TestApp): void => {
+    for (const k of [...HOME_KEYS, cacheKeys.movies()]) t.ctx.cache.delete(k);
+  };
+
+  it("forgets the last shelf builds: without a cache and with KinoPub slow — «loading», not the previous account's shelves", async () => {
+    const t = await make();
+    assert.deepEqual(headers(await open(t)), ALL);
+    forgetCache(t);
+    forgetHome(t.ctx);
+    t.mock.setScenario({ delayMs: 600 });
+    const s = await open(t);
+    assertLoading(s);
+    assert.ok(!JSON.stringify(s).includes(`c${FIX.SERIAL_BIG}`));
+  });
+
+  it("forgets the failure of the last build: the next home waits for its own data instead of the previous error", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/(items|history|watching|bookmarks)", status: 400 }] });
+    assert.match(JSON.stringify(await open(t)), /Код: KP-/);
+    forgetCache(t);
+    forgetHome(t.ctx);
+    t.mock.setScenario({ rules: [], delayMs: 600 });
+    assertLoading(await open(t));
+  });
+});
+
 describe("warmHome and the history fallback", () => {
   it("loads every shelf into L2: the next app answers home without KinoPub", async () => {
     const first = await make();
@@ -832,7 +870,7 @@ describe("warmHome and the history fallback", () => {
     // Сериалы — с меньшим остатком серий первыми (QA-API-1), затем фильмы.
     assert.deepEqual(tiles.map((i) => i.action), [FIX.SERIAL_SMALL, FIX.SERIAL_BIG, FIX.MOVIE_SIMPLE].map((id) => contentAction(P, ids.item(id))));
     assert.ok(tiles.every((i) => i.progress === undefined && i.tag === undefined));
-    assert.equal(tiles[1]?.badge, "+2");
+    assert.deepEqual(tiles.map((i) => i.badge), ["+5", undefined, undefined]);
   });
 
   it("warmHome warms watching/movies too: the started films of the cache follow the history titles without a request", async () => {
@@ -884,15 +922,15 @@ describe("warmHome and the history fallback", () => {
     assert.deepEqual(shelf(s, "Продолжить просмотр").map((i) => i.id), [FIX.SERIAL_SMALL, FIX.SERIAL_BIG].map((id) => `c${id}`));
   });
 
-  it("QA-API-7: a serial started without a watched episode (kpmock leaves it out of watching/serials) stays — the tag of the history", async () => {
+  it("QA-API-7 / M-2: a serial started without a watched episode comes from watching/serials — first, the tag of the history, 0 of 300", async () => {
     const t = await make();
     const now = Math.floor(Date.now() / 1000);
     t.mock.state.watching.set(watchKey(FIX.SERIAL_LONG, 1, 1), { time: 600, status: 0, updated: now });
     t.mock.state.history.unshift({ item: FIX.SERIAL_LONG, season: 1, video: 1, time: 600, lastSeen: now });
     const tiles = shelf(await open(t), "Продолжить просмотр");
+    // Прогресс 0 — доля из строки списка (без неё, по истории, прогресса нет: эту ветку держит continue.test.ts).
     assert.deepEqual(tiles.map((i) => [i.id, i.tag, i.progress]), [
-      [`c${FIX.SERIAL_LONG}`, "1×1", undefined], [`c${FIX.SERIAL_BIG}`, "1×4", tiles[1]?.progress], [`c${FIX.MOVIE_SIMPLE}`, undefined, 0.22],
-      [`c${FIX.SERIAL_SMALL}`, "1×1", tiles[3]?.progress],
+      [`c${FIX.SERIAL_LONG}`, "1×1", 0], [`c${FIX.SERIAL_BIG}`, "1×4", 0.02], [`c${FIX.MOVIE_SIMPLE}`, undefined, 0.22], [`c${FIX.SERIAL_SMALL}`, "1×1", 0.17],
     ]);
   });
 });

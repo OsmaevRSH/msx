@@ -4,10 +4,10 @@ import { chain } from "../src/msx/actions.ts";
 import { encodeListKey, ids } from "../src/router/ids.ts";
 import { FIX } from "../tools/kpmock/fixtures.ts";
 import {
-  content, exec, expectContent, kp, login, menuItem, mock, msxMenuDialog, newMsxPage, noNotification, openMsx, press, stats,
+  MOCK_URL, content, exec, expectContent, kp, login, menuItem, mock, msxMenuDialog, newMsxPage, noNotification, openMsx, press, stats,
 } from "./fixtures.ts";
 import {
-  answer, answered, attachDiagnostics, closePlayer, evs, installTimeline, isPf, mark, open, panel, red, selected, until, videoTime,
+  answer, answered, attachDiagnostics, closePlayer, evs, installTimeline, isPf, kpWith, mark, open, panel, red, selected, until, videoTime,
 } from "./flows-kit.ts";
 
 // Меню v1.11 (спец. §11 S3, S12, S15, S16): «Я смотрю» и «Спорт» пультом из меню, подборки, «Пункты меню» — скрытый
@@ -35,7 +35,7 @@ test.afterAll(async () => {
   await page?.close();
 });
 
-test("E-17: «Я смотрю» вторым пунктом меню — сериал с «+2» первым, фильм с остатком; плитка → карточка → «Назад» на ту же плитку", async () => {
+test("E-17: «Я смотрю» вторым пунктом меню — сериал с меньшим остатком серий («+5») первым, фильм с остатком; плитка → карточка → «Назад» на ту же плитку", async () => {
   await noNotification(page);
   await expect(menuSelected(page)).toHaveText("Главная");
   const m0 = await mark(page);
@@ -44,14 +44,16 @@ test("E-17: «Я смотрю» вторым пунктом меню — сер�
   await answered(page, ids.watching(), m0);
   await expectContent(page, "2 сериала · 1 фильм");
   const w = await answer(page, ids.watching());
-  expect(w.items.map((i: { id: string }) => i.id)).toEqual([`i${FIX.SERIAL_BIG}`, `i${FIX.SERIAL_SMALL}`, `i${FIX.MOVIE_SIMPLE}`]);
-  await expect(content(page).getByText("+2", { exact: true }), "бейдж новых серий на постере").toBeVisible();
+  // QA-API-2: «Короткий» — 5 серий из 6 впереди, «Большой» — 197 из 200: первым — меньший остаток; «+N» — только при 1–5.
+  expect(w.items.map((i: { id: string }) => i.id)).toEqual([`i${FIX.SERIAL_SMALL}`, `i${FIX.SERIAL_BIG}`, `i${FIX.MOVIE_SIMPLE}`]);
+  await expect(content(page).getByText("+5", { exact: true }), "бейдж остатка серий на постере").toBeVisible();
+  await expect(content(page).getByText("+197", { exact: true }), "у начатого длинного сериала бейджа нет").toHaveCount(0);
   await expectContent(page, "1 ч 10 м");
 
   const m1 = await mark(page);
   await page.keyboard.press("ArrowRight");
   await until(page, (x) => x.some(isPf), 3000, "pf первой плитки", m1);
-  await expect(selected(page), "фокус на сериале с новыми сериями").toContainText("Большой");
+  await expect(selected(page), "фокус на сериале с меньшим остатком").toContainText("Короткий");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(selected(page)).toContainText("Простой");
@@ -367,4 +369,25 @@ test("E-25: в конце меню один пункт «Настройки» (v
   await expect(menuSelected(page)).toHaveText("Настройки");
   await page.keyboard.press("ArrowDown");
   await expect(menuSelected(page)).toHaveText("Главная");
+});
+
+test("E-42 (QA-API-7, M-2): серия нового сериала начата и не досмотрена — он первым в «Продолжить» с тегом «1×1»", async () => {
+  // Другой ТВ начал первую серию «Длинного» (5 мин): досмотренных серий нет, а KinoPub отдаёт его в `watching/serials`
+  // как недосмотренный (`subscribed=0`). Кэш главной у этого ТВ устарел, как после своего просмотра.
+  const { access } = (await (await fetch(`${MOCK_URL}/__mock/token`, { method: "POST" })).json()) as { access: string };
+  const q = new URLSearchParams({ id: String(FIX.SERIAL_LONG), season: "1", video: "1", time: "300", access_token: access });
+  expect((await fetch(`${MOCK_URL}/v1/watching/marktime?${q}`)).status, "marktime другого ТВ").toBe(200);
+  await kpWith(page, (k, id) => k.ctx.repo.invalidateAfterProgress(id), FIX.SERIAL_LONG);
+  const c0 = (await mock.calls()).length;
+  await open(page, ids.home());
+  const first = async (): Promise<unknown[]> => {
+    const tile = (await answer(page, ids.home()))?.pages?.[0]?.items?.find((i: { action?: string }) => i.action !== undefined);
+    return [tile?.id, tile?.tag];
+  };
+  await expect.poll(first, { message: "после сверки главной «Длинный» — первым в «Продолжить»", timeout: 15_000 })
+    .toEqual([`c${FIX.SERIAL_LONG}`, "1×1"]);
+  await expectContent(page, "сериал «Длинный»");
+  const unfinished = (await mock.calls()).slice(c0)
+    .filter((c) => c.path === "/v1/watching/serials" && new URLSearchParams(c.query).get("subscribed") === "0");
+  expect(unfinished.some((c) => c.status === 200), "сериал пришёл из списка недосмотренных").toBe(true);
 });

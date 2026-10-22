@@ -36,18 +36,6 @@
   },
   "items": [
     {
-      "id": "i2001",
-      "kid": "2001",
-      "kt": "Тестовый сериал «Большой»",
-      "titleHeader": "{col:msx-white}Тестовый{br}сериал «Большой»",
-      "image": "http://kpmock.invalid/poster/medium/2001.svg",
-      "action": "content:request:interaction:item:2001@https://example.github.io/msx/app/index.html",
-      "progress": 0.02,
-      "progressColor": "msx-blue",
-      "badge": "+2",
-      "focus": true
-    },
-    {
       "id": "i2002",
       "kid": "2002",
       "kt": "Тестовый сериал «Короткий»",
@@ -55,6 +43,18 @@
       "image": "http://kpmock.invalid/poster/medium/2002.svg",
       "action": "content:request:interaction:item:2002@https://example.github.io/msx/app/index.html",
       "progress": 0.17,
+      "progressColor": "msx-blue",
+      "badge": "+5",
+      "focus": true
+    },
+    {
+      "id": "i2001",
+      "kid": "2001",
+      "kt": "Тестовый сериал «Большой»",
+      "titleHeader": "{col:msx-white}Тестовый{br}сериал «Большой»",
+      "image": "http://kpmock.invalid/poster/medium/2001.svg",
+      "action": "content:request:interaction:item:2001@https://example.github.io/msx/app/index.html",
+      "progress": 0.02,
       "progressColor": "msx-blue"
     },
     {
@@ -80,14 +80,14 @@
           "layout": "0,0,2,1",
           "offset": "0,0,0,0",
           "selection": {
-            "action": "focus:i2001"
+            "action": "focus:i2002"
           }
         },
         {
           "layout": "2,0,2,1",
           "offset": "0,0,0,0",
           "selection": {
-            "action": "focus:i2002"
+            "action": "focus:i2001"
           }
         },
         {
@@ -101,14 +101,14 @@
           "layout": "0,5,2,1",
           "offset": "0,-5,0,0",
           "selection": {
-            "action": "focus:i2001"
+            "action": "focus:i2002"
           }
         },
         {
           "layout": "2,5,2,1",
           "offset": "0,-5,0,0",
           "selection": {
-            "action": "focus:i2002"
+            "action": "focus:i2001"
           }
         },
         {

@@ -147,7 +147,7 @@ describe("kpmock fixtures", () => {
 });
 
 describe("kpmock initial state", () => {
-  it("seeds watching, history, new episodes and the favourites folder", () => {
+  it("seeds watching, history and the favourites folder; no episodes out after the fixture", () => {
     const s = new MockState();
     const big = FIX.SERIAL_BIG;
     for (const e of [1, 2, 3]) assert.equal(s.watching.get(watchKey(big, 1, e))?.status, 1);
@@ -160,7 +160,7 @@ describe("kpmock initial state", () => {
       { time: 1200, status: 0 },
     );
     assert.equal(s.watching.get(watchKey(FIX.SERIAL_SMALL, 1, 1))?.status, 1);
-    assert.equal(s.newEpisodes.get(big), 2);
+    assert.equal(s.newEpisodes.size, 0);
     const order = [...s.history].sort((a, b) => b.lastSeen - a.lastSeen).map((h) => h.item);
     assert.deepEqual(order, [big, FIX.MOVIE_SIMPLE, FIX.SERIAL_SMALL]);
     assert.deepEqual(s.folders.get(1)?.title, "Избранное");

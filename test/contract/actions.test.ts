@@ -151,7 +151,7 @@ describe("contract: tile actions (spec §11.4)", () => {
   it("«Я смотрю»: a serial → «Убрать из „Я смотрю“» (one togglewatchlist); a movie has no tile options", async () => {
     const t = await app();
     const w = (await t.request(ids.watching())) as MsxContentRoot;
-    assert.deepEqual(tileIds(w), [`i${FIX.SERIAL_BIG}`, `i${FIX.SERIAL_SMALL}`, `i${FIX.MOVIE_SIMPLE}`]);
+    assert.deepEqual(tileIds(w), [`i${FIX.SERIAL_SMALL}`, `i${FIX.SERIAL_BIG}`, `i${FIX.MOVIE_SIMPLE}`]);
     assert.deepEqual(rootIssues(w, "watching"), []);
     assert.equal(optionsOf(w, tile(w, FIX.MOVIE_SIMPLE)), false, "a movie: MSX's own options, no remove action");
     const o = optionsOf(w, tile(w, FIX.SERIAL_BIG));
@@ -161,7 +161,7 @@ describe("contract: tile actions (spec §11.4)", () => {
     await done(t, "Убрано из «Я смотрю»");
     assert.deepEqual(calls(t, "/v1/watching/togglewatchlist").map((q) => q.get("id")), [String(FIX.SERIAL_BIG)]);
     assert.deepEqual(actions(t), [
-      `[focus:i${FIX.SERIAL_SMALL}|replace:content:watching:request:interaction:${ids.watching()}@${TEST_P}|info:Убрано из «Я смотрю»]`,
+      `[focus:i${FIX.MOVIE_SIMPLE}|replace:content:watching:request:interaction:${ids.watching()}@${TEST_P}|info:Убрано из «Я смотрю»]`,
     ]);
     const after = (await t.request(ids.watching())) as MsxContentRoot;
     assert.deepEqual(tileIds(after), [`i${FIX.SERIAL_SMALL}`, `i${FIX.MOVIE_SIMPLE}`]);

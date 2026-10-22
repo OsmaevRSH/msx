@@ -128,7 +128,7 @@ describe("KpApi against kpmock (contract)", () => {
       assert.equal(h[0].time, 600);
       assert.ok(h[0].lastSeen > 0);
       const serials = await r.run(r.api.watchingSerials());
-      assert.deepEqual(serials.map((s) => [s.id, s.total, s.watched, s.new]), [[FIX.SERIAL_BIG, 200, 3, 2], [FIX.SERIAL_SMALL, 6, 1, 0]]);
+      assert.deepEqual(serials.map((s) => [s.id, s.total, s.watched, s.new]), [[FIX.SERIAL_BIG, 200, 3, 197], [FIX.SERIAL_SMALL, 6, 1, 5]]);
       const movies = await r.run(r.api.watchingMovies());
       assert.deepEqual(movies.map((m) => m.id), [FIX.MOVIE_SIMPLE]);
     });

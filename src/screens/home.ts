@@ -169,6 +169,15 @@ const lastOf = (ctx: AppContext): Map<string, Shelf> => {
 };
 const pct = (p: number): number => Math.round(p * 100) / 100;
 
+/**
+ * Выход из аккаунта (QA-SET-8): забыть сборки полок и ошибку последней сборки — иначе главная следующего аккаунта, пока
+ * его данные не пришли, показала бы полки или ошибку прежнего. Кэш данных чистит сам выход.
+ */
+export function forgetHome(ctx: AppContext): void {
+  last.delete(ctx);
+  failures.delete(ctx);
+}
+
 /** Последняя плитка полки — «Показать все» с названием полки: полный список (V-08). */
 const withMore = (ctx: AppContext, d: Def, tiles: MsxContentItem[], dataId: string): MsxContentItem[] =>
   tiles.length === 0 ? [] : [...tiles, { ...iconTile("arrow-forward", T.more, d.title, contentAction(ctx.P, dataId)), id: `${d.id}_more` }];
@@ -201,8 +210,9 @@ async function continueShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> 
   // Оба не ответили — KinoPub недоступен: ждать ещё и фильмы — лишний срок до ошибки (этап 33b).
   if (h.status === "rejected" && s.status === "rejected") throw h.reason;
   const hist = ok(h)?.value ?? [];
+  // Оверлей ТВ сравнивается со временем загрузки истории (часы ТВ), а не с `last_seen` KinoPub.
   const build = (films: ItemSummary[]): ContinueTile[] =>
-    buildContinue(hist, ok(s)?.value, films, ctx.overlay.get, (id) => ctx.overlay.forItem(id)).slice(0, CONTINUE_TILES);
+    buildContinue(hist, ok(s)?.value, films, ctx.overlay.get, ok(h)?.fetchedAt ?? 0, (id) => ctx.overlay.forItem(id)).slice(0, CONTINUE_TILES);
   let items = build([]);
   const want = ctx.cache.peek(cacheKeys.movies()) !== undefined || hist.length === 0 || items.length === 0;
   const [m] = want ? await Promise.allSettled([src.movies()]) : [];

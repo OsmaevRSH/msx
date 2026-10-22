@@ -616,8 +616,7 @@
           "id": "m_reset",
           "type": "button",
           "layout": "0,4,8,1",
-          "icon": "restore",
-          "label": "Сбросить по умолчанию",
+          "label": "{ico:restore} Сбросить по умолчанию",
           "action": "interaction:commit:message:act:menu:reset"
         }
       ]

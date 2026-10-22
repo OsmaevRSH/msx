@@ -107,7 +107,8 @@ test("E-27: «Я смотрю» — «Убрать из „Я смотрю“» 
   await answered(page, ids.watching(), m0);
   await expect(notification(page)).toContainText("Убрано из «Я смотрю»");
   await expect(content(page)).not.toContainText("«Большой»");
-  await expect(selected(page), "фокус на соседней плитке").toContainText("«Короткий»");
+  // «Я смотрю» — по меньшему остатку серий (QA-API-2): «Короткий», «Большой», «Простой»; сосед убранного — следующая плитка.
+  await expect(selected(page), "фокус на соседней плитке").toContainText("«Простой»");
   await expectContent(page, "1 сериал · 1 фильм");
   expect((await callsSince(c0, /^\/v1\/watching\/togglewatchlist$/)).map((c) => c.q.get("id"))).toEqual([String(FIX.SERIAL_BIG)]);
 

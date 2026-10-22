@@ -103,11 +103,11 @@ describe("kpmock: collections, TV channels, quality and the «Я смотрю» 
     const all = await json<{ items: { id: number; new: number }[] }>("/v1/watching/serials");
     const sub = await json<{ items: { id: number; new: number }[] }>("/v1/watching/serials?subscribed=1");
     assert.deepEqual(sub.items.map((x) => x.id), all.items.map((x) => x.id));
-    // «Короткий» досмотрен целиком, новых серий нет — из «Я смотрю» уходит, в общем списке остаётся.
+    // «Короткий» досмотрен целиком, новых серий нет — уходит и из «Я смотрю», и из общего списка недосмотренных (M-2).
     for (const s of [1, 2]) for (const e of [1, 2, 3]) mock.state.watching.set(watchKey(FIX.SERIAL_SMALL, s, e), { time: 60, status: 1, updated: 1 });
     const after = await json<{ items: { id: number }[] }>("/v1/watching/serials?subscribed=1");
     assert.ok(!after.items.some((x) => x.id === FIX.SERIAL_SMALL));
-    assert.ok((await json<{ items: { id: number }[] }>("/v1/watching/serials")).items.some((x) => x.id === FIX.SERIAL_SMALL));
+    assert.ok(!(await json<{ items: { id: number }[] }>("/v1/watching/serials")).items.some((x) => x.id === FIX.SERIAL_SMALL));
     mock.state.newEpisodes.set(FIX.SERIAL_SMALL, 1);
     assert.ok((await json<{ items: { id: number }[] }>("/v1/watching/serials?subscribed=1")).items.some((x) => x.id === FIX.SERIAL_SMALL));
   });

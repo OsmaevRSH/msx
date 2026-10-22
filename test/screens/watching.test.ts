@@ -7,15 +7,15 @@ import { ids } from "../../src/router/ids.ts";
 import { refreshAfterPlayback } from "../../src/screens/refresh.ts";
 import { MAX_BYTES, WINDOW, bytes, onExtend } from "../../src/screens/list.ts";
 import type { ListEntry } from "../../src/screens/list.ts";
-import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
+import { FIX, catalog, findItem } from "../../tools/kpmock/fixtures.ts";
 import { watchKey } from "../../tools/kpmock/state.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 import { waitFor } from "../progress/progress-rig.ts";
 
-// «Я смотрю» S15 (спец. §11, v1.11): сериалы «Я смотрю» с новыми сериями первыми, начатые фильмы с прогрессом,
-// плитки и окно списков, SWR, «нет связи», сверка после просмотра.
+// «Я смотрю» S15 (спец. §11, v1.11): сериалы «Я смотрю» с меньшим остатком серий первыми (QA-API-2), начатые фильмы
+// с прогрессом, плитки и окно списков, SWR, «нет связи», сверка после просмотра.
 
 const P = TEST_P;
 const DAY = 86_400_000;
@@ -40,14 +40,14 @@ const tile = (s: MsxContentRoot, id: number): MsxContentItem | undefined => tile
 const actions = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
 const paths = (t: TestApp): string[] => t.mock.calls().map((c) => c.path);
 
-/** Сериал «Я смотрю»: первая серия просмотрена, `fresh` новых. */
-function watchSerial(t: TestApp, id: number, fresh = 0): void {
-  t.mock.state.watching.set(watchKey(id, 1, 1), { time: 60, status: 1, updated: Math.floor(Date.now() / 1000) - id });
-  if (fresh > 0) t.mock.state.newEpisodes.set(id, fresh);
+/** Сериал «Я смотрю»: просмотрены первые `n` серий (по умолчанию одна). */
+function watchSerial(t: TestApp, id: number, n = 1): void {
+  const eps = (findItem(id)?.seasons ?? []).flatMap((x) => x.episodes.map((e) => [x.number, e.number] as const)).slice(0, n);
+  for (const [season, e] of eps) t.mock.state.watching.set(watchKey(id, season, e), { time: 60, status: 1, updated: Math.floor(Date.now() / 1000) - id });
 }
 
 describe("watchingScreen «Я смотрю» (S15)", () => {
-  it("the same large tiles as lists: serials with new episodes (+N, share watched) in the KinoPub order, then started movies (progress, time left)", async () => {
+  it("the same large tiles as lists: serials (+N, share watched), then started movies (progress, time left)", async () => {
     const t = await make();
     watchSerial(t, FIX.SERIAL_SMALL, 3);
     const s = await screen(t);
@@ -58,15 +58,14 @@ describe("watchingScreen «Я смотрю» (S15)", () => {
     assert.equal(s.extension, "2 сериала · 1 фильм");
     assert.equal(s.template?.layout, "0,0,2,4");
     assert.equal((s.template?.selection as { headline?: string } | undefined)?.headline, "{context:kt}");
-    // Оба сериала с новыми сериями — порядок KinoPub (последний просмотр первым): «Короткий» отмечен только что.
     assert.deepEqual(tiles(s).map((i) => i.id), [`i${FIX.SERIAL_SMALL}`, `i${FIX.SERIAL_BIG}`, `i${FIX.MOVIE_SIMPLE}`]);
     const big = tile(s, FIX.SERIAL_BIG);
-    assert.equal(big?.badge, "+2");
+    assert.equal(big?.badge, undefined, "197 episodes left — not «new» ones (QA-API-2)");
     assert.equal(big?.progress, 0.02, "3 of 200 episodes watched");
     assert.equal(big?.progressColor, "msx-blue");
     assert.equal(big?.kid, String(FIX.SERIAL_BIG), "kid is a string for {context:kid} (CD-10)");
     assert.equal(big?.action, `content:request:interaction:${ids.item(FIX.SERIAL_BIG)}@${P}`);
-    assert.equal(tile(s, FIX.SERIAL_SMALL)?.badge, "+3");
+    assert.equal(tile(s, FIX.SERIAL_SMALL)?.badge, "+3", "3 of 6 left");
     const movie = tile(s, FIX.MOVIE_SIMPLE);
     assert.equal(movie?.progress, 0.22, "1200 of 5400 s from the history");
     assert.equal(movie?.stamp, "1 ч 10 м");
@@ -87,19 +86,41 @@ describe("watchingScreen «Я смотрю» (S15)", () => {
     assert.equal(t.mock.calls().length, n);
   });
 
-  it("serials with new episodes go first, the rest keep the KinoPub order", async () => {
+  it("QA-API-2: serials by fewer episodes left, not in the KinoPub order; «+N» only for 1–5 left; nothing left — last", async () => {
     const t = await make();
-    t.mock.state.newEpisodes.clear();
-    watchSerial(t, FIX.SERIAL_SMALL, 1);
+    // KinoPub отдаёт «Большой» первым (смотрели позже), но у «Короткого» осталось 5 серий из 6, а у «Большого» — 197.
     const s = await screen(t);
-    assert.deepEqual(tiles(s).map((i) => i.id).slice(0, 2), [`i${FIX.SERIAL_SMALL}`, `i${FIX.SERIAL_BIG}`]);
-    assert.equal(tile(s, FIX.SERIAL_BIG)?.badge, undefined);
+    assert.deepEqual(tiles(s).map((i) => [i.id, i.badge]), [
+      [`i${FIX.SERIAL_SMALL}`, "+5"], [`i${FIX.SERIAL_BIG}`, undefined], [`i${FIX.MOVIE_SIMPLE}`, undefined],
+    ]);
+    // «Короткий» досмотрен, но оставлен в «Я смотрю» (ждёт новых серий): смотреть нечего — после «Большого».
+    const t2 = await make();
+    watchSerial(t2, FIX.SERIAL_SMALL, 6);
+    t2.mock.state.watchlist.set(FIX.SERIAL_SMALL, true);
+    const s2 = await screen(t2);
+    assert.deepEqual(tiles(s2).map((i) => [i.id, i.badge]).slice(0, 2), [[`i${FIX.SERIAL_BIG}`, undefined], [`i${FIX.SERIAL_SMALL}`, undefined]]);
   });
 
-  it("a movie marked watched on this TV after its history entry disappears (overlay, as on «Продолжить»)", async () => {
-    const t = await make({ clock: new FakeClock(Date.now()) });
+  it("a movie marked watched on this TV after the history was loaded disappears (overlay, as on «Продолжить»)", async () => {
+    // Часы ТВ (FakeClock, 2026-01-01) отстают от KinoPub (mock, сейчас): сравнение — с загрузкой истории, по часам ТВ.
+    const t = await make();
+    assert.ok(tile(await screen(t), FIX.MOVIE_SIMPLE));
+    await t.clock.advance(1000);
     t.ctx.overlay.set(FIX.MOVIE_SIMPLE, 0, 1, { time: 5400, status: 1 });
     const s = await screen(t);
+    assert.equal(tile(s, FIX.MOVIE_SIMPLE), undefined);
+    assert.equal(s.extension, "2 сериала");
+  });
+
+  it("QA-API-8: a movie stopped at 87 % is watched, as KinoPub marks it from 85 % — gone, though watching/movies still lists it", async () => {
+    const t = await make();
+    const time = Math.round(0.87 * 5400);
+    t.mock.state.watching.set(watchKey(FIX.MOVIE_SIMPLE, 0, 1), { time, status: 0, updated: Math.floor(Date.now() / 1000) });
+    const h = t.mock.state.history.find((x) => x.item === FIX.MOVIE_SIMPLE);
+    assert.ok(h);
+    h.time = time;
+    const s = await screen(t);
+    assert.ok(t.mock.calls().some((c) => c.path === "/v1/watching/movies"));
     assert.equal(tile(s, FIX.MOVIE_SIMPLE), undefined);
     assert.equal(s.extension, "2 сериала");
   });
@@ -159,8 +180,8 @@ describe("watchingScreen «Я смотрю» (S15)", () => {
     const t = await make();
     await screen(t);
     t.ctx.current.onRequest(ids.watching());
-    // Другой ТВ досмотрел первую серию «Короткого» и в KinoPub вышли новые серии.
-    t.mock.state.newEpisodes.set(FIX.SERIAL_SMALL, 4);
+    // Другой ТВ досмотрел вторую серию «Короткого»: осталось 4 из 6.
+    watchSerial(t, FIX.SERIAL_SMALL, 2);
     refreshAfterPlayback(t.ctx, FIX.MOVIE_SIMPLE);
     await waitFor(t, () => actions(t).length > 0, "the replace");
     assert.deepEqual(actions(t), [replaceContent("watching", P, ids.watching())]);
@@ -171,7 +192,7 @@ describe("watchingScreen «Я смотрю» (S15)", () => {
     const t = await make();
     await screen(t);
     t.ctx.current.onRequest(ids.item(FIX.MOVIE_SIMPLE));
-    t.mock.state.newEpisodes.set(FIX.SERIAL_SMALL, 4);
+    watchSerial(t, FIX.SERIAL_SMALL, 2);
     refreshAfterPlayback(t.ctx, FIX.MOVIE_SIMPLE);
     await realSleep(30);
     assert.deepEqual(actions(t), []);

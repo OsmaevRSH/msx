@@ -7,7 +7,7 @@ import { fmtCount } from "../core/format.ts";
 import { contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { ids } from "../router/ids.ts";
-import { film } from "./continue.ts";
+import { badgeOf, byLeft, film, leftOf } from "./continue.ts";
 import { errorScreen } from "./error.ts";
 import { fill, remember } from "./list.ts";
 import type { ListEntry } from "./list.ts";
@@ -17,11 +17,12 @@ import { NO_OPTIONS, WATCHING_OPTIONS } from "./tile-actions.ts";
 import { GRID, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
 // «Я смотрю» S15 (спец. §11): сериалы списка «Я смотрю» KinoPub (`/v1/watching/serials?subscribed=1`, как у Kodi и
-// других клиентов) — с новыми сериями первыми, бейдж «+N» и доля просмотренных серий; затем начатые фильмы
-// (`/v1/watching/movies`) — прогресс и остаток из истории и оверлея ТВ, как у «Продолжить» главной. Плитки — те же, что
-// в списках S5; окно ≤ 96 плиток и ≤ 32 КБ, догрузка `extend` и стражи краёв — механизмом списков (`list.ts`, ключ
-// `watching`). Данные — SWR (1 мин): из кэша сразу, устаревшее — фоном, экран заменяется `replace:content:watching`,
-// только если он текущий и изменилась его персональная часть; после просмотра — так же (`refreshAfterPlayback`).
+// других клиентов) — с меньшим остатком серий первыми, бейдж «+N» при остатке 1–5 (QA-API-2) и доля просмотренных
+// серий; затем начатые фильмы (`/v1/watching/movies`) — прогресс и остаток из истории и оверлея ТВ, как у «Продолжить»
+// главной. Плитки — те же, что в списках S5; окно ≤ 96 плиток и ≤ 32 КБ, догрузка `extend` и стражи краёв — механизмом
+// списков (`list.ts`, ключ `watching`). Данные — SWR (1 мин): из кэша сразу, устаревшее — фоном, экран заменяется
+// `replace:content:watching`, только если он текущий и изменилась его персональная часть; после просмотра — так же
+// (`refreshAfterPlayback`).
 
 const FLAG = "watching";
 /** Ключ окна в `state.lists`: не похож на ключ списка (b64url `src|…`), сообщения `extend:watching:…` — его. */
@@ -35,7 +36,8 @@ const T = {
   offline: "{ico:msx-yellow:history} нет связи",
 };
 
-interface Snap { serials: SerialWatching[]; movies: ItemSummary[]; history: HistoryEntry[]; stale: boolean; offline: boolean }
+/** `at` — `fetchedAt` истории (часы ТВ): с ним сравнивается оверлей ТВ, как у «Продолжить». */
+interface Snap { serials: SerialWatching[]; movies: ItemSummary[]; history: HistoryEntry[]; at: number; stale: boolean; offline: boolean }
 
 const ok = <V>(r: PromiseSettledResult<Got<V>>): Got<V> | undefined => (r.status === "fulfilled" ? r.value : undefined);
 const pct = (p: number): number => Math.round(p * 100) / 100;
@@ -48,26 +50,27 @@ async function load(ctx: AppContext, cls: ReqClass): Promise<Snap> {
   if (s.status === "rejected" && m.status === "rejected") throw s.reason;
   const gots = [ok(s), ok(m), ok(h)];
   return {
-    serials: ok(s)?.value ?? [], movies: ok(m)?.value ?? [], history: ok(h)?.value ?? [],
+    serials: ok(s)?.value ?? [], movies: ok(m)?.value ?? [], history: ok(h)?.value ?? [], at: ok(h)?.fetchedAt ?? 0,
     stale: [s, m, h].some((r) => r.status === "rejected") || gots.some((g) => g?.stale === true),
     offline: gots.some((g) => g?.offline !== undefined),
   };
 }
 
-/** Плитки и тайтлы окна: сериалы с новыми сериями — первыми, затем остальные и фильмы, кроме досмотренных на ТВ. */
+/** Плитки и тайтлы окна: сериалы с меньшим остатком серий — первыми (`byLeft`), затем фильмы, кроме досмотренных. */
 function tilesOf(ctx: AppContext, s: Snap): { items: Titled[]; tiles: MsxContentItem[]; serials: number } {
-  const serials = [...s.serials.filter((w) => w.new > 0), ...s.serials.filter((w) => w.new <= 0)];
+  const serials = [...s.serials].sort(byLeft);
   const items: Titled[] = [];
   const deco: Partial<MsxContentItem>[] = [];
   for (const w of serials) {
     items.push(w);
     const d: Partial<MsxContentItem> = w.total > 0 ? { progress: pct(Math.min(1, w.watched / w.total)), progressColor: "msx-blue" } : {};
-    if (w.new > 0) d.badge = `+${w.new}`;
+    const b = badgeOf(leftOf(w));
+    if (b !== undefined) d.badge = b;
     deco.push(d);
   }
   for (const it of s.movies) {
     const e = s.history.find((h) => h.item.id === it.id);
-    const f = e === undefined ? undefined : film(e, ctx.overlay.get);
+    const f = e === undefined ? undefined : film(e, ctx.overlay.get, s.at);
     if (e !== undefined && f === undefined) continue;
     items.push(it);
     deco.push({ ...NO_OPTIONS, ...(f?.progress === undefined ? {} : { progress: pct(f.progress), progressColor: "msx-blue", stamp: f.stamp }) });

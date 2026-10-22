@@ -19,6 +19,11 @@ export interface Scenario {
   noCorsErrors: boolean;       // 429 и 5xx без CORS-заголовков (nginx без always)
   toggleLostResponse: number;  // столько ближайших toggle применить и оборвать соединение (этап 8)
   watchlistLostResponse?: number;  // то же для togglewatchlist (действия над плиткой, CM-01)
+  /**
+   * M-1 (QA-API-8): `marktime` ставит статус по позиции на каждом вызове — с этой доли длительности «просмотрено» (1),
+   * ниже — «начато» (0); KinoPub — 0,85 (замер Apple). По умолчанию выключено: статус меняет только `toggle`.
+   */
+  autoWatched?: number;
   pendingPolls: number; slowDownAtPoll?: number; codeExpiredAtPoll?: number;   // этап 6
   accessTtlSec: number; refreshInvalid: boolean;                                // этап 6
   clampPages: boolean; media: "playlist" | "webm";                              // этап 7

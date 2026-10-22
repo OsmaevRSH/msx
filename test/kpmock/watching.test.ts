@@ -107,6 +107,28 @@ describe("kpmock watching and history", () => {
     });
   });
 
+  describe("marktime with the scenario flag autoWatched (M-1)", () => {
+    const status = (): number | undefined => mock.state.watching.get(watchKey(FIX.MOVIE_SIMPLE, 0, 1))?.status;
+
+    it("sets the status from the position on every call: from the share and above — watched, below — started", async () => {
+      mock.setScenario({ autoWatched: 0.85 });
+      // 5400 с: 85 % — 4590 с, 87 % — 4698 с.
+      await json("/v1/watching/marktime", { id: FIX.MOVIE_SIMPLE, video: 1, time: 4698 });
+      assert.equal(status(), 1);
+      await json("/v1/watching/marktime", { id: FIX.MOVIE_SIMPLE, video: 1, time: 600 });
+      assert.equal(status(), 0, "recomputed, not kept");
+      await json("/v1/watching/marktime", { id: FIX.MOVIE_SIMPLE, video: 1, time: 4590 });
+      assert.equal(status(), 1);
+      await json("/v1/watching/marktime", { id: FIX.MOVIE_SIMPLE, video: 1, time: 4589 });
+      assert.equal(status(), 0);
+    });
+
+    it("is off by default: 87 % stays started", async () => {
+      await json("/v1/watching/marktime", { id: FIX.MOVIE_SIMPLE, video: 1, time: 4698 });
+      assert.equal(status(), 0);
+    });
+  });
+
   describe("toggle", () => {
     it("is a switch: twice returns the status back", async () => {
       const q = { id: FIX.SERIAL_BIG, season: 1, video: 1 };
@@ -184,16 +206,40 @@ describe("kpmock watching and history", () => {
   });
 
   describe("serials and movies", () => {
-    it("lists serials with at least one watched episode", async () => {
+    it("lists the started serials: total, watched and `new` — the same remainder total − watched (M-3, as KinoPub)", async () => {
       const { items } = await json<{ items: SerialRow[] }>("/v1/watching/serials");
       const big = items.find((s) => s.id === FIX.SERIAL_BIG);
       assert.equal(big?.watched, 3);
-      assert.equal(big?.new, 2);
+      assert.equal(big?.new, 197);
       assert.equal(Number(big?.total), 200);
       assert.equal(big?.type, "serial");
       assert.match(big?.posters.medium ?? "", /\/poster\/medium\/2001\.svg$/);
-      assert.equal(items.find((s) => s.id === FIX.SERIAL_SMALL)?.new, 0);
+      assert.equal(items.find((s) => s.id === FIX.SERIAL_SMALL)?.new, 5);
       assert.deepEqual(items.map((s) => s.id).sort(), [FIX.SERIAL_BIG, FIX.SERIAL_SMALL]);
+    });
+
+    it("M-3: episodes out after the fixture (newEpisodes) add to total — a watched-through serial is unfinished again with `new` 1", async () => {
+      for (const season of [1, 2]) for (const e of [1, 2, 3]) mock.state.watching.set(watchKey(FIX.SERIAL_SMALL, season, e), { time: 60, status: 1, updated: 1 });
+      mock.state.newEpisodes.set(FIX.SERIAL_SMALL, 1);
+      for (const q of [{}, { subscribed: 1 }] as Record<string, number>[]) {
+        const { items } = await json<{ items: SerialRow[] }>("/v1/watching/serials", q);
+        assert.deepEqual(items.filter((s) => s.id === FIX.SERIAL_SMALL).map((s) => [Number(s.total), s.watched, s.new]), [[7, 6, 1]]);
+      }
+    });
+
+    it("M-2: without `subscribed` and with 0 — every unfinished serial: an episode started (status ≠ −1 or a position), not all watched", async () => {
+      // «Длинный»: начата первая серия, ни одна не досмотрена (QA-API-7); «Короткий» досмотрен целиком.
+      await json("/v1/watching/marktime", { id: FIX.SERIAL_LONG, season: 1, video: 1, time: 600 });
+      for (const season of [1, 2]) for (const e of [1, 2, 3]) mock.state.watching.set(watchKey(FIX.SERIAL_SMALL, season, e), { time: 60, status: 1, updated: 1 });
+      for (const q of [{}, { subscribed: 0 }] as Record<string, number>[]) {
+        const { items } = await json<{ items: SerialRow[] }>("/v1/watching/serials", q);
+        assert.deepEqual(items.map((s) => s.id).sort(), [FIX.SERIAL_BIG, FIX.SERIAL_LONG]);
+        assert.deepEqual(items.filter((s) => s.id === FIX.SERIAL_LONG).map((s) => [Number(s.total), s.watched]), [[300, 0]]);
+      }
+      // Отметка снята (−1), а позиция осталась — серия всё равно начата.
+      mock.state.watching.clear();
+      mock.state.watching.set(watchKey(FIX.SERIAL_SMALL, 1, 2), { time: 30, status: -1, updated: 1 });
+      assert.deepEqual((await json<{ items: SerialRow[] }>("/v1/watching/serials")).items.map((s) => s.id), [FIX.SERIAL_SMALL]);
     });
 
     it("lists started movies and drops a movie once it is watched", async () => {

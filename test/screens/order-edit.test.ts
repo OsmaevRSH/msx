@@ -66,6 +66,8 @@ describe("menu panel «Пункты меню»", () => {
     });
     assert.equal(rows.at(-1)?.[0]?.id, "m_reset");
     assert.equal(rows.at(-1)?.[0]?.action, msg("reset"));
+    // QA-SET-11: значок кнопки MSX рисует по центру, поверх надписи, — он в начале надписи, как ☑ и 🔒 строк.
+    assert.deepEqual([rows.at(-1)?.[0]?.icon, rows.at(-1)?.[0]?.label], [undefined, "{ico:restore} Сбросить по умолчанию"]);
     // Первое OK в панели ничего не меняет: ▲ первой строки (не скрыть случайно, двойное OK после красной кнопки).
     assert.equal(focused(p), "u_home");
     assert.equal(all(p).filter((i) => i.focus === true).length, 1);

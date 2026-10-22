@@ -94,6 +94,24 @@ function listed(s: MockState, id: number, statuses: Status[]): boolean {
   return s.watchlist.get(id) ?? (statuses.some((x) => x !== -1) && (statuses.some((x) => x !== 1) || (s.newEpisodes.get(id) ?? 0) > 0));
 }
 
+/** Строка `watching/serials`: `total` — с вышедшими после фикстуры сериями; `new` — остаток `total − watched` (M-3). */
+function serialRow(s: MockState, base: string, item: FxItem, statuses: Status[]): Record<string, unknown> {
+  const total = statuses.length + (s.newEpisodes.get(item.id) ?? 0);
+  const watched = statuses.filter((x) => x === 1).length;
+  // `total` строкой, как у боевого API (research kinopub-api §8.1).
+  return { id: item.id, type: item.type, title: item.title, posters: posters(base, item.id), total: String(total), watched, new: total - watched };
+}
+
+/**
+ * M-2 (QA-API-7; вендор: `subscribed=0` — «все недосмотренные», Apple: «every unfinished serial»): начата хоть одна
+ * серия — статус не −1 или есть позиция, — и досмотрены не все (или вышли новые). Досмотренный в списке не остаётся.
+ */
+function unfinished(s: MockState, it: FxItem, statuses: Status[]): boolean {
+  const started = statuses.some((x) => x !== -1) ||
+    allUnits(it).some(({ season, unit }) => (s.watching.get(watchKey(it.id, season, unit.number))?.time ?? 0) > 0);
+  return started && (statuses.some((x) => x !== 1) || (s.newEpisodes.get(it.id) ?? 0) > 0);
+}
+
 /** `in_watchlist` и `subscribed` карточки (v1.19): то же правило; фильм в списке не бывает. */
 export function inWatchlist(s: MockState, it: FxItem): boolean {
   return isSeries(it) && listed(s, it.id, statusesOf(s, it));
@@ -172,8 +190,11 @@ export function register(r: Router, s: MockState, base: () => string): void {
     if (time === undefined || time < 0) throw new HttpError(400, { status: 400, error: "Missing required parameters: time" });
     const now = nowSec();
     const sec = Math.floor(time);
-    // Статус «просмотрено» marktime не снимает; иначе единица становится начатой.
-    s.watching.set(t.key, { time: sec, status: s.watching.get(t.key)?.status === 1 ? 1 : 0, updated: now });
+    // Статус «просмотрено» marktime не снимает; иначе единица становится начатой. Со сценарием `autoWatched` (M-1) — как
+    // KinoPub: статус по позиции на каждом вызове.
+    const auto = ctx.scenario.autoWatched;
+    const done = auto === undefined ? s.watching.get(t.key)?.status === 1 : t.unit.duration > 0 && sec / t.unit.duration >= auto;
+    s.watching.set(t.key, { time: sec, status: done ? 1 : 0, updated: now });
     touchHistory(s, t, sec, now);
     return { status: 200, json: { status: 200 } };
   });
@@ -201,7 +222,7 @@ export function register(r: Router, s: MockState, base: () => string): void {
   });
 
   // `subscribed=1` — список «Я смотрю» («Буду смотреть»): выбор `togglewatchlist`, а без него — начатые сериалы, кроме
-  // досмотренных без новых серий; без параметра — сериалы с просмотренными сериями (их берёт «Продолжить» главной).
+  // досмотренных без новых серий; без параметра и с `subscribed=0` — все недосмотренные (M-2, их берёт «Продолжить» главной).
   r.add("GET", "/v1/watching/serials", (ctx) => {
     requireAuth(ctx);
     const sub = ctx.query.get("subscribed") === "1";
@@ -211,12 +232,8 @@ export function register(r: Router, s: MockState, base: () => string): void {
       const item = findItem(id);
       if (on && item && !rows.some((w) => w.item.id === id)) rows.push({ item, statuses: statusesOf(s, item) });
     }
-    const wanted = (w: { item: FxItem; statuses: Status[] }): boolean => !sub ? w.statuses.includes(1) : listed(s, w.item.id, w.statuses);
-    const items = rows.filter((w) => isSeries(w.item) && wanted(w)).map(({ item, statuses }) => ({
-      id: item.id, type: item.type, title: item.title, posters: posters(ctx.base, item.id),
-      total: String(statuses.length),   // строкой, как у боевого API (research kinopub-api §8.1)
-      watched: statuses.filter((x) => x === 1).length, new: s.newEpisodes.get(item.id) ?? 0,
-    }));
+    const wanted = (w: { item: FxItem; statuses: Status[] }): boolean => !sub ? unfinished(s, w.item, w.statuses) : listed(s, w.item.id, w.statuses);
+    const items = rows.filter((w) => isSeries(w.item) && wanted(w)).map(({ item, statuses }) => serialRow(s, ctx.base, item, statuses));
     return { status: 200, json: { status: 200, items } };
   });
 

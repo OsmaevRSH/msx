@@ -31,6 +31,10 @@ export class MockState {
   watching = new Map<string, WatchRec>();
   history: HistoryRec[] = [];
   folders = new Map<number, FolderRec>();
+  /**
+   * Серии, вышедшие после фикстуры: прибавляются к `total` строки `watching/serials` (M-3: `new` там — остаток
+   * `total − watched`, как у KinoPub, а не отдельный счётчик новых серий). Карточка и `/v1/watching` их не знают.
+   */
   newEpisodes = new Map<number, number>();
   /** Явный выбор `togglewatchlist` (сериал в «Я смотрю» или нет); без записи — правило списка по просмотрам. */
   watchlist = new Map<number, boolean>();
@@ -100,7 +104,6 @@ export class MockState {
     this.watching.set(watchKey(big, 1, 4), { time: 600, status: 0, updated: now - 3600 });
     this.watching.set(watchKey(FIX.MOVIE_SIMPLE, 0, 1), { time: 1200, status: 0, updated: now - 2 * 3600 });
     watched(FIX.SERIAL_SMALL, 1, 1, now - 3 * 3600);
-    this.newEpisodes.set(big, 2);
 
     // Сначала самое свежее: SERIAL_BIG, MOVIE_SIMPLE, SERIAL_SMALL.
     this.history = [
