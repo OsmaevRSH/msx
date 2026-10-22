@@ -10,7 +10,7 @@ import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { decodeListKey, encodeListKey, ids, listFlag, msgs } from "../router/ids.ts";
 import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
-import { countryTitle, filterSource, filterTokens, withFilters } from "./filters.ts";
+import { countryTitle, filterSource, filterTokens, hasFilters, resetAction, withFilters } from "./filters.ts";
 import {
   COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, genreType, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
 } from "./list-head.ts";
@@ -51,6 +51,8 @@ export const MAX_BYTES = 32 * 1024;
 
 const T = {
   empty: "Ничего не найдено",
+  emptyFiltered: "Ничего не найдено с этими фильтрами",
+  reset: "Сбросить фильтры",
   emptyFolder: "В папке пока пусто. Добавьте фильм кнопкой ☆ на карточке",
   emptyHistory: "Здесь появятся фильмы и сериалы, которые вы смотрели",
   back: "Назад",
@@ -321,7 +323,11 @@ function buildRoot(ctx: AppContext, key: string, sk: string, k: ListKey, st: Lis
   const options = filterOptions(ctx, key, k);
   if (options !== undefined) root.options = options;
   if (st.items.length === 0) {
-    root.pages = [{ items: emptyItems(k.src === "folder" ? T.emptyFolder : k.src === "history" ? T.emptyHistory : T.empty) }];
+    // QA-NAV-6: с фильтрами пустой список — не тупик: сброс прямо здесь, «Назад» увела бы из раздела в меню.
+    const reset = k.src === "catalog" && hasFilters(k);
+    root.pages = [{
+      items: emptyItems(reset ? T.emptyFiltered : k.src === "folder" ? T.emptyFolder : k.src === "history" ? T.emptyHistory : T.empty, reset),
+    }];
     return root;
   }
   // Плитка подборки ведёт в её список, а не на карточку: префетч карточки по фокусу ей не нужен.
@@ -381,10 +387,12 @@ export function bytes(v: unknown): number {
   return new TextEncoder().encode(JSON.stringify(v)).length;
 }
 
-/** Страница должна содержать фокусируемый элемент (msx-platform §2.4), поэтому кроме текста — «Назад». */
-export function emptyItems(text: string): MsxContentItem[] {
-  return [
-    { type: "space", layout: `0,0,${GRID.width},2`, text },
-    { id: "b_back", type: "button", layout: "0,2,3,1", label: T.back, action: "back" },
-  ];
+/**
+ * Страница должна содержать фокусируемый элемент (msx-platform §2.4), поэтому кроме текста — «Назад»; с `reset` перед
+ * ней «Сбросить фильтры» в фокусе.
+ */
+export function emptyItems(text: string, reset = false): MsxContentItem[] {
+  const back: MsxContentItem = { id: "b_back", type: "button", layout: `${reset ? 4 : 0},2,3,1`, label: T.back, action: "back" };
+  const first: MsxContentItem[] = reset ? [{ id: "b_reset", type: "button", layout: "0,2,4,1", label: T.reset, action: resetAction(), focus: true }] : [];
+  return [{ type: "space", layout: `0,0,${GRID.width},2`, text }, ...first, back];
 }

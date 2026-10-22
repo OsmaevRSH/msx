@@ -52,6 +52,9 @@ const thisYear = (ctx: AppContext): string => String(new Date(ctx.clock.now()).g
 const pick = (field: string, value: string | number): string => commitMsg(msgs.act("panel", "filter", field, value));
 const open = (ctx: AppContext, type: string, key: string): string => chain(["back", panelAction(ctx.P, ids.panel(type, key))]);
 
+/** Кнопка пустого результата с фильтрами (QA-NAV-6): сброс прямо с экрана списка — `reset:s`, панели закрывать не нужно. */
+export const resetAction = (): string => pick("reset", "s");
+
 /** Есть ли у ключа каталога фильтры. */
 export const hasFilters = (k: ListKey): boolean => FIELDS.some((f) => k[f] !== undefined) || (!!k.type && k.quality !== undefined);
 
@@ -188,6 +191,7 @@ function applied(k: ListKey, field: string, value: string): ListKey | undefined 
 /**
  * `act:panel:filter:<year|country|kp|uhd|fin>:<значение>` (пустое — снять) и `act:panel:filter:reset` — у открытого
  * каталога: фильтры запоминаются для раздела, список заменяется по флагу открытого экрана, панель закрывается.
+ * `reset:s` — кнопка пустого списка (QA-NAV-6): панели нет, только замена.
  */
 export function onFilterAct(ctx: AppContext, args: string[]): void {
   const [field = "", value = ""] = args;
@@ -205,5 +209,6 @@ export function onFilterAct(ctx: AppContext, args: string[]): void {
     return;
   }
   remember(ctx, next);
-  ctx.host.executeAction(chain(["back", replaceContent(listFlag(key), ctx.P, ids.list(encodeListKey(next)))]));
+  const replace = replaceContent(listFlag(key), ctx.P, ids.list(encodeListKey(next)));
+  ctx.host.executeAction(field === "reset" && value === "s" ? replace : chain(["back", replace]));
 }

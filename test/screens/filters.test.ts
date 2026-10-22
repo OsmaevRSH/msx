@@ -191,7 +191,7 @@ describe("catalog filters: choice, the list and the session memory (spec §11.5)
     assert.match(s.extension ?? "", /^\{ico:msx-red:stop\} 2010-е · США · КП ≥ 7 · 4K · завершённые · Драма( · \d+ сериал(а|ов)?)?$/);
     const far = await list(t, { ...MOVIES, country: "40", year: "2026" });
     assert.equal(far.extension, `{ico:msx-red:stop} 2026 · ${ALL_COUNTRIES.find((c) => c.id === 40)?.title}`);
-    assert.deepEqual(far.pages?.[0]?.items.map((i) => i.text ?? i.label), ["Ничего не найдено", "Назад"]);
+    assert.deepEqual(far.pages?.[0]?.items.map((i) => i.text ?? i.label), ["Ничего не найдено с этими фильтрами", "Сбросить фильтры", "Назад"]);
   });
 
   it("the menu key gets the filters of its section for the session; another section keeps its own; reset forgets them", async () => {
@@ -243,6 +243,25 @@ describe("catalog filters: choice, the list and the session memory (spec §11.5)
     const uhd = await list(t, { ...MOVIES, quality: "4" });
     assert.deepEqual((uhd.items ?? []).map((i) => i.id), [`i${FIX.MOVIE_AUDIO12}`]);
     assert.equal(uhd.headline, "Фильмы · Обновлённые", "4K with a type is a filter, not the «4K» section");
+  });
+
+  it("QA-NAV-6: nothing found with filters — the text says so, «Сбросить фильтры» (focused) and «Назад»; reset:s has no panel to close", async () => {
+    const t = await make();
+    const none: ListKey = { ...MOVIES, country: "50", kp: "8" };
+    const s = await list(t, none);
+    const page = s.pages?.[0]?.items ?? [];
+    assert.deepEqual(page.map((i) => [i.type, i.text ?? i.label, i.action, i.focus]), [
+      ["space", "Ничего не найдено с этими фильтрами", undefined, undefined],
+      ["button", "Сбросить фильтры", pick("reset", "s"), true],
+      ["button", "Назад", "back", undefined],
+    ]);
+    t.host.clearActions();
+    await act(t, "reset", "s");
+    assert.deepEqual(actions(t), [replaceContent(listFlag(key(none)), P, ids.list(key(MOVIES)))]);
+    assert.equal((await list(t, MOVIES)).extension, "{ico:msx-red:stop} Обновлённые · 203 фильма");
+    // Пункт меню «4K» — раздел, а не фильтр: пустой список там без сброса (как и любой список без фильтров).
+    const uhd = (await list(t, { ...UHD, genre: "99999" })).pages?.[0]?.items ?? [];
+    assert.deepEqual(uhd.map((i) => i.text ?? i.label), ["Ничего не найдено", "Назад"]);
   });
 
   it("bad choices change nothing: unknown field, bad value, 4K in the «4K» section, a screen that is not a catalog", async () => {
