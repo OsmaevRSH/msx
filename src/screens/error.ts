@@ -29,6 +29,9 @@ const T = {
   placeholder: "Раздел в разработке",
   /** V-40: за срок экрана не пришло ничего — причина неизвестна (5xx, `TypeError`, зависание). */
   slow: "KinoPub не отвечает. Проверьте VPN",
+  /** QA-API-9: 403 — проверка бота Cloudflare или запрет выхода VPN; HTML со статусом ошибки — страница прокси. */
+  forbidden: "KinoPub отклонил запрос (403). Смените сервер VPN",
+  page: "KinoPub ответил страницей ошибки — возможно, мешает VPN или прокси",
 };
 
 /** Перезапросить текущий экран; `invalidate:content` — только визуальная пометка «обновляю» (msx-platform §3.2). */
@@ -38,8 +41,9 @@ const PAGE_W = 12;
 const PANEL_W = 8;
 
 export function errorText(err: unknown): { code: KpErrorCode; text: string } {
-  const code = toKpError(err).code;
-  return { code, text: TEXTS[code] };
+  const { code, status = 0, message } = toKpError(err);
+  const bad = code === "KP-BAD";
+  return { code, text: bad && status === 403 ? T.forbidden : bad && message === "not-json" && status >= 400 ? T.page : TEXTS[code] };
 }
 
 export interface ErrorItemsOptions {

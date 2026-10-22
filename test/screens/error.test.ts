@@ -36,6 +36,21 @@ describe("errorText", () => {
     });
   }
 
+  // QA-API-9: 403 — проверка бота Cloudflare или запрет выхода VPN; HTML вместо JSON со статусом ошибки — страница прокси.
+  it("KP-BAD with status 403, JSON or an HTML page → «KinoPub отклонил запрос (403). Смените сервер VPN»", () => {
+    const text = "KinoPub отклонил запрос (403). Смените сервер VPN";
+    assert.deepEqual(errorText(new KpError("KP-BAD", "http-403", 403, "Forbidden")), { code: "KP-BAD", text });
+    assert.deepEqual(errorText(new KpError("KP-BAD", "not-json", 403, "text/html")), { code: "KP-BAD", text });
+  });
+
+  it("an HTML error page (not-json, status ≥ 400) → «KinoPub ответил страницей ошибки…»; HTML with 200 stays «Неожиданный ответ»", () => {
+    const text = "KinoPub ответил страницей ошибки — возможно, мешает VPN или прокси";
+    assert.deepEqual(errorText(new KpError("KP-BAD", "not-json", 400, "text/html")), { code: "KP-BAD", text });
+    assert.deepEqual(errorText(new KpError("KP-BAD", "not-json", 418)), { code: "KP-BAD", text });
+    assert.equal(errorText(new KpError("KP-BAD", "not-json", 200, "text/html")).text, "Неожиданный ответ KinoPub");
+    assert.equal(errorText(new KpError("KP-BAD", "http-400", 400)).text, "Неожиданный ответ KinoPub");
+  });
+
   it("classifies non-KpError values like the transport does", () => {
     assert.equal(errorText(new TypeError("Failed to fetch")).code, "KP-NET");
     assert.equal(errorText(new Error("boom")).code, "KP-BAD");

@@ -221,6 +221,16 @@ describe("Transport", () => {
       await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/history/clear-for-item"))), kp("KP-BAD", "not-json"));
     });
 
+    it("403 with an HTML page (Cloudflare) → KP-BAD not-json with status 403, without retries (QA-API-9)", async () => {
+      const r = rig(() => Promise.resolve(new Response("<html>Attention Required! | Cloudflare</html>", { status: 403, headers: { "content-type": "text/html; charset=UTF-8" } })));
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), (e: unknown) => {
+        kp("KP-BAD", "not-json")(e);
+        assert.equal((e as KpError).status, 403);
+        return true;
+      });
+      assert.equal(r.inits.length, 1);
+    });
+
     it("HTML or broken JSON → KP-BAD without retries", async () => {
       const r = rig();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/test/html"))), kp("KP-BAD"));

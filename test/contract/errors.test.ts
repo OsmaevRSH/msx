@@ -142,6 +142,15 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     });
   }
 
+  it("QA-API-9: 403 on a card → KP-BAD «KinoPub отклонил запрос (403). Смените сервер VPN», one call, no retries", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: `^/v1/items/${FIX.MOVIE_SIMPLE}$`, status: 403 }] });
+    const card = await screen(t, ids.item(FIX.MOVIE_SIMPLE));
+    assert.equal(errorCode(card), "KP-BAD");
+    assert.match(pageItems(card)[0]?.text ?? "", /^KinoPub отклонил запрос \(403\)\. Смените сервер VPN\{br\}/);
+    assert.equal(apiCalls(t, `/v1/items/${FIX.MOVIE_SIMPLE}`).length, 1);
+  });
+
   it("toggle_lost_response on «просмотрено» from a real resolve → queued, no blind retry; flush reconciles: one toggle in total, status 1", async () => {
     const t = await make();
     t.mock.setScenario({ toggleLostResponse: 1 });
