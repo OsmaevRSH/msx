@@ -22,6 +22,7 @@ import { MODE_NAMES, countryName } from "./panels-labels.ts";
 
 const TAG = "settings";
 const WAIT_MS = 3000;
+const FLUSH_MS = 2000;
 const DASH = "—";
 const SEC = " с";
 
@@ -213,8 +214,10 @@ export async function saveDevice(ctx: AppContext, change: Partial<DeviceForm>): 
  */
 export async function onSettingsAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
   if (name === "logout") {
-    // SET-4: отвязка без связи ждёт до 6 с — выход виден сразу.
+    // SET-4: отвязка без связи ждёт до 6 с — выход виден сразу. SET-8: outbox прежнего входа выход сотрёт — сначала
+    // попытка отправить его, не дольше `FLUSH_MS`.
     ctx.host.executeAction(`info:${T.leaving}`);
+    await Promise.race([ctx.outbox.flush().catch(() => undefined), sleep(ctx.clock, FLUSH_MS)]);
     return ctx.auth.logout();
   }
   const v = args[0] ?? "";

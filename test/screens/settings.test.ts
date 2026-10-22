@@ -437,15 +437,30 @@ describe("onSettingsAct", () => {
     t.ctx.prefs.update({ maxQuality: 720 });
     t.ctx.outbox.putMarktime(FIX.SERIAL_SMALL, 1, 2, 300);
     const keys = (): (string | null)[] => Array.from({ length: t.storage.length }, (_, i) => t.storage.key(i));
-    const kept = keys().filter((k) => k?.startsWith("kp.cfg.") || k?.startsWith("kp.out."));
-    assert.ok(kept.length >= 2, kept.join());
+    const cfg = keys().filter((k) => k?.startsWith("kp.cfg."));
+    assert.ok(cfg.length >= 1 && keys().some((k) => k?.startsWith("kp.out.")), keys().join());
     await act(t, "logout");
-    assert.ok(t.mock.calls().some((c) => c.method === "POST" && c.path === "/v1/device/unlink"));
-    assert.deepEqual(keys().filter((k) => k?.startsWith("kp.auth.")), []);
-    assert.deepEqual(kept.filter((k) => !keys().includes(k)), [], "logout removes only kp.auth.* (спец. §7.3)");
+    const paths = t.mock.calls().map((c) => c.path);
+    assert.ok(paths.includes("/v1/device/unlink"));
+    const marktime = paths.indexOf("/v1/watching/marktime");
+    assert.ok(marktime >= 0 && marktime < paths.indexOf("/v1/device/unlink"), `SET-8: the outbox goes first: ${paths.join()}`);
+    assert.deepEqual(keys().filter((k) => k?.startsWith("kp.auth.") || k?.startsWith("kp.out.")), []);
+    assert.deepEqual(cfg.filter((k) => !keys().includes(k)), [], "kp.cfg.* (settings of this TV) stays");
     assert.equal(t.ctx.auth.isLoggedIn(), false);
     assert.ok(actions(t).some((a) => a.includes(`replace:menu:menu:request:interaction:init@${TEST_P}`)), JSON.stringify(actions(t)));
     assert.ok(t.mock.state.tokens.has(other.access), "another TV's token survived");
+  });
+
+  it("SET-8: an outbox that cannot be sent holds the logout back for at most 2 s", async () => {
+    const t = await make();
+    t.ctx.outbox.putMarktime(FIX.SERIAL_SMALL, 1, 2, 300);
+    t.mock.setScenario({ rules: [{ path: "^/v1/watching/marktime$", hang: true }] });
+    const t0 = t.clock.now();
+    await act(t, "logout");
+    assert.equal(t.ctx.auth.isLoggedIn(), false);
+    const unlink = t.mock.calls().find((c) => c.path === "/v1/device/unlink");
+    assert.ok(unlink !== undefined);
+    assert.ok(t.clock.now() - t0 >= 2000 && t.clock.now() - t0 < 2100, `${t.clock.now() - t0} fake ms: waited for the outbox, but 2 s at most`);
   });
 
   // SET-2: «Максимальное качество 2160p» и HEVC в prefs переживают выход — новое устройство получает 4K и HEVC.

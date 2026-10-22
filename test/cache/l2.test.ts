@@ -242,3 +242,20 @@ describe("L2", () => {
     assert.deepEqual(ctx.l2.keys(""), []);
   });
 });
+
+describe("L2.wipe (SET-8)", () => {
+  it("removes every kp.l2.* and the pending batch: a put before wipe() is never written", async () => {
+    const { clock, mem, l2 } = setup();
+    l2.put("user", { u: 1 });
+    l2.flush();
+    l2.put("history", [1, 2]);
+    l2.wipe();
+    await clock.advance(1000);
+    assert.deepEqual(l2Keys(mem), []);
+    assert.equal(l2.get("user"), undefined);
+    assert.equal(l2.get("history"), undefined);
+    l2.put("user", { u: 2 });
+    l2.flush();
+    assert.deepEqual(l2Keys(mem), ["kp.l2.user"]);
+  });
+});

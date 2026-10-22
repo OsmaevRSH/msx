@@ -124,6 +124,13 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
     repo.forgetDevice();
     // Недавние запросы поиска личные: после выхода их не видит тот, кто войдёт следующим.
     forgetQueries(store);
+    // SET-8: выход (не отказ refresh — там тот же аккаунт) стирает и кэш, outbox, оверлей и списки прежнего входа.
+    if (reason !== "refresh-rejected") {
+      cache.wipe();
+      store.removeNs("out");
+      overlay.wipe();
+      for (const k of [...state.lists.keys()]) state.lists.delete(k);
+    }
     ctx.host.executeAction(loggedOutAction(ctx.P, reason));
   };
   ctx.tracker.addListener((e) => onTrackerEvent(ctx, e));

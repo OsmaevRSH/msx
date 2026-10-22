@@ -55,6 +55,11 @@ export class Overlay {
     return out.sort((a, b) => a.season - b.season || a.video - b.video);
   }
 
+  /** Выход из KinoPub (SET-8): позиции прежнего входа не показываются следующему. */
+  wipe(): void {
+    this.entries = new Map();
+  }
+
   prune(maxAgeMs: number = DAY_MS): void {
     for (const [key, e] of this.entries) {
       if (!this.fresh(e, maxAgeMs)) this.entries.delete(key);

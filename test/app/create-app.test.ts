@@ -1,5 +1,7 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { persistState } from "../../src/app/context.ts";
+import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -69,5 +71,46 @@ describe("device setup after login (createApp)", () => {
     assert.equal((await t.run(t.ctx.repo.deviceInfo())).value.settings.support4k, 0, "read before the setup saved 4K");
     await t.run(t.ctx.auth.deviceReady());
     assert.equal((await t.run(t.ctx.repo.deviceInfo())).value.settings.support4k, 1);
+  });
+});
+
+// SET-8: выход стирает личное прежнего входа (кэш, outbox, оверлей, списки в памяти); kp.cfg.* — настройки ТВ — остаются.
+describe("SET-8: what logout leaves behind (createApp)", () => {
+  const keys = (t: TestApp, prefix: string): string[] =>
+    Array.from({ length: t.storage.length }, (_, i) => t.storage.key(i) ?? "").filter((k) => k.startsWith(prefix));
+
+  async function used(): Promise<TestApp> {
+    const t = await make();
+    t.ctx.prefs.update({ maxQuality: 720 });
+    await t.run(t.ctx.repo.user());
+    t.ctx.overlay.set(FIX.SERIAL_SMALL, 1, 1, { time: 100, status: 0 });
+    t.ctx.outbox.putMarktime(FIX.SERIAL_SMALL, 1, 1, 100);
+    persistState(t.ctx, true);
+    t.ctx.state.lists.set("k", { key: "k", items: [], page: 1, totalPages: 1, done: true });
+    assert.ok(keys(t, "kp.l2.").length > 0 && keys(t, "kp.out.").length > 0);
+    return t;
+  }
+
+  for (const [why, unlink] of [["logout", undefined], ["logout-local", 502]] as const) {
+    it(`${why}: no kp.l2.* and kp.out.*, empty caches, overlay and lists; kp.cfg.* stays`, async () => {
+      const t = await used();
+      if (unlink !== undefined) t.mock.setScenario({ rules: [{ path: "^/v1/device/unlink$", status: unlink }] });
+      await t.run(t.ctx.auth.logout());
+      assert.deepEqual([keys(t, "kp.l2."), keys(t, "kp.out.")], [[], []]);
+      assert.ok(keys(t, "kp.cfg.").includes("kp.cfg.prefs"));
+      assert.equal(t.ctx.repo.peekUser(), undefined);
+      assert.equal(t.ctx.overlay.get(FIX.SERIAL_SMALL, 1, 1), undefined);
+      assert.equal(t.ctx.state.lists.size, 0);
+    });
+  }
+
+  it("refresh-rejected (the same account, its session expired): the data stays", async () => {
+    const t = await used();
+    t.mock.setScenario({ refreshInvalid: true });
+    await t.run(t.ctx.auth.refresh(1).catch(() => undefined));
+    assert.equal(t.ctx.auth.isLoggedIn(), false);
+    assert.ok(keys(t, "kp.l2.").length > 0 && keys(t, "kp.out.").length > 0);
+    assert.notEqual(t.ctx.repo.peekUser(), undefined);
+    assert.equal(t.ctx.state.lists.size, 1);
   });
 });

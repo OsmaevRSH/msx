@@ -384,3 +384,27 @@ describe("SwrCache", () => {
     assert.deepEqual(mem.writes, ["kp.l2.k"]);
   });
 });
+
+// SET-8: выход стирает кэш прежнего входа; загрузка, начатая до выхода, свой ответ в кэш уже не кладёт.
+describe("SwrCache.wipe (SET-8)", () => {
+  it("drops L1 and L2 entries, failure marks and in-flight loads; a load started before wipe() caches nothing", async () => {
+    const { clock, mem, l2, cache } = setup();
+    await cache.get("user", PERSIST, loader({ name: "old" }));
+    l2.flush();
+    assert.deepEqual(l2Keys(mem), ["kp.l2.user"]);
+    const slow = deferred<string>();
+    const late = cache.get("history", PERSIST, () => slow.promise);
+    cache.wipe();
+    assert.equal(cache.peek("user"), undefined);
+    assert.deepEqual(l2Keys(mem), []);
+    const fresh = loader("new");
+    const again = cache.get("history", PERSIST, fresh);
+    assert.equal(fresh.calls, 1, "a new load does not join the old account's one");
+    slow.resolve("old");
+    assert.equal((await late).value, "old", "the old caller still gets its answer");
+    assert.equal((await again).value, "new");
+    await clock.advance(1000);
+    assert.equal(cache.peek("history")?.value, "new");
+    assert.equal(l2.get("history")?.value, "new");
+  });
+});

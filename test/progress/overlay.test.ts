@@ -152,3 +152,13 @@ describe("Overlay", () => {
     assert.equal(JSON.parse(o.serialize()).e.length, 1);
   });
 });
+
+describe("Overlay.wipe (SET-8)", () => {
+  it("forgets every position of the previous login", () => {
+    const o = new Overlay(new FakeClock());
+    o.set(2001, 1, 4, { time: 600, status: 0 });
+    o.wipe();
+    assert.equal(o.get(2001, 1, 4), undefined);
+    assert.deepEqual(o.forItem(2001), []);
+  });
+});

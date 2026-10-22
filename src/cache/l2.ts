@@ -106,6 +106,13 @@ export class L2 {
     this.total = 0;
   }
 
+  /** Выход из KinoPub (SET-8): все `kp.l2.*` и ещё не записанная пачка — личное прежнего входа. */
+  wipe(): void {
+    this.pending = new Map();
+    this.store.removeNs("l2");
+    this.resetIndex();
+  }
+
   remove(key: string): void {
     this.pending.delete(key);
     if (this.index !== undefined) this.drop(this.index, key);

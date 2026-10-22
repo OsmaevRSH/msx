@@ -46,6 +46,8 @@ export class SwrCache {
   private marks = new Map<string, number>();
   /** Ключи, последняя загрузка которых не удалась, и код сбоя; успешная загрузка ключ снимает. */
   private down = new Map<string, KpErrorCode>();
+  /** Растёт при `wipe()`: загрузка, начатая до него, ответ в кэш не кладёт. */
+  private gen = 0;
 
   constructor(deps: { l1: Lru; l2: L2; clock: Clock; log: Logger }) {
     this.l1 = deps.l1;
@@ -113,6 +115,17 @@ export class SwrCache {
     return this.l2.keys(prefix);
   }
 
+  /** Выход из KinoPub (SET-8): L1, L2, пометки и сбои прежнего входа; начатые загрузки отвечают своим, но в кэш не пишут. */
+  wipe(): void {
+    for (const k of this.l1.keys()) this.l1.delete(k);
+    this.l2.wipe();
+    this.flights = new Map();
+    this.dirty = new Set();
+    this.marks = new Map();
+    this.down = new Map();
+    this.gen += 1;
+  }
+
   delete(key: string): void {
     this.l1.delete(key);
     this.l2.remove(key);
@@ -176,24 +189,30 @@ export class SwrCache {
   }
 
   private async settle<T>(key: string, policy: Policy, started: Promise<T>): Promise<Entry<unknown>> {
+    const gen = this.gen;
     try {
       const value = await started;
       const e: Entry<unknown> = { value, bytes: sizeOf(value), fetchedAt: this.clock.now(), staleMarked: this.dirty.has(key) };
+      if (gen !== this.gen) return e;
       this.l1.set(key, e);
       if (policy.persist) this.l2.put(key, value);
       this.down.delete(key);
       return e;
     } catch (err) {
       const code = toKpError(err).code;
-      this.down.delete(key);
-      this.down.set(key, code);
-      if (this.down.size > DOWN_MAX) this.down.delete(this.down.keys().next().value ?? key);
+      if (gen === this.gen) {
+        this.down.delete(key);
+        this.down.set(key, code);
+        if (this.down.size > DOWN_MAX) this.down.delete(this.down.keys().next().value ?? key);
+      }
       // Ключ `err`: `code` журнал маскирует (CNFR-20).
       this.log.warn(TAG, "load_failed", { key, err: code });
       throw err;
     } finally {
-      this.flights.delete(key);
-      this.dirty.delete(key);
+      if (gen === this.gen) {
+        this.flights.delete(key);
+        this.dirty.delete(key);
+      }
     }
   }
 }
