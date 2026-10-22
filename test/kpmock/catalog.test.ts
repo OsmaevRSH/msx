@@ -244,6 +244,16 @@ describe("kpmock catalog, items, media links, CDN", () => {
     });
   });
 
+  describe("genres", () => {
+    type Genres = { items: { id: number; type: string }[] };
+    it("M-12: `type` of /v1/genres ignores case, like /v1/items: «3d» and «3D» are the movie genres", async () => {
+      const movie = (await json<Genres>("/v1/genres?type=movie")).items;
+      assert.ok(movie.length > 0);
+      for (const t of ["3d", "3D", "Movie", "SERIAL"]) assert.deepEqual((await json<Genres>(`/v1/genres?type=${t}`)).items, movie, t);
+      assert.ok((await json<Genres>("/v1/genres?type=Concert")).items.every((g) => g.type === "music"));
+    });
+  });
+
   describe("item card", () => {
     it("serial: 10 seasons × 20 episodes, progress from state, url links, bookmarks", async () => {
       const { item } = await json<ItemBody>(`/v1/items/${FIX.SERIAL_BIG}`);

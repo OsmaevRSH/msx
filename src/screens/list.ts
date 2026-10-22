@@ -12,7 +12,7 @@ import type { ListKey } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
 import { countryTitle, filterSource, filterTokens, withFilters } from "./filters.ts";
 import {
-  COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
+  COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, genreType, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
 } from "./list-head.ts";
 import { listTileOptions } from "./tile-actions.ts";
 import { GRID, ROW, collectionTiles, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
@@ -257,7 +257,7 @@ async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSour
 async function genreTitle(ctx: AppContext, k: ListKey): Promise<string | undefined> {
   if (!k.genre || sectionGenre(k.genre) !== undefined) return undefined;
   try {
-    const all = (await ctx.repo.genres((k.type ?? "").split(",")[0])).value;
+    const all = (await ctx.repo.genres(genreType(k))).value;
     const titles = k.genre.split(",").map((id) => all.find((g) => String(g.id) === id)?.title);
     return titles.every((s) => s !== undefined) ? titles.join(", ") : undefined;
   } catch (e) {

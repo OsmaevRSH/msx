@@ -199,6 +199,14 @@ describe("listScreen (S5, CC-05)", () => {
     assert.equal(top.headline, "Сериалы · Рейтинг КП");
   });
 
+  it("QA-NAV-10: «4K» (no type) with a genre takes its title from /v1/genres?type=movie, not from an empty type", async () => {
+    const t = await make();
+    const s = await t.request(ids.list(encodeListKey({ src: "catalog", sort: "-updated", quality: "4", genre: "9" })));
+    assert.match(s.headline ?? "", / · Драма$/);
+    const genres = t.mock.calls().filter((c) => c.path === "/v1/genres").map((c) => new URLSearchParams(c.query).get("type"));
+    assert.deepEqual(genres, ["movie"]);
+  });
+
   it("V-09, V-11: the extension shows the sort, the genre and the total from pagination", async () => {
     const t = await make();
     const key = catalogKey("movie", { genre: "9", sort: "-kinopoisk_rating" });

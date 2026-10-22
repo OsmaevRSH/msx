@@ -6,7 +6,7 @@ import { chain, commitMsg, replaceContent, replacePanel, resolveAction } from ".
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { DEFAULT_PREFS } from "../../src/playback/prefs.ts";
 import { withLoc } from "../../src/playback/url.ts";
-import { encodeListKey, ids, listFlag, msgs } from "../../src/router/ids.ts";
+import { decodeListKey, encodeListKey, ids, listFlag, msgs } from "../../src/router/ids.ts";
 import type { ListKey } from "../../src/router/ids.ts";
 import { choicePanel, onPanelAct } from "../../src/screens/panels.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
@@ -134,6 +134,15 @@ describe("panelScreen: sort and genre (S6)", () => {
     assert.deepEqual(current(s), [`${CHECK}Все жанры`]);
     assert.equal(row(s, "Драма").action, switchList({ ...MOVIES, genre: "9" }, MOVIES));
     assert.ok(t.mock.calls().some((c) => c.path === "/v1/genres" && new URLSearchParams(c.query).get("type") === "movie"));
+  });
+
+  it("QA-NAV-10: genre of «4K» (no type) asks /v1/genres?type=movie — never an empty type", async () => {
+    const t = await make();
+    const uhd = encodeListKey({ src: "catalog", sort: "-updated", quality: "4" });
+    const s = await panel(t, "genre", uhd);
+    assert.equal(rows(s).length, 31);
+    assert.equal(row(s, "Драма").action, switchList({ src: "catalog", sort: "-updated", quality: "4", genre: "9" }, decodeListKey(uhd)));
+    assert.deepEqual(t.mock.calls().filter((c) => c.path === "/v1/genres").map((c) => c.query.replace(/&?access_token=[^&]*/, "")), ["type=movie"]);
   });
 
   it("genre is only for the catalog: a shelf does not filter by genre (research kinopub-api §6.1) — an error inside the panel", async () => {

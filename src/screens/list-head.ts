@@ -31,6 +31,8 @@ export const isShelf = (src: string): src is Shelf => (SHELVES as readonly strin
 export const SHELF_TYPES = ["movie", "serial", "documovie", "docuserial", "concert", "tvshow", "3d", "all"] as const;
 export const SHELF_TYPE = "movie";
 const ALL_TYPES = "movie,serial,concert,documovie,docuserial,tvshow";
+/** Тип для `/v1/genres` — первый тип ключа; без типа («4K») — жанры фильмов: пустой `type=` не отправляется (QA-NAV-10). */
+export const genreType = (k: ListKey): string => (k.type ?? "").split(",")[0] || SHELF_TYPE;
 /** `type` запроса полки по вкладке. */
 export const shelfQueryType = (t: string): string => (t === "all" ? ALL_TYPES : t);
 const SHELF_KEY = "shelf";

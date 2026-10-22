@@ -23,9 +23,9 @@ const VIDEO_QUALITIES = [
   { id: 3, title: "1080p", quality: 1080 }, { id: 4, title: "2160p", quality: 2160 },
 ];
 
-/** `type` у /v1/genres — группа жанров или тип контента (research kinopub-api §6.1). */
+/** `type` у /v1/genres — группа жанров или тип контента (research kinopub-api §6.1), без учёта регистра, как у /v1/items (M-12). */
 const GENRE_GROUP: Record<string, keyof typeof GENRES> = {
-  movie: "movie", serial: "movie", "3D": "movie", docu: "docu", documovie: "docu", docuserial: "docu",
+  movie: "movie", serial: "movie", "3d": "movie", docu: "docu", documovie: "docu", docuserial: "docu",
   tvshow: "tvshow", music: "music", concert: "music",
 };
 
@@ -37,8 +37,9 @@ const REFERENCES: Record<string, () => unknown[]> = {
   "voiceover-author": () => AUTHORS.map(({ id, title }) => ({ id, title })),
 };
 
-function genres(type: string | null): { id: number; title: string; type: string }[] {
-  const groups = type === null || type === "" ? (Object.keys(GENRES) as (keyof typeof GENRES)[])
+function genres(raw: string | null): { id: number; title: string; type: string }[] {
+  const type = raw?.toLowerCase();
+  const groups = type === undefined || type === "" ? (Object.keys(GENRES) as (keyof typeof GENRES)[])
     : Object.hasOwn(GENRE_GROUP, type) ? [GENRE_GROUP[type]] : [];
   return groups.flatMap((g) => GENRES[g].map(({ id, title }) => ({ id, title, type: g })));
 }

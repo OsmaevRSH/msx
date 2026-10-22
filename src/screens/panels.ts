@@ -16,7 +16,7 @@ import { errorScreen, errorText } from "./error.ts";
 import { filterPanel, onFilterAct } from "./filters.ts";
 import { genresOrStatic } from "./genres-static.ts";
 import { freshItem } from "./item.ts";
-import { SHELF_TYPES, isShelf, setShelfType, shelfType, shelfTypeTitle, sortChoices } from "./list-head.ts";
+import { SHELF_TYPES, genreType, isShelf, setShelfType, shelfType, shelfTypeTitle, sortChoices } from "./list-head.ts";
 import { orderPanel } from "./order-edit.ts";
 import { MODE_NAMES, audioName, countryName, dim, folderName, subsName } from "./panels-labels.ts";
 import { seasonFlag, seasonLabel } from "./season.ts";
@@ -129,7 +129,7 @@ async function genrePanel(ctx: AppContext, arg: string | undefined): Promise<Msx
   const { key, k } = listArg(arg, ["catalog"]);
   const { genre: cur, ...all } = k;
   const rows: Row[] = [{ label: T.allGenres, action: switchList(ctx, key, all), current: !cur }];
-  for (const g of await genresOrStatic(ctx, (k.type ?? "").split(",")[0])) {
+  for (const g of await genresOrStatic(ctx, genreType(k))) {
     rows.push({ label: g.title, action: switchList(ctx, key, { ...k, genre: String(g.id) }), current: cur === String(g.id) });
   }
   return choicePanel(ctx, T.genre, rows, HALF);
