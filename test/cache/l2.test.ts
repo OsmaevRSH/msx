@@ -147,18 +147,21 @@ describe("L2", () => {
     assert.ok(log.entries().some((e) => e.level === "warn" && e.tag === "l2"));
   });
 
-  it("storage quota overflow does not throw, skips the write and leaves kp.auth.* alone", () => {
+  // SET-15: L2 освобождает место старыми записями, как при бюджете; не поместилось и без них — запись пропущена.
+  it("storage quota overflow does not throw and leaves kp.auth.* alone: room from the oldest entries, else the write is skipped", () => {
     const { log, kv, mem, l2 } = setup({ quotaBytes: 2000 });
     assert.equal(kv.set("auth", "access", "mock-at-1"), true);
     assert.equal(kv.set("auth", "refresh", "mock-rt-1"), true);
     l2.put("small", 1);
     l2.put("big", sized(1800));
     assert.doesNotThrow(() => l2.flush());
+    assert.deepEqual(l2Keys(mem), ["kp.l2.big"], "the older entry made room");
+    l2.put("huge", sized(2400));
+    assert.doesNotThrow(() => l2.flush());
     assert.equal(kv.get("auth", "access"), "mock-at-1");
     assert.equal(kv.get("auth", "refresh"), "mock-rt-1");
-    assert.deepEqual(l2Keys(mem), ["kp.l2.small"]);
-    assert.equal(l2.get("big"), undefined);
-    assert.ok(log.entries().some((e) => e.level === "warn" && e.tag === "l2" && e.data?.["key"] === "big"));
+    assert.equal(l2.get("huge"), undefined);
+    assert.ok(log.entries().some((e) => e.level === "warn" && e.tag === "l2" && e.data?.["key"] === "huge"));
   });
 
   it("ignores and removes a malformed record", () => {
@@ -230,6 +233,31 @@ describe("L2", () => {
     l2.flush();
     assert.deepEqual(l2.keys(""), ["d", "e", "f"]);
     assert.deepEqual(l2Keys(mem), ["kp.l2.d", "kp.l2.e", "kp.l2.f"]);
+  });
+
+  it("SET-15: L2's own write over the storage quota evicts its oldest entries instead of skipping", async () => {
+    const { clock, mem, l2 } = setup({ quotaBytes: 1500 });
+    for (const k of ["a", "b", "c", "d"]) {
+      l2.put(k, sized(400));
+      l2.flush();
+      await clock.advance(1000);
+    }
+    assert.deepEqual(l2Keys(mem), ["kp.l2.b", "kp.l2.c", "kp.l2.d"]);
+    assert.deepEqual(l2.keys(""), ["b", "c", "d"]);
+  });
+
+  it("SET-15: createApp wires the quota to L2 eviction: an auth write over the quota keeps the newer entries", async () => {
+    const mem = new MemoryStorage({ quotaBytes: 2000 });
+    const clock = new FakeClock();
+    const { ctx } = createApp({ host: new FakeHost(), storage: mem, fetch: () => Promise.reject(new TypeError("offline")), P: TEST_P, clock });
+    ctx.l2.put("a", sized(600));
+    ctx.l2.flush();
+    await clock.advance(1000);
+    ctx.l2.put("b", sized(600));
+    ctx.l2.flush();
+    assert.equal(ctx.store.set("auth", "pair", "p".repeat(400)), true);
+    assert.deepEqual(ctx.l2.keys(""), ["b"]);
+    assert.deepEqual(l2Keys(mem), ["kp.l2.b"]);
   });
 
   it("createApp wires the KvStore purge to its L2", () => {

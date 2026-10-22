@@ -116,6 +116,28 @@ describe("KvStore", () => {
     assert.ok(mem.usedBytes() <= 4000);
   });
 
+  // SET-15: у квоты запись kp.out.* (оверлей раз в 30 с) стирала весь L2 — теперь L2 освобождает место по одной записи.
+  it("SET-15: with an L2 evictor an auth write over the quota frees space one entry at a time, not the whole kp.l2.*", () => {
+    const { log, kv } = setup(2000);
+    for (const k of ["a", "b", "c"]) kv.set("l2", k, "x".repeat(300));
+    const order = ["a", "b", "c"];
+    let evicted = 0;
+    kv.onQuota(() => {
+      const k = order.shift();
+      if (k === undefined) return false;
+      kv.remove("l2", k);
+      evicted += 1;
+      return true;
+    });
+    assert.equal(kv.set("auth", "pair", "p".repeat(400)), true);
+    assert.deepEqual([kv.keys("l2"), evicted], [["c"], 2]);
+    assert.ok(!messages(log).includes("warn:storage:quota_purge_l2"));
+    kv.onQuota(() => false);
+    assert.equal(kv.set("out", "big", "q".repeat(300)), true, "the evictor has nothing to evict → the old purge");
+    assert.deepEqual(kv.keys("l2"), []);
+    assert.ok(messages(log).includes("warn:storage:quota_purge_l2"));
+  });
+
   it("purges l2 for cfg and out as well", () => {
     for (const ns of ["cfg", "out"] as const) {
       const { log, kv } = setup(4000);

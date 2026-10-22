@@ -96,6 +96,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   auth.bindApi(api);
   const l2 = new L2(store, clock, undefined, log);
   store.onL2Purged(() => l2.resetIndex());
+  store.onQuota(() => l2.evictForQuota());
   const cache = new SwrCache({ l1: new Lru(), l2, clock, log });
   const repo = new Repo({ api, cache, clock, log });
   auth.onDeviceSaved = () => repo.forgetDevice();

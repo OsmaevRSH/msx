@@ -106,6 +106,11 @@ export class L2 {
     this.total = 0;
   }
 
+  /** Квота хранилища при записи `kp.auth|cfg|out.*` (SET-15): удалить самую старую запись; `false` — удалять нечего. */
+  evictForQuota(): boolean {
+    return this.evictOldest(this.loadIndex());
+  }
+
   /** Выход из KinoPub (SET-8): все `kp.l2.*` и ещё не записанная пачка — личное прежнего входа. */
   wipe(): void {
     this.pending = new Map();
@@ -135,9 +140,12 @@ export class L2 {
       if (!this.evictOldest(index)) break;
     }
     const rec: Rec = { v, t, b };
-    if (!this.store.set("l2", key, rec)) {
-      this.log?.warn(TAG, "skip_quota", { key, bytes: b });
-      return;
+    // SET-15: квота хранилища раньше бюджета — место освобождают самые старые записи, как при бюджете.
+    while (!this.store.set("l2", key, rec)) {
+      if (!this.evictOldest(index)) {
+        this.log?.warn(TAG, "skip_quota", { key, bytes: b });
+        return;
+      }
     }
     index.set(key, { t, b });
     this.total += b;

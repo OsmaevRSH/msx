@@ -34,6 +34,7 @@ export class KvStore {
   private storage: StorageLike;
   private log: Logger | undefined;
   private l2Purged: (() => void)[] = [];
+  private evict: (() => boolean) | undefined;
 
   constructor(storage: StorageLike, log?: Logger) {
     this.storage = storage;
@@ -52,7 +53,10 @@ export class KvStore {
     }
   }
 
-  /** `undefined` удаляет ключ. Токены и настройки важнее кэша: при переполнении L2 удаляется (спец. §7.3, CR-12). */
+  /**
+   * `undefined` удаляет ключ. Токены и настройки важнее кэша: при переполнении место освобождает L2 — по одной самой
+   * старой записи (`onQuota`, SET-15), а если вытеснять нечего — весь `kp.l2.*` (спец. §7.3, CR-12).
+   */
   set(ns: Ns, key: string, value: unknown): boolean {
     const full = prefix(ns) + key;
     if (value === undefined) {
@@ -60,14 +64,17 @@ export class KvStore {
       return true;
     }
     const json = JSON.stringify(value);
-    try {
-      this.storage.setItem(full, json);
-      return true;
-    } catch (e) {
-      if (!isQuotaError(e)) return this.failed(full, e);
-      if (ns === "l2") {
-        this.log?.debug(TAG, "l2_quota", { key: full });
-        return false;
+    for (;;) {
+      try {
+        this.storage.setItem(full, json);
+        return true;
+      } catch (e) {
+        if (!isQuotaError(e)) return this.failed(full, e);
+        if (ns === "l2") {
+          this.log?.debug(TAG, "l2_quota", { key: full });
+          return false;
+        }
+        if (this.evict?.() !== true) break;
       }
     }
     this.removeNs("l2");
@@ -78,6 +85,11 @@ export class KvStore {
     } catch (e) {
       return this.failed(full, e);
     }
+  }
+
+  /** Переполнение при записи не в L2: `evict` удаляет самую старую запись L2; `false` — удалять нечего (SET-15). */
+  onQuota(evict: () => boolean): void {
+    this.evict = evict;
   }
 
   /** Все `kp.l2.*` удалены (переполнение или `removeNs("l2")`): L2 держит индекс размеров в памяти и должен его сбросить. */
