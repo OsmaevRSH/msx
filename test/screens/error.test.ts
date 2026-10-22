@@ -17,7 +17,7 @@ const SEARCH = `content:request:interaction:search@${TEST_P}`;
 
 const TEXTS: [KpErrorCode, string][] = [
   ["KP-NET", "Нет связи с KinoPub. Проверьте VPN"],
-  ["KP-429", "KinoPub сейчас не отвечает. Повторите через минуту"],
+  ["KP-429", "Слишком много запросов к KinoPub. Подождите минуту и нажмите «Повторить»"],
   ["KP-5XX", "KinoPub не отвечает"],
   ["KP-404", "Тайтл недоступен или удалён из каталога"],
   ["KP-AUTH", "Сессия KinoPub завершена, войдите снова"],

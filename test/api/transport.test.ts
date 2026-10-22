@@ -229,6 +229,48 @@ describe("Transport", () => {
     });
   });
 
+  // QA-API-3: срок экрана (V-40) спрашивает у транспорта, чем KinoPub ответил за последние 6 с, чтобы показать KP-429 или
+  // KP-5XX, а не «Проверьте VPN».
+  describe("recentFail: the last refusal of the server", () => {
+    it("nothing failed → undefined; a 429 → KP-429 for the given window, then undefined", async () => {
+      const r = rig();
+      assert.equal(r.t.recentFail(6000), undefined);
+      mock.setScenario({ rules: [{ path: "^/v1/types$", status: 429 }] });
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/types", { retry: "none" }))), kp("KP-429"));
+      assert.equal(r.t.recentFail(6000), "KP-429");
+      await r.clock.advance(6000);
+      assert.equal(r.t.recentFail(6000), "KP-429", "exactly 6 s ago still counts");
+      await r.clock.advance(1);
+      assert.equal(r.t.recentFail(6000), undefined);
+    });
+
+    it("5xx → KP-5XX; the latest refusal wins; a later success does not erase it", async () => {
+      const r = rig();
+      mock.setScenario({ rules: [{ path: "^/v1/types$", status: 429, times: 1 }, { path: "^/v1/items$", status: 503, times: 1 }] });
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/types", { retry: "none" }))), kp("KP-429"));
+      await r.clock.advance(1000);
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items", { retry: "none" }))), kp("KP-5XX"));
+      assert.equal(r.t.recentFail(6000), "KP-5XX");
+      await r.clock.runUntilSettled(r.t.send(get("/v1/types", { query: { access_token: token } })));
+      assert.equal(r.t.recentFail(6000), "KP-5XX", "the screen request itself may still be waiting for its retry");
+    });
+
+    it("a no-cors verdict counts as KP-429; TypeErrors, timeouts and 4xx do not count", async () => {
+      mock.setScenario({ noCorsErrors: true, rules: [{ path: "^/v1/items$", status: 429 }] });
+      const r = rig();
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items"))), kp("KP-429"));
+      assert.equal(r.t.recentFail(6000), "KP-429");
+
+      const q = rig();
+      mock.setScenario({ noCorsErrors: false, rules: [{ path: ".*", drop: true }] });
+      await assert.rejects(q.clock.runUntilSettled(q.t.send(get("/v1/items"))), kp("KP-NET"));
+      mock.setScenario({ rules: [] });
+      await assert.rejects(q.clock.runUntilSettled(q.t.send(get("/v1/nothing", { query: { access_token: token } }))), kp("KP-404"));
+      await assert.rejects(q.clock.runUntilSettled(q.t.send(get("/v1/types"))), kp("KP-AUTH"));
+      assert.equal(q.t.recentFail(60_000), undefined);
+    });
+  });
+
   describe("network errors and the no-cors probe (CC-13, CM-01)", () => {
     it("3 dropped /v1/items in a row, /v1/types reachable → one probe, KP-429, api_no_cors", async () => {
       mock.setScenario({ rules: [{ path: "^/v1/items$", drop: true }] });

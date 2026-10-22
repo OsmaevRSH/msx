@@ -9,7 +9,7 @@ import { ids, isPanelId, parseDataId } from "../router/ids.ts";
 
 const TEXTS: Readonly<Record<KpErrorCode, string>> = {
   "KP-NET": "Нет связи с KinoPub. Проверьте VPN",
-  "KP-429": "KinoPub сейчас не отвечает. Повторите через минуту",
+  "KP-429": "Слишком много запросов к KinoPub. Подождите минуту и нажмите «Повторить»",
   "KP-5XX": "KinoPub не отвечает",
   "KP-404": "Тайтл недоступен или удалён из каталога",
   "KP-AUTH": "Сессия KinoPub завершена, войдите снова",
@@ -71,8 +71,8 @@ export function errorItems(ctx: AppContext, err: unknown, o: ErrorItemsOptions):
   ];
 }
 
-/** Корни экранов ошибки: поздний ответ с ошибкой не заменяет экран «не отвечает» (V-40). */
-const failed = new WeakSet<object>();
+/** Корни экранов ошибки и их коды: поздняя ошибка заменяет экран срока, только если говорит что-то новое (V-40). */
+const failed = new WeakMap<object, KpErrorCode>();
 
 /**
  * S14. Ошибку запроса `panel:…` MSX рисует в панели (сетка 8×6), поэтому там «Повторить» перезапрашивает
@@ -89,18 +89,21 @@ export function errorScreen(ctx: AppContext, err: unknown, retryDataId?: string,
     text,
   });
   const root: MsxContentRoot = { type: "pages", cache: false, reuse: false, headline: T.title, pages: [{ items }] };
-  failed.add(root);
+  failed.set(root, errorText(err).code);
   return root;
 }
 
-export const isErrorScreen = (v: unknown): boolean => typeof v === "object" && v !== null && failed.has(v);
+/** Код экрана ошибки или `undefined`, если это не экран ошибки. */
+export const errorCodeOf = (v: unknown): KpErrorCode | undefined => (typeof v === "object" && v !== null ? failed.get(v) : undefined);
 
 /**
- * V-40: данных экрана нет за срок (спец. §12) — S14 `KP-NET` «KinoPub не отвечает». `flag` — для `replace:` поздним
- * ответом: MSX заменит только этот экран.
+ * V-40: данных экрана нет за срок (спец. §12) — S14 с причиной `code` (QA-API-3: KinoPub отказал за срок — 429 или
+ * 5xx), а без неё `KP-NET` «KinoPub не отвечает. Проверьте VPN». `flag` — для `replace:` поздним ответом: MSX заменит
+ * только этот экран.
  */
-export function slowScreen(ctx: AppContext, dataId: string, flag: string): MsxContentRoot {
-  return { ...errorScreen(ctx, new KpError("KP-NET", "deadline"), dataId, T.slow), flag };
+export function slowScreen(ctx: AppContext, dataId: string, flag: string, code?: KpErrorCode): MsxContentRoot {
+  const root = code === undefined ? errorScreen(ctx, new KpError("KP-NET", "deadline"), dataId, T.slow) : errorScreen(ctx, new KpError(code, "deadline"), dataId);
+  return { ...root, flag };
 }
 
 export function placeholderScreen(ctx: AppContext, title: string): MsxContentRoot {

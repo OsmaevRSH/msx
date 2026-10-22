@@ -1,6 +1,7 @@
 import { sleep } from "../core/clock.ts";
 import type { Clock, TimerId } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
+import type { KpErrorCode } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { Metrics } from "../core/metrics.ts";
 import type { FlagStore } from "../config/flags.ts";
@@ -120,6 +121,8 @@ export class Transport {
   private quietMark = 0;
   /** Ждущие попытки `retry: "auto"` — кандидаты на вердикт «нет ответа». */
   private waits = new Set<Wait>();
+  /** Последний отказ сервера — 429 (и «ответ без CORS») или 5xx — и когда он пришёл (`perf`), QA-API-3. */
+  private fail: { code: KpErrorCode; at: number } | undefined;
 
   constructor(deps: TransportDeps) {
     this.fetch = deps.fetch;
@@ -144,6 +147,19 @@ export class Transport {
       if (!out.retry || i + 1 >= attempts) throw out.err;
       await sleep(this.clock, out.pauseMs ?? (RETRY_PAUSES_MS[i] as number));
     }
+  }
+
+  /**
+   * Чем KinoPub отказал за последние `ms` (`KP-429` или `KP-5XX`): срок экрана показывает эту причину, а не «Проверьте
+   * VPN» (QA-API-3). Успех позже отказа его не стирает — запрос экрана может ещё ждать своего повтора.
+   */
+  recentFail(ms: number): KpErrorCode | undefined {
+    const f = this.fail;
+    return f !== undefined && this.clock.perf() - f.at <= ms ? f.code : undefined;
+  }
+
+  private failed(code: KpErrorCode): void {
+    this.fail = { code, at: this.clock.perf() };
   }
 
   /** Сервер доступен, но мог ответить без CORS (спец. §5.3 п. 2): любой ответ на `no-cors` — да, исключение — нет. */
@@ -316,6 +332,7 @@ export class Transport {
         // circuit breaker тоже: сервер ответил, это не сетевой сбой, иначе следующий экран получил бы `KP-NET`.
         this.breaker.success();
         this.limiter.on429();
+        this.failed("KP-429");
         this.metrics.inc("api:429");
         this.log.warn("api", "api_no_cors", { path: pathOnly(req.path) });
         return { ok: false, err: new KpError("KP-429", "no-cors", undefined, "api_no_cors"), retry: true, pauseMs: NO_CORS_PAUSE_MS };
@@ -332,9 +349,13 @@ export class Transport {
     this.logCall(status >= 500 || status === 429 ? "warn" : "info", req, String(status), ms);
     // Любой ответ, и 5xx тоже, — для breaker не сетевой сбой: сеть и VPN в порядке (QA-API-4).
     this.breaker.success();
-    if (status >= 500) return { ok: false, err: new KpError("KP-5XX", "server-error", status), retry: true };
+    if (status >= 500) {
+      this.failed("KP-5XX");
+      return { ok: false, err: new KpError("KP-5XX", "server-error", status), retry: true };
+    }
     if (status === 429) {
       this.limiter.on429();
+      this.failed("KP-429");
       this.metrics.inc("api:429");
       return { ok: false, err: new KpError("KP-429", "rate-limited", status), retry: true };
     }

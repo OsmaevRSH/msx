@@ -5,11 +5,12 @@ import { slotOf } from "../bridge/current.ts";
 import type { PluginApp } from "../bridge/host.ts";
 import { onFocus } from "../cache/prefetch.ts";
 import { KpError, toKpError } from "../core/errors.ts";
+import type { KpErrorCode } from "../core/errors.ts";
 import { replaceContent, replacePanel } from "../msx/actions.ts";
 import { resolvePlay } from "../playback/resolve.ts";
 import { probeOnReady, withProbe } from "../probe/lazy.ts";
 import { bookmarksScreen } from "../screens/bookmarks.ts";
-import { errorScreen, errorText, isErrorScreen, slowScreen } from "../screens/error.ts";
+import { errorCodeOf, errorScreen, errorText, slowScreen } from "../screens/error.ts";
 import { homeScreen, warmHome } from "../screens/home.ts";
 import { itemScreen, onItemAct, trailerResolve } from "../screens/item.ts";
 import { listScreen, onExtend } from "../screens/list.ts";
@@ -38,8 +39,8 @@ const RING = 200;
 export const SCREEN_DEADLINE_MS = 6000;
 
 type Slot = "content" | "panel";
-/** Экран «не отвечает», показанный в слоте, и поздние данные для его `replace:` с моментом их прихода. */
-interface Slow { dataId: string; flag: string; late?: unknown; at?: number }
+/** Экран срока, показанный в слоте, его код и поздний ответ для его `replace:` с моментом прихода. */
+interface Slow { dataId: string; flag: string; code: KpErrorCode; late?: unknown; at?: number }
 
 /** Обработчик маршрута; таблица ниже — единственное место связи `dataId` с экранами (план §0.6.8, этап 16). */
 export type RouteTable = { [K in Route["k"]]: (ctx: AppContext, r: Extract<Route, { k: K }>) => unknown };
@@ -212,8 +213,9 @@ export class App implements PluginApp {
   }
 
   /**
-   * V-40: ответ маршрута, а если его нет за `SCREEN_DEADLINE_MS` — экран «не отвечает» с уникальным флагом. Запрос не
-   * отменяется: его данные лягут в кэш, а пока этот экран показан и текущий — заменят его (`late`).
+   * V-40: ответ маршрута, а если его нет за `SCREEN_DEADLINE_MS` — экран срока с уникальным флагом и причиной: отказ
+   * KinoPub за эти 6 с (`KP-429`, `KP-5XX`; QA-API-3), иначе «не отвечает» `KP-NET`. Запрос не отменяется: его данные
+   * лягут в кэш, а пока этот экран показан и текущий — заменят его (`late`).
    */
   private timed(slot: Slot, n: number, dataId: string, r: Route): Promise<unknown> {
     const { ctx } = this;
@@ -223,10 +225,11 @@ export class App implements PluginApp {
         // Вердикт транспорта за те же 6 с (§5.3 п. 4) и кэш после него важнее: им — один шаг таймеров.
         timer = ctx.clock.setTimeout(() => {
           flag = `late_${++this.slowSeq}`;
-          if (this.asked[slot] === n) this.slow[slot] = { dataId, flag };
+          const code = ctx.transport.recentFail(SCREEN_DEADLINE_MS);
+          if (this.asked[slot] === n) this.slow[slot] = { dataId, flag, code: code ?? "KP-NET" };
           ctx.metrics.inc("screen:deadline");
-          ctx.log.warn(TAG, "deadline", { route: r.k });
-          answer(slowScreen(ctx, dataId, flag));
+          ctx.log.warn(TAG, "deadline", { route: r.k, err: code });
+          answer(slowScreen(ctx, dataId, flag, code));
         }, 0);
       }, SCREEN_DEADLINE_MS);
       void this.route(r, dataId).then((out) => {
@@ -240,12 +243,16 @@ export class App implements PluginApp {
     });
   }
 
-  /** Поздний ответ: ошибка ничего не меняет; данные заменяют экран «не отвечает», только если он показан и текущий. */
+  /**
+   * Поздний ответ заменяет экран срока, только если тот показан и текущий. Данные — всегда; ошибка — если говорит новое
+   * (QA-API-3): не `KP-NET` (не добавит ничего к «Проверьте VPN») и не код, который экран уже показывает.
+   */
   private late(slot: Slot, dataId: string, flag: string, out: unknown): void {
     const { ctx } = this;
     const s = this.slow[slot];
     const shown = s?.flag === flag && (slot === "panel" || ctx.current.isCurrent(dataId));
-    const kind = isErrorScreen(out) ? "failed" : shown ? "replaced" : "not_current";
+    const code = errorCodeOf(out);
+    const kind = code === "KP-NET" || (code !== undefined && code === s?.code) ? "failed" : shown ? "replaced" : "not_current";
     ctx.metrics.inc(`screen:late_${kind}`);
     ctx.log.info(TAG, `late ${kind}`, { route: parseDataId(dataId).k });
     if (kind !== "replaced" || s === undefined) return;
