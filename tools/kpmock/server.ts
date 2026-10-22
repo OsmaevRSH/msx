@@ -15,7 +15,12 @@ export interface MockOptions {
 }
 export interface CallRecord { t: number; method: string; path: string; query: string; contentType?: string;
   origin?: string; hasAuthHeader: boolean; status: number }   // status 0 — соединение оборвано
-export interface MockServer { url: string; state: MockState; calls(): CallRecord[]; stats(): { maxInFlight: number; held: number };
+/**
+ * `maxInFlight` — больше всего запросов одновременно (любых); `maxApiInFlight` — только к API (`/v1/*`, `/oauth2/*`), без
+ * постеров и CDN: так проверяется лимит клиента «не больше 3» (CNFR-18, M-6).
+ */
+export interface MockStats { maxInFlight: number; maxApiInFlight: number; held: number }
+export interface MockServer { url: string; state: MockState; calls(): CallRecord[]; stats(): MockStats;
   setScenario(p: Partial<Scenario>): void; reset(): void; issueToken(): { access: string; refresh: string }; close(): Promise<void>;
   /** Отпустить запросы, которые держит правило `hang`: они получают обычный ответ. Возвращает их число. */
   release(): number }
@@ -73,6 +78,8 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
   let calls: CallRecord[] = [];
   let inFlight = 0;
   let maxInFlight = 0;
+  let apiInFlight = 0;
+  let maxApiInFlight = 0;
   let window: number[] = [];
   let url = "";
   const held = new Set<Held>();
@@ -91,7 +98,7 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     url: "",
     state,
     calls: () => calls.map((c) => ({ ...c })),
-    stats: () => ({ maxInFlight, held: held.size }),
+    stats: () => ({ maxInFlight, maxApiInFlight, held: held.size }),
     setScenario: (p) => { scenario = mergeScenario(scenario, p); },
     release: () => letGo(true),
     reset: () => {
@@ -100,6 +107,7 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
       scenario = cloneScenario(baseScenario);
       calls = [];
       maxInFlight = 0;
+      maxApiInFlight = 0;
       window = [];
     },
     issueToken: () => {
@@ -226,7 +234,12 @@ export async function startMock(opts: MockOptions = {}): Promise<MockServer> {
     calls.push(rec);
     inFlight += 1;
     maxInFlight = Math.max(maxInFlight, inFlight);
-    res.once("close", () => { inFlight -= 1; });
+    const isApi = kind === "api" && method !== "OPTIONS";
+    if (isApi) maxApiInFlight = Math.max(maxApiInFlight, ++apiInFlight);
+    res.once("close", () => {
+      inFlight -= 1;
+      if (isApi) apiInFlight -= 1;
+    });
 
     // Любой preflight отклоняется без CORS, хотя боевой сервер его поддерживает: так ловится непростой запрос (CNFR-19).
     if (method === "OPTIONS") return reply(res, rec, "other", { status: 405, text: "Method Not Allowed" });

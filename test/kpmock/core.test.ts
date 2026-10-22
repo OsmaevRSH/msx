@@ -188,6 +188,21 @@ describe("kpmock core server", () => {
     assert.equal(viaHttp.maxInFlight, 5);
   });
 
+  // M-6 (QA-API-5): лимит клиента — не больше 3 запросов к API одновременно; постеры и CDN к API не относятся.
+  it("counts concurrent API requests (/v1/*, /oauth2/*) apart from posters and CDN: maxApiInFlight", async () => {
+    mock.setScenario({ delayMs: 100 });
+    const rs = await Promise.all([
+      api("/v1/types"), api("/v1/types"), api("/oauth2/token", { method: "POST" }), api("/poster/medium/2001.svg"), api("/poster/medium/2002.svg"),
+    ]);
+    assert.equal(rs.length, 5);
+    assert.equal(mock.stats().maxInFlight, 5);
+    assert.equal(mock.stats().maxApiInFlight, 3);
+    const viaHttp = (await (await api("/__mock/stats")).json()) as { maxApiInFlight: number };
+    assert.equal(viaHttp.maxApiInFlight, 3);
+    mock.reset();
+    assert.equal(mock.stats().maxApiInFlight, 0);
+  });
+
   it("invalidates current access tokens on /__mock/expire-access", async () => {
     const t = await token();
     assert.equal((await api(`/v1/types?access_token=${t}`)).status, 200);
