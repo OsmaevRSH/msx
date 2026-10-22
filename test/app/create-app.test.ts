@@ -1,6 +1,8 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { persistState } from "../../src/app/context.ts";
+import type { MsxContentRoot } from "../../src/msx/types.ts";
+import { ids } from "../../src/router/ids.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
@@ -103,6 +105,24 @@ describe("SET-8: what logout leaves behind (createApp)", () => {
       assert.equal(t.ctx.repo.peekUser(), undefined);
       assert.equal(t.ctx.overlay.get(FIX.SERIAL_SMALL, 1, 1), undefined);
       assert.equal(t.ctx.state.lists.size, 0);
+    });
+  }
+
+  // QA-SET-8, подключение `forgetHome` (пакет F): память сборок полок главной — тоже личное прежнего входа.
+  for (const [why, unlink] of [["logout", undefined], ["logout-local", 502]] as const) {
+    it(`${why}: the next login's home without a cache and with KinoPub slow — «Загружаю главную…», not the previous shelves`, async () => {
+      const t = await make();
+      const before = JSON.stringify(await t.request(ids.home()));
+      assert.ok(before.includes(`"c${FIX.SERIAL_BIG}"`), "the previous account's «Продолжить»");
+      if (unlink !== undefined) t.mock.setScenario({ rules: [{ path: "^/v1/device/unlink$", status: unlink }] });
+      await t.run(t.ctx.auth.logout());
+      await t.run(t.ctx.auth.completeLogin({ ...t.mock.issueToken(), expiresIn: 3600 }, "MSX TV"));
+      await t.run(t.ctx.auth.deviceReady());
+      t.mock.setScenario({ rules: [], delayMs: 600 });
+      const s = (await t.request(ids.home())) as MsxContentRoot;
+      const all = (s.pages ?? []).flatMap((p) => p.items);
+      assert.deepEqual(all.map((i) => i.headline), ["{ico:hourglass-empty} Загружаю главную…"]);
+      assert.ok(!JSON.stringify(s).includes(`"c${FIX.SERIAL_BIG}"`));
     });
   }
 

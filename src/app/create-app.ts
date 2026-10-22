@@ -33,6 +33,7 @@ import { Outbox } from "../progress/outbox.ts";
 import { Overlay } from "../progress/overlay.ts";
 import { ProgressTracker } from "../progress/tracker.ts";
 import { App } from "../router/router.ts";
+import { forgetHome } from "../screens/home.ts";
 import { loggedOutAction } from "../screens/menu.ts";
 import { forgetQueries } from "../screens/recent.ts";
 import { OVERLAY_KEY, persistState } from "./context.ts";
@@ -126,9 +127,10 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
     repo.forgetDevice();
     // Недавние запросы поиска личные: после выхода их не видит тот, кто войдёт следующим.
     forgetQueries(store);
-    // SET-8: выход (не отказ refresh — там тот же аккаунт) стирает и кэш, outbox, оверлей и списки прежнего входа.
+    // SET-8: выход (не отказ refresh — там тот же аккаунт) стирает и кэш, outbox, оверлей, списки и полки главной в памяти.
     if (reason !== "refresh-rejected") {
       cache.wipe();
+      forgetHome(ctx);
       store.removeNs("out");
       overlay.wipe();
       state.overlaySaved = overlay.serialize();
