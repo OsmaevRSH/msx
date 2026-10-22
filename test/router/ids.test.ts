@@ -56,6 +56,15 @@ describe("parseDataId: round trip of every route (§0.6.7)", () => {
     assert.deepEqual(parseDataId("play:2001:2001004:1:4:at597"), { k: "playEp", id: 2001, mid: 2001004, s: 1, e: 4, start: false, at: 597 });
   });
 
+  // QA-PLAY-15: спецвыпуск или пилот с номером 0 — тоже серия; раньше `play:…:0` не разбирался.
+  it("an episode numbered 0 parses: play:<id>:<mid>:<s>:0, with :start and :at", () => {
+    assert.deepEqual(parseDataId("play:2001:2001099:1:0"), { k: "playEp", id: 2001, mid: 2001099, s: 1, e: 0, start: false });
+    assert.deepEqual(parseDataId("play:2001:2001099:1:0:start"), { k: "playEp", id: 2001, mid: 2001099, s: 1, e: 0, start: true });
+    assert.deepEqual(parseDataId("play:2001:2001099:1:0:at30"), { k: "playEp", id: 2001, mid: 2001099, s: 1, e: 0, start: false, at: 30 });
+    assert.equal(ids.playEp(2001, 2001099, 1, 0), "play:2001:2001099:1:0");
+    for (const raw of ["play:2001:2001099:1:00", "play:2001:2001099:1:-1", "play:2001:0:1:0"]) assert.deepEqual(parseDataId(raw), { k: "unknown", raw }, raw);
+  });
+
   it("play:probe:<variant>:… for every variant", () => {
     for (const variant of ["a1", "a2", "hls2", "props", "ticks", "autonext"] as const) {
       assert.deepEqual(parseDataId(`play:probe:${variant}:2001:2001020:1:20`), { k: "probePlay", variant, id: 2001, mid: 2001020, s: 1, e: 20 });

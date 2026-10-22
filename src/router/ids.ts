@@ -86,7 +86,8 @@ function parsePlay(parts: string[]): Route | undefined {
     return what === "continue" || what === "start" ? { k: "play", id, what } : undefined;
   }
   if (parts.length !== 5 && parts.length !== 6) return undefined;
-  const [mid, s, e] = [pos(parts[2]), uint(parts[3]), pos(parts[4])];
+  // Серия 0 — спецвыпуск или пилот (QA-PLAY-15): играет, хотя прогресс по ней KinoPub не примет.
+  const [mid, s, e] = [pos(parts[2]), uint(parts[3]), uint(parts[4])];
   if (mid === undefined || s === undefined || e === undefined) return undefined;
   const tail = parts[5];
   if (tail === undefined) return { k: "playEp", id, mid, s, e, start: false };

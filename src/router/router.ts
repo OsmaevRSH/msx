@@ -66,7 +66,12 @@ const ROUTES: RouteTable = {
   probePlay: (ctx, r) => withProbe(ctx, (m) => m.probeResolve(ctx, r)),
   trailer: (ctx, r) => trailerResolve(ctx, r.id),
   person: (ctx, r) => personScreen(ctx, r.field, r.q),
-  unknown: (ctx) => errorScreen(ctx, new KpError("KP-BAD", "unknown route")),
+  unknown: (ctx, r) => {
+    const err = new KpError("KP-BAD", "unknown route");
+    // Неразобранный `play:…` — ответ на `video:resolve`: `{ error }` из `route` (QA-PLAY-15).
+    if (r.raw.startsWith("play:")) throw err;
+    return errorScreen(ctx, err);
+  },
 };
 
 /** Маршруты без срока экрана V-40 и без входа (`unknown` — сразу экран ошибки). */
@@ -200,7 +205,7 @@ export class App implements PluginApp {
   /** Ответ маршрута; исключение — экран ошибки, у resolve — `{ error }`. */
   private async route(r: Route, dataId: string): Promise<unknown> {
     const { ctx } = this;
-    const resolve = RESOLVE.has(r.k);
+    const resolve = RESOLVE.has(r.k) || (r.k === "unknown" && dataId.startsWith("play:"));
     try {
       if (!GUEST.has(r.k) && !ctx.auth.isLoggedIn()) return await this.loginInstead(r, resolve);
       const handler = this.routes[r.k] as (ctx: AppContext, r: Route) => unknown;

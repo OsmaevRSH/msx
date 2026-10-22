@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
 import { PERSIST_EVERY_MS } from "../../src/app/create-app.ts";
 import { KpError } from "../../src/core/errors.ts";
-import type { MsxMenuRoot } from "../../src/msx/types.ts";
+import type { MsxMenuRoot, MsxResolveResponse } from "../../src/msx/types.ts";
 import { msxInfoFrom } from "../../src/router/router.ts";
 import { errorScreen, errorText } from "../../src/screens/error.ts";
+import { FIX, findItem } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 import { MemoryStorage } from "../helpers/memory-storage.ts";
@@ -152,6 +153,29 @@ describe("App.handleRequest with login", () => {
     });
     assert.deepEqual(await t.request("play:2005:continue"), { error: errorText(err).text });
     assert.deepEqual(await t.request("play:2005:2005001:0:1:start"), { error: errorText(err).text });
+  });
+
+  // QA-PLAY-15: MSX ждёт на `video:resolve` ответ resolve; экран ошибки вместо `{ error }` он не понимает.
+  it("a play:… that does not parse → { error }, not an error screen; other unknown ids keep the screen", async () => {
+    const t = await make({ loggedIn: true });
+    const error = { error: errorText(new KpError("KP-BAD", "unknown route")).text };
+    for (const id of ["play:1", "play:x:continue", "play:1:2:3", "play:1:2:1:4:end", "play:probe:zz:1:2:1:1"]) {
+      assert.deepEqual(await t.request(id), error, id);
+    }
+    assert.deepEqual(await t.request("nope:1"), errorScreen(t.ctx, new KpError("KP-BAD", "unknown route")));
+  });
+
+  it("an episode numbered 0 reaches resolve and plays: the unit is found by its mid", async () => {
+    const t = await make({ loggedIn: true });
+    const mid = findItem(FIX.SERIAL_SMALL)!.seasons![0]!.episodes[0]!.id;
+    const res = (await t.request(`play:${FIX.SERIAL_SMALL}:${mid}:1:0`)) as MsxResolveResponse;
+    assert.equal(res.error, undefined);
+    assert.equal(typeof res.url, "string");
+  });
+
+  it("logged out, an unparsed play:… is still { error }", async () => {
+    const t = await make();
+    assert.deepEqual(await t.request("play:1:later"), { error: errorText(new KpError("KP-BAD", "unknown route")).text });
   });
 
   it("dispatches every route kind to its handler", async () => {
