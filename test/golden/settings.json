@@ -6,7 +6,8 @@
   "headline": "Настройки",
   "template": {
     "type": "control",
-    "layout": "0,0,12,1"
+    "layout": "0,0,12,1",
+    "enumerate": false
   },
   "items": [
     {

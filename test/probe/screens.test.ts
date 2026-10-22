@@ -199,6 +199,7 @@ describe("«Для разработчика» (spec §16.6)", () => {
     const root = await devScreen(t.ctx);
     assert.equal(root.flag, "dev");
     assert.ok(root.template !== undefined, "MSX не показывает items корня без template");
+    assert.equal(root.template.enumerate, false, "SET-10: no MSX counter «(1/12)»");
     const rows = (root.items ?? []).filter((i) => i.id?.startsWith("f_") && i.id !== "f_reset");
     assert.deepEqual(rows.map((r) => r.id), [
       "f_streamMode", "f_playerPropsIn", "f_heartbeat", "f_events", "f_autonext", "f_restart", "f_focusPrefetch", "f_gridPreload",
@@ -217,6 +218,7 @@ describe("«Для разработчика» (spec §16.6)", () => {
     const t = await make();
     const panel = (await t.request(ids.probe("flag:streamMode"))) as MsxContentRoot;
     assert.ok(panel.template !== undefined, "MSX не показывает items корня панели без template");
+    assert.equal(panel.template.enumerate, false, "SET-10: no MSX counter «(1/2)»");
     assert.deepEqual(panel.items?.map((i) => [i.label, i.action, i.extensionIcon]), [
       ["hls1", chain([act("flag", "streamMode", "hls1"), "back"]), "check"],
       ["hls2", chain([act("flag", "streamMode", "hls2"), "back"]), undefined],

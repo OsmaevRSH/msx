@@ -53,7 +53,8 @@ describe("settingsScreen (S12)", () => {
     assert.equal(s.headline, "Настройки");
     assert.equal(s.cache, false);
     assert.equal(s.compress, undefined);
-    assert.deepEqual(s.template, { type: "control", layout: "0,0,12,1" });
+    // SET-10: без счётчика MSX «(N/21)» в заголовке.
+    assert.deepEqual(s.template, { type: "control", layout: "0,0,12,1", enumerate: false });
     const groups = (s.items ?? []).filter((i) => i.type === "space");
     assert.deepEqual(groups.map((g) => g.headline), ["Меню и главная", "Воспроизведение", "Это устройство KinoPub", "Аккаунт", "Для опытных", "Для разработчика"]);
     // V-33: заголовок в нижней половине своей строки — вплотную к группе, без пустой полосы под ним.

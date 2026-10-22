@@ -66,7 +66,9 @@ export async function devScreen(ctx: AppContext): Promise<MsxContentRoot> {
   }
   items.push({ id: "f_reset", type: "button", layout: "0,0,4,1", label: T.reset, action: commitMsg(msgs.act("probe", "flagsReset")) });
   // Без `template` MSX не показывает `items` корня («Содержимое недоступно»).
-  return { type: "list", flag: "dev", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items };
+  return {
+    type: "list", flag: "dev", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1", enumerate: false }, items,
+  };
 }
 
 /** Панель `probe:flag:<имя>`: выбор значения шлёт `act:probe:flag:<имя>:<значение>` и закрывает панель. */
@@ -74,7 +76,7 @@ export function flagPanel(ctx: AppContext, name: string): MsxContentRoot {
   const row = rowOf(name);
   // Панель — тоже корень: без `template` MSX не показывает её `items` («Содержимое недоступно»).
   const panel = (headline: string, items: MsxContentItem[]): MsxContentRoot =>
-    ({ type: "list", cache: false, reuse: false, headline, template: { type: "control", layout: "0,0,8,1" }, items });
+    ({ type: "list", cache: false, reuse: false, headline, template: { type: "control", layout: "0,0,8,1", enumerate: false }, items });
   if (row === undefined) {
     return panel(T.unknown, [{ id: "v_close", type: "button", layout: "0,0,8,1", label: T.close, action: "back" }]);
   }

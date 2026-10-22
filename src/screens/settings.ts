@@ -166,7 +166,7 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
   if (first >= 0) items[first] = { ...items[first], focus: true };
   const framed = gridEdges(items, GRID, { top: "overlay", bottom: true });
   const root: MsxContentRoot = {
-    type: "list", flag: "settings", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1" }, items: framed.items,
+    type: "list", flag: "settings", cache: false, reuse: false, headline: T.headline, template: { type: "control", layout: "0,0,12,1", enumerate: false }, items: framed.items,
   };
   if (framed.inserts !== undefined) root.inserts = framed.inserts;
   return root;
