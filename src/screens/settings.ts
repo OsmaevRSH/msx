@@ -1,5 +1,6 @@
 import type { AppContext } from "../app/context.ts";
-import type { DeviceInfo, DeviceSettings } from "../api/models.ts";
+import { deviceMismatch } from "../api/client.ts";
+import type { DeviceForm, DeviceInfo, DeviceSettings } from "../api/models.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { fmtDate } from "../core/format.ts";
@@ -186,16 +187,16 @@ export async function settingPanel(ctx: AppContext, key: string): Promise<MsxCon
 }
 
 /**
- * POST настроек своего устройства и сверка свежим чтением (Plan B §6.2.1): оно же обновляет кэш устройства, ссылки на
- * поток устаревают (Plan B §7.3). Чтение не удалось — ошибка сети, а не сверка с прежним значением из кэша.
+ * POST настроек своего устройства полной формой и сверка свежим чтением по всем её полям (Plan B §6.2.1; SET-3): оно же
+ * обновляет кэш устройства, ссылки на поток устаревают (Plan B §7.3). Чтение не удалось — ошибка сети, а не сверка с
+ * прежним значением из кэша. Тем же путём сервер устройства выбирает тест скорости CDN (`probe/cdn.ts`).
  */
-async function saveDevice(ctx: AppContext, s: Partial<DeviceSettings>): Promise<void> {
-  await ctx.api.deviceSettingsSave((await device(ctx)).id, s);
+export async function saveDevice(ctx: AppContext, change: Partial<DeviceForm>): Promise<void> {
+  const sent = await ctx.api.deviceSettingsSave(await device(ctx), change);
   ctx.repo.invalidateAfterDevice();
   const got = await ctx.repo.deviceInfo({ fresh: true });
   if (got.offline !== undefined) throw new KpError(got.offline, "device-reread-failed");
-  const now = got.value.settings;
-  const keys = (Object.keys(s) as (keyof DeviceSettings)[]).filter((k) => now[k] !== s[k]);
+  const keys = deviceMismatch(sent, got.value);
   if (keys.length > 0) throw new KpError("KP-BAD", T.mismatch, undefined, keys.join(","));
 }
 
@@ -217,7 +218,7 @@ export async function onSettingsAct(ctx: AppContext, name: string, args: string[
     if (name === "authors") ctx.prefs.update({ audioAuthors: [] });
     if (d?.field) ctx.prefs.update({ [d.field]: o?.v } as Partial<Prefs>);
     const dev = d?.dev ? { [d.dev]: o?.v } : name === "quality" && o?.v === 2160 ? { support4k: 1 } : undefined;
-    if (dev !== undefined) await saveDevice(ctx, dev as Partial<DeviceSettings>);
+    if (dev !== undefined) await saveDevice(ctx, dev as Partial<DeviceForm>);
     if (d?.dev === "supportHevc") ctx.prefs.update({ allowHevc: o?.v === 1 });
   } catch (e) {
     ctx.log.warn(TAG, "device_failed", { name, err: toKpError(e).code });

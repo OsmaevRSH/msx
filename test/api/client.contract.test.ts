@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { deviceMismatch } from "../../src/api/client.ts";
 import type { KpError } from "../../src/core/errors.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { kp, q, useKpApiMock } from "./kpapi-rig.ts";
@@ -237,19 +238,38 @@ describe("KpApi against kpmock (contract)", () => {
       assert.ok(before.id > 0);
       assert.equal(before.title, "kpmock TV");
       assert.deepEqual(before.settings, { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 0, mixedPlaylist: 0 });
-      await r.run(r.api.deviceSettingsSave(before.id, { supportHevc: 0, mixedPlaylist: 1, support4k: 1 }));
+      await r.run(r.api.deviceSettingsSave(before, { supportHevc: 0, mixedPlaylist: 1, support4k: 1 }));
       const form = env.calls(`/v1/device/${before.id}/settings`)[0];
       assert.match(form.contentType ?? "", /^application\/x-www-form-urlencoded/);
       const afterSave = await r.run(r.api.deviceInfo());
       assert.deepEqual(afterSave.settings, { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 1, mixedPlaylist: 1 });
     });
 
-    it("deviceSettingsSave with postBody: query still applies", async () => {
+    // SET-3 / API-14: частичная форма на настоящем API сбрасывает непереданные поля (Apple-клиент шлёт профиль целиком).
+    it("SET-3: the whole profile in every POST — 5 flags, serverLocation and streamingType of the base, the change on top; the form is returned", async () => {
+      const r = env.rig();
+      const base = await r.run(r.api.deviceInfo());
+      assert.deepEqual([base.location?.id, base.streaming], [1, 4]);
+      const sent = await r.run(r.api.deviceSettingsSave(base, { support4k: 1 }));
+      const want = { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 1, mixedPlaylist: 0, serverLocation: 1, streamingType: 4 };
+      assert.deepEqual(sent, want);
+      assert.deepEqual(r.t.reqs.at(-1)?.form, want);
+      const loc = await r.run(r.api.deviceSettingsSave(await r.run(r.api.deviceInfo()), { serverLocation: 2 }));
+      assert.deepEqual(loc, { ...want, serverLocation: 2 });
+      const after = await r.run(r.api.deviceInfo());
+      assert.deepEqual([after.settings.support4k, after.location?.id, after.streaming], [1, 2, 4], "the strict mock (M-11) kept 4K");
+      assert.deepEqual(deviceMismatch(loc, after), []);
+      assert.deepEqual(deviceMismatch({ ...loc, supportHevc: 1, serverLocation: 3 }, after), ["supportHevc", "serverLocation"]);
+    });
+
+    it("API-13, M-5: with postBody: query the settings are silently not applied — the re-read catches it", async () => {
       const r = env.rig();
       r.flags.set("postBody", "query");
-      const { id } = await r.run(r.api.deviceInfo());
-      await r.run(r.api.deviceSettingsSave(id, { supportSsl: 0 }));
-      assert.equal((await r.run(r.api.deviceInfo())).settings.supportSsl, 0);
+      const base = await r.run(r.api.deviceInfo());
+      const sent = await r.run(r.api.deviceSettingsSave(base, { supportSsl: 0 }));
+      const after = await r.run(r.api.deviceInfo());
+      assert.equal(after.settings.supportSsl, 1);
+      assert.deepEqual(deviceMismatch(sent, after), ["supportSsl"]);
     });
 
     it("deviceNotify updates title, hardware and software", async () => {

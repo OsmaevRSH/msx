@@ -4,6 +4,7 @@ import { fmtDate } from "../../src/core/format.ts";
 import { chain, commitMsg, contentAction, panelAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs } from "../../src/router/ids.ts";
+import { onCdnSet } from "../../src/probe/cdn.ts";
 import { onSettingsAct } from "../../src/screens/settings.ts";
 import { answerIssues } from "../../tools/crawl-rules.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
@@ -347,6 +348,30 @@ describe("onSettingsAct", () => {
     assert.equal(device(t).supportHevc, 0);
     assert.equal(t.ctx.prefs.get().allowHevc, false);
     assert.deepEqual(actions(t), ["[back|reload:content|info:KinoPub не отвечает]"]);
+  });
+
+  // SET-3 / API-14: на строгом mock (M-11) частичная форма сбросила бы 4K и HEVC.
+  it("SET-3: «HEVC: Вкл», «4K: Вкл», then «Выбрать самый быстрый» — HEVC and 4K stay (strict mock, M-11)", async () => {
+    const t = await make();
+    await act(t, "hevc", 1);
+    await act(t, "uhd", 1);
+    await t.run(onCdnSet(t.ctx, "de"));
+    const s = device(t);
+    assert.deepEqual([s.supportHevc, s.support4k, s.serverLocation], [1, 1, 2]);
+    assert.deepEqual(actions(t), [BACK_RELOAD, BACK_RELOAD, "info:CDN-сервер: Германия"]);
+  });
+
+  it("SET-3 / API-14: the re-read is checked on every field — a server that drops HEVC while saving 4K is caught", async () => {
+    const t = await make();
+    await act(t, "hevc", 1);
+    const save = t.ctx.api.deviceSettingsSave.bind(t.ctx.api);
+    t.ctx.api.deviceSettingsSave = async (base, change) => {
+      const sent = await save(base, change);
+      t.mock.state.devices.get(deviceId(t))!.settings.supportHevc = 0;
+      return sent;
+    };
+    await act(t, "uhd", 1);
+    assert.equal(actions(t).at(-1), "[back|reload:content|info:Неожиданный ответ KinoPub]");
   });
 
   it("server answers 200 but keeps the old value → the re-read catches it (Plan B §6.2.1)", async () => {

@@ -242,6 +242,20 @@ describe("choice: applyLocation / act:probe:cdnSet", () => {
     assert.equal(t.ctx.prefs.get().loc, "ru");
   });
 
+  it("SET-3: the whole profile goes with the location and every field is checked — 4K dropped by the server is an error", async () => {
+    const t = await make();
+    t.mock.state.devices.get(deviceId(t))!.settings.support4k = 1;
+    await t.run(applyLocation(t.ctx, "ru"));
+    assert.deepEqual([serverLocation(t), t.mock.state.devices.get(deviceId(t))?.settings.support4k], [3, 1], "the strict mock kept 4K");
+    const save = t.ctx.api.deviceSettingsSave.bind(t.ctx.api);
+    t.ctx.api.deviceSettingsSave = async (base, change) => {
+      const sent = await save(base, change);
+      t.mock.state.devices.get(deviceId(t))!.settings.support4k = 0;
+      return sent;
+    };
+    await assert.rejects(t.run(applyLocation(t.ctx, "de")), /device-settings-mismatch/);
+  });
+
   it("the message: a notification, the open screen redrawn with the new check mark; a bad code is ignored", async () => {
     const t = await make();
     await screen(t);

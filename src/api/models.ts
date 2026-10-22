@@ -192,7 +192,12 @@ export interface DeviceInfo {
   settings: DeviceSettings;
   /** Выбранный CDN-сервер устройства (`settings.serverLocation`, research kinopub-api §5.2). */
   location?: { id: number; label: string };
+  /** Выбранный тип потока (`settings.streamingType`): не меняем, но отправляем обратно в полной форме (SET-3). */
+  streaming?: number;
 }
+
+/** Полная форма `POST /v1/device/{id}/settings` (SET-3, как у Apple-клиента): флаги, сервер и тип потока. */
+export type DeviceForm = DeviceSettings & { serverLocation?: number; streamingType?: number };
 
 export interface ServerLocation {
   id: number;

@@ -100,14 +100,29 @@ describe("kpmock device, user and references", () => {
     assert.equal((await info()).settings.supportHevc.value, 1);
   });
 
-  it("saves device settings from the query and ignores invalid values", async () => {
+  it("M-5: settings in the query are silently ignored — 200 and nothing changes (Apple: query params no-op)", async () => {
     const id = (await info()).id;
-    await post(`/v1/device/${id}/settings?support4k=1&supportSsl=7&streamingType=99`);
+    const r = await post(`/v1/device/${id}/settings?support4k=1&supportSsl=0&serverLocation=3`);
+    assert.deepEqual(r, { status: 200, body: { status: 200 } });
     const s = (await info()).settings;
-    assert.equal(s.support4k.value, 1);
-    assert.equal(s.supportSsl.value, 1);
+    assert.deepEqual([s.support4k.value, s.supportSsl.value], [0, 1]);
+    const loc = (s.serverLocation.value as { id: number; selected: number }[]).find((l) => l.selected === 1);
+    assert.equal(loc?.id, 1);
+  });
+
+  it("M-11: a form without some flags resets them to 0; lists keep their choice; invalid values are ignored", async () => {
+    const id = (await info()).id;
+    await post(`/v1/device/${id}/settings`, new URLSearchParams({ supportSsl: "1", supportHevc: "1", support4k: "1", mixedPlaylist: "1", streamingType: "3" }));
+    await post(`/v1/device/${id}/settings`, new URLSearchParams({ support4k: "1", supportSsl: "7", streamingType: "99" }));
+    const s = (await info()).settings;
+    assert.deepEqual(["supportSsl", "supportHevc", "supportHdr", "support4k", "mixedPlaylist"].map((k) => s[k].value), [1, 0, 0, 1, 0]);
     const st = (s.streamingType.value as { id: number; selected: number }[]).find((t) => t.selected === 1);
-    assert.equal(st?.id, 4);
+    assert.equal(st?.id, 3);
+  });
+
+  it("M-5: notify still takes parameters from the query as well as from the form", async () => {
+    await post(`/v1/device/notify?${new URLSearchParams({ title: "MSX Q2" })}`);
+    assert.equal((await info()).title, "MSX Q2");
   });
 
   it("answers 404 for settings of an unknown device", async () => {

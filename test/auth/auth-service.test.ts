@@ -223,7 +223,8 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.equal(dev.notifiedVersion, VERSION);
       assert.equal(dev.title, "MSX QE65");
       const settings = env.mock().state.devices.get(dev.id ?? -1)?.settings;
-      assert.deepEqual(settings && { ...settings }, { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 0, mixedPlaylist: 1 });
+      // SET-3: полная форма — с сервером и типом потока устройства (они не меняются).
+      assert.deepEqual(settings && { ...settings }, { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 0, mixedPlaylist: 1, serverLocation: 1, streamingType: 4 });
       assert.equal(r.log.entries().some((e) => e.level === "warn"), false);
     });
 

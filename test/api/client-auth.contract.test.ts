@@ -118,7 +118,7 @@ describe("KpApi OAuth, 401 and request policy (contract)", () => {
       await r.run(r.api.deviceToken(code));
       const info = await r.run(r.api.deviceInfo());
       await r.run(r.api.deviceNotify("t", "h", "s"));
-      await r.run(r.api.deviceSettingsSave(info.id, { mixedPlaylist: 1 }));
+      await r.run(r.api.deviceSettingsSave(info, { mixedPlaylist: 1 }));
       await r.run(r.api.items({ page: 1, perpage: 5 }));
       await r.run(r.api.item(FIX.MOVIE_SIMPLE));
       await r.run(r.api.mediaLinks(mid, "fg"));
@@ -155,7 +155,7 @@ describe("KpApi OAuth, 401 and request policy (contract)", () => {
         assert.equal(req.form, undefined, "OAuth: empty body");
         assert.equal(req.query?.access_token, undefined);
       }
-      assert.deepEqual(r.t.reqs[4].form, { mixedPlaylist: 1 });
+      assert.deepEqual(r.t.reqs[4].form, { ...info.settings, mixedPlaylist: 1, serverLocation: 1, streamingType: 4 });
     });
   });
 

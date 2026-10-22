@@ -5,7 +5,8 @@ import { param } from "./oauth.ts";
 import { SERVER_LOCATIONS, STREAMING_TYPES } from "./user.ts";
 
 // Устройство KinoPub (research kinopub-api §5; Plan B §12.3). POST-тело с неверным Content-Type
-// молча игнорируется с ответом {"status":200} — ловушка Apple (спец. §14.2); параметры в query принимаются.
+// молча игнорируется с ответом {"status":200} — ловушка Apple (спец. §14.2). `notify` принимает и query; настройки —
+// только форму (M-5, Apple: «query params silently no-op»), и непереданные флаги сбрасываются в 0 (M-11).
 
 const BOOL_SETTINGS: readonly [key: string, label: string][] = [
   ["supportSsl", "Use SSL"], ["supportHevc", "HEVC"], ["supportHdr", "HDR"], ["support4k", "4K"], ["mixedPlaylist", "Mixed playlist"],
@@ -29,14 +30,19 @@ function settingsJson(d: DeviceRec): Record<string, unknown> {
   return out;
 }
 
-/** Применяет только допустимые значения: bool — "0"/"1", списки — известный id. */
+/**
+ * Только из формы: без неё (query, неверный Content-Type) — ничего (M-5). Флаг вне формы — 0, как профиль, который
+ * «сбрасывается» у Apple-клиента после частичного сохранения (M-11); bool — "0"/"1", списки — известный id.
+ */
 function applySettings(ctx: HandlerCtx, d: DeviceRec): void {
+  const form = ctx.form;
+  if (form === undefined) return;
   for (const [key] of BOOL_SETTINGS) {
-    const v = param(ctx, key);
-    if (v === "0" || v === "1") d.settings[key] = Number(v);
+    const v = form.get(key);
+    if (v === null || v === "0" || v === "1") d.settings[key] = Number(v ?? 0);
   }
   for (const ls of LIST_SETTINGS) {
-    const id = Number(param(ctx, ls.key));
+    const id = Number(form.get(ls.key));
     if (ls.options().some((o) => o.id === id)) d.settings[ls.key] = id;
   }
 }

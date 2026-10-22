@@ -1,3 +1,4 @@
+import { deviceMismatch } from "../api/client.ts";
 import type { KpApi, TokenSource } from "../api/client.ts";
 import type { DeviceInfo, DeviceSettings, TokenPairRaw } from "../api/models.ts";
 import type { Clock } from "../core/clock.ts";
@@ -12,7 +13,6 @@ const DEFAULT_TITLE = "MSX TV";
 const READY_FRESH_SEC = 600;
 // Plan B §6.2.1: SSL 1, HEVC 0, HDR 0, 4K 0, mixed 1 — h264-фолбэк в master HLS4.
 const DEVICE_SETTINGS: DeviceSettings = { supportSsl: 1, supportHevc: 0, supportHdr: 0, support4k: 0, mixedPlaylist: 1 };
-const SETTING_KEYS = Object.keys(DEVICE_SETTINGS) as (keyof DeviceSettings)[];
 
 export type LogoutReason = "refresh-rejected" | "logout";
 
@@ -210,9 +210,7 @@ export class AuthService implements TokenSource {
     dev.id = info.id;
     if (!this.saveDevice(epoch, dev)) return;
     try {
-      await api.deviceSettingsSave(info.id, DEVICE_SETTINGS);
-      const check = await api.deviceInfo();
-      const keys = SETTING_KEYS.filter((k) => check.settings[k] !== DEVICE_SETTINGS[k]);
+      const keys = deviceMismatch(await api.deviceSettingsSave(info, DEVICE_SETTINGS), await api.deviceInfo());
       if (keys.length > 0) this.log.warn(TAG, "device_settings_mismatch", { keys });
       else this.log.info(TAG, "device_ready", { id: info.id });
     } catch (e) {

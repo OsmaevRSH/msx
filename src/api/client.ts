@@ -1,7 +1,7 @@
 import { KP_CLIENT } from "../config/client.ts";
 import { KpError, isKpError } from "../core/errors.ts";
 import type {
-  BookmarkFolder, Collection, Country, DeviceCode, DeviceInfo, DeviceSettings, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks,
+  BookmarkFolder, Collection, Country, DeviceCode, DeviceForm, DeviceInfo, Genre, HistoryEntry, ItemDetail, ItemSummary, MediaLinks,
   Page, SerialWatching, ServerLocation, TokenPairRaw, TvChannel, User, WatchingUnit,
 } from "./models.ts";
 import {
@@ -32,8 +32,6 @@ type Cls = ReqClass | Priority;
 
 interface Call { method?: "GET" | "POST"; path: string; query?: Query; form?: Form; retry?: RetryPolicy; timeoutMs?: number; cls?: Cls }
 
-const SETTING_KEYS: readonly (keyof DeviceSettings)[] = ["supportSsl", "supportHevc", "supportHdr", "support4k", "mixedPlaylist"];
-
 function httpError(res: ApiResponse, code: number): KpError {
   const detail = errorText(res.json);
   return code === 404 ? new KpError("KP-404", "not-found", code, detail) : new KpError("KP-BAD", `http-${code}`, code, detail);
@@ -45,6 +43,12 @@ function body(res: ApiResponse): unknown {
   const code = res.status >= 400 ? res.status : inBody >= 400 ? inBody : 0;
   if (code !== 0) throw httpError(res, code);
   return res.json;
+}
+
+/** Поля формы, которых нет в прочитанном устройстве: сверка после сохранения — по всем, а не только по изменённому. */
+export function deviceMismatch(sent: DeviceForm, d: DeviceInfo): string[] {
+  const got: DeviceForm = { ...d.settings, serverLocation: d.location?.id, streamingType: d.streaming };
+  return (Object.keys(sent) as (keyof DeviceForm)[]).filter((k) => sent[k] !== undefined && sent[k] !== got[k]);
 }
 
 function pairOf(json: unknown): TokenPairRaw {
@@ -113,18 +117,16 @@ export class KpApi {
     return info;
   }
 
-  async deviceSettingsSave(id: number, s: Partial<DeviceSettings>): Promise<void> {
+  /**
+   * Полная форма (SET-3, API-14): частичный POST на настоящем API сбрасывает непереданные поля, поэтому — все флаги,
+   * сервер и тип потока из `base` (кэш `device/info`), поверх — изменение; как у Apple-клиента. Возвращает форму для сверки.
+   */
+  async deviceSettingsSave(base: DeviceInfo, change: Partial<DeviceForm>): Promise<DeviceForm> {
+    const sent: DeviceForm = { ...base.settings, serverLocation: base.location?.id, streamingType: base.streaming, ...change };
     const form: Form = {};
-    for (const k of SETTING_KEYS) {
-      const v = s[k];
-      if (v !== undefined) form[k] = v;
-    }
-    await this.call({ method: "POST", path: `/v1/device/${id}/settings`, form });
-  }
-
-  /** CDN-сервер устройства — `id` из `references/server-location`; он же `loc` новых ссылок (research kinopub-api §5.2). */
-  async deviceLocationSave(id: number, location: number): Promise<void> {
-    await this.call({ method: "POST", path: `/v1/device/${id}/settings`, form: { serverLocation: location } });
+    for (const [k, v] of Object.entries(sent)) if (v !== undefined) form[k] = v;
+    await this.call({ method: "POST", path: `/v1/device/${base.id}/settings`, form });
+    return sent;
   }
 
   async deviceUnlink(): Promise<void> {

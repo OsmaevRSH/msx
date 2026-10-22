@@ -10,6 +10,7 @@ import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { qualityOf, withLoc } from "../playback/url.ts";
 import { ids, msgs } from "../router/ids.ts";
 import { countryName } from "../screens/panels-labels.ts";
+import { saveDevice } from "../screens/settings.ts";
 import { cspAllows } from "./cdn-hosts.ts";
 import { Meter } from "./cdn-measure.ts";
 import type { Accuracy, Measure } from "./cdn-measure.ts";
@@ -190,20 +191,13 @@ export function runCdn(ctx: AppContext): Promise<CdnRun> {
 // --- Выбор сервера ---
 
 /**
- * `serverLocation` своего устройства KinoPub: POST формой, ссылки на поток в кэше устаревают (Plan B §7.3), сверка
- * свежим чтением (Plan B §6.2.1). Ручной `loc` этого ТВ снимается: ссылки пойдут с `loc` устройства.
+ * `serverLocation` своего устройства KinoPub — полной формой настроек, как 4K и HEVC (`saveDevice`, SET-3): ссылки на
+ * поток в кэше устаревают (Plan B §7.3), сверка свежим чтением (Plan B §6.2.1). Ручной `loc` этого ТВ снимается.
  */
 export async function applyLocation(ctx: AppContext, code: string): Promise<ServerLocation> {
   const l = usable((await ctx.repo.serverLocations()).value).find((x) => x.location === code);
   if (l === undefined) throw new KpError("KP-BAD", "unknown-location", undefined, code);
-  const dev = (await ctx.repo.deviceInfo()).value;
-  if (dev.location?.id !== l.id) {
-    await ctx.api.deviceLocationSave(dev.id, l.id);
-    ctx.repo.invalidateAfterDevice();
-    const got = await ctx.repo.deviceInfo({ fresh: true });
-    if (got.offline !== undefined) throw new KpError(got.offline, "device-reread-failed");
-    if (got.value.location?.id !== l.id) throw new KpError("KP-BAD", "device-settings-mismatch", undefined, "serverLocation");
-  }
+  if ((await ctx.repo.deviceInfo()).value.location?.id !== l.id) await saveDevice(ctx, { serverLocation: l.id });
   if (ctx.prefs.get().loc !== undefined) {
     ctx.prefs.update({ loc: undefined });
     ctx.repo.invalidateAfterDevice();

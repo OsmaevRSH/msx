@@ -384,8 +384,15 @@ describe("device, oauth, user, bookmarks (research §4, §5)", () => {
     });
     assert.deepEqual(info, {
       id: 41, title: "MSX TV", hardware: "Samsung Tizen", software: "kpmsx-client/1.0",
-      settings: { supportSsl: 1, supportHevc: 1, supportHdr: 0, support4k: 0, mixedPlaylist: 1 },
+      settings: { supportSsl: 1, supportHevc: 1, supportHdr: 0, support4k: 0, mixedPlaylist: 1 }, streaming: 4,
     });
+  });
+
+  it("SET-3: the chosen streaming type is the selected entry, like the server location; none chosen — no field", () => {
+    const st = (value: unknown): unknown => parseDeviceInfo({ device: { id: 1, settings: { streamingType: { type: "list", value } } } }).streaming;
+    assert.equal(st([{ id: 2, selected: 0 }, { id: "3", selected: "1" }]), 3);
+    assert.equal(st([{ id: 2, selected: 0 }]), undefined);
+    assert.equal(st(4), undefined);
   });
 
   it("device server location: the selected entry of the list setting (research §5.2)", () => {
