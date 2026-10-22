@@ -117,7 +117,15 @@ export async function listScreen(ctx: AppContext, key: string): Promise<MsxConte
       sk = encodeListKey(k);
     }
     src = listSource(k);
-    st = recall(ctx, sk) ?? (await firstPage(ctx, sk, k, src));
+    const kept = recall(ctx, sk);
+    if (kept !== undefined && !returned(ctx, key, kept)) {
+      // QA-NAV-3: пункт меню и «Показать все» делят список вместе с окном — открытие показывает его с начала.
+      delete kept.from;
+      delete kept.to;
+      delete kept.anchor;
+      delete kept.pivot;
+    }
+    st = kept ?? (await firstPage(ctx, sk, k, src));
   } catch (e) {
     ctx.log.warn(TAG, "list_failed", { flag: listFlag(key), err: toKpError(e).code });
     return errorScreen(ctx, e, ids.list(key));
@@ -276,6 +284,17 @@ async function genreTitle(ctx: AppContext, k: ListKey): Promise<string | undefin
 function folderTitle(ctx: AppContext, k: ListKey): string | undefined {
   if (k.src !== "folder") return undefined;
   return ctx.cache.peek<BookmarkFolder[]>(cacheKeys.bookmarks())?.value.find((f) => f.id === k.folder)?.title;
+}
+
+/**
+ * Возврат к списку, а не открытие: повтор этого же экрана (`reload:content` догрузки, `replace:content`) или «Назад» с
+ * карточки тайтла из окна (CE-06).
+ */
+function returned(ctx: AppContext, key: string, st: ListEntry): boolean {
+  const prev = ctx.current.previous() ?? "";
+  if (prev === ids.list(key)) return true;
+  const id = /^item:(\d+)$/.exec(prev)?.[1];
+  return id !== undefined && st.items.slice(st.from ?? 0, st.to ?? WINDOW).some((it) => String(it.id) === id);
 }
 
 /** Из памяти; использованный список становится самым свежим. */

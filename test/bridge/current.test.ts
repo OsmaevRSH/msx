@@ -50,6 +50,21 @@ describe("CurrentScreen (спец. §6.3, CD-16)", () => {
     assert.equal(c.get(), "list:abc");
   });
 
+  it("QA-NAV-3: the previous content screen — panels, resolve and the menu do not count; a re-request is its own previous", () => {
+    const c = new CurrentScreen();
+    assert.equal(c.previous(), undefined);
+    c.onRequest("list:abc");
+    c.onRequest("item:1");
+    c.onRequest("panel:bookmarks:1");
+    c.onRequest("play:1:continue");
+    c.onRequest("init");
+    assert.equal(c.previous(), "list:abc");
+    c.onRequest("list:abc");
+    assert.equal(c.previous(), "item:1");
+    c.onRequest("list:abc");
+    assert.equal(c.previous(), "list:abc", "reload:content of the same list");
+  });
+
   it("probe pages and login are content", () => {
     const c = new CurrentScreen();
     c.onRequest("login");

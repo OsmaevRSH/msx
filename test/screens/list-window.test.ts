@@ -6,7 +6,7 @@ import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids } from "../../src/router/ids.ts";
 import { MAX_BYTES, WINDOW, onExtend } from "../../src/screens/list.ts";
 import { ROW, posterTiles } from "../../src/screens/tiles.ts";
-import { catalog } from "../../tools/kpmock/fixtures.ts";
+import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -173,6 +173,36 @@ describe("list response window (CNFR-16)", () => {
     assert.deepEqual(windowOf(t, MOVIES, s), { from: 0, to: 96 });
     await fire(t, items(s).at(-1));
     assert.deepEqual(windowOf(t, MOVIES, await t.request(ids.list(MOVIES))), { from: 48, to: 144 });
+  });
+
+  it("QA-NAV-3: «Показать все» opens the list shared with the menu from its start; a return from a card keeps the window", async () => {
+    const t = await make();
+    const menu = encodeListKey({ src: "fresh" });
+    const fresh = encodeListKey({ src: "fresh", type: "movie" });
+    let s = await t.request(ids.list(menu));
+    for (let i = 0; i < 2; i++) {
+      await fire(t, items(s).at(-1));
+      s = await t.request(ids.list(menu));
+    }
+    assert.deepEqual(windowOf(t, fresh, s), { from: 48, to: 144 });
+    await t.request(ids.home());
+    t.host.clearActions();
+
+    const all = await t.request(ids.list(fresh));
+    assert.deepEqual(windowOf(t, fresh, all), { from: 0, to: 96 });
+    assert.equal(items(all)[0]?.focus, true);
+    assert.equal(items(all)[0]?.live, undefined, "no extend:up from the first tile");
+    assert.deepEqual(actions(t), [], "no extra reload:content");
+
+    await fire(t, items(all).at(-1));
+    s = await t.request(ids.list(fresh));
+    assert.deepEqual(windowOf(t, fresh, s), { from: 48, to: 144 });
+    const tile = tileIds(s)[60] ?? "";
+    await t.request(ids.item(Number(tile.slice(1))));
+    assert.deepEqual(windowOf(t, fresh, await t.request(ids.list(fresh))), { from: 48, to: 144 }, "back from the card");
+    // Тот же список пунктом меню поверх карточки чужого тайтла — снова открытие: окно с начала.
+    await t.request(ids.item(FIX.SERIAL_BIG));
+    assert.deepEqual(windowOf(t, fresh, await t.request(ids.list(menu))), { from: 0, to: 96 });
   });
 
   it("long titles: the window shrinks by rows keeping 18 seen tiles (3 rows) at the shift; every answer ≤ 32 KB", async () => {
