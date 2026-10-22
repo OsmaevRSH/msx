@@ -1,5 +1,6 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { cacheKeys } from "../../src/cache/repo.ts";
 import { contentAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids } from "../../src/router/ids.ts";
@@ -83,5 +84,15 @@ describe("bookmarksScreen (S11)", () => {
     const items = allItems(s);
     assert.match(String(items[0]?.text), /KP-404/);
     assert.equal(items[1]?.action, "[invalidate:content|reload:content]");
+  });
+
+  it("QA-NAV-7: a folder deleted elsewhere answers 404 — its list is forgotten and «Закладки» are read again, without it", async () => {
+    const t = await make();
+    assert.ok(allItems(await screen(t)).some((i) => i.id === "f1"));
+    t.mock.state.folders.delete(1);
+    const s = (await t.request(ids.list(folderKey(1)))) as MsxContentRoot;
+    assert.match(JSON.stringify(s), /KP-404/);
+    assert.equal(t.ctx.cache.peek(cacheKeys.bookmarks()), undefined, "the cached folder list is dropped");
+    assert.ok(!allItems(await screen(t)).some((i) => i.id === "f1"), "no tile of the deleted folder");
   });
 });

@@ -241,7 +241,11 @@ function apply(st: ListState, page: Page<Titled>, want: number): number {
 }
 
 async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSource): Promise<ListEntry> {
-  const [got, genre, country] = await Promise.all([ctx.repo.listPage(src, 1), genreTitle(ctx, k), countryTitle(ctx, k)]);
+  const page = ctx.repo.listPage(src, 1).catch((e: unknown) => {
+    gone(ctx, k, toKpError(e).code);
+    throw e;
+  });
+  const [got, genre, country] = await Promise.all([page, genreTitle(ctx, k), countryTitle(ctx, k)]);
   const folder = folderTitle(ctx, k) ?? got.value.title;
   const raced = recall(ctx, key);
   if (raced !== undefined) return raced;
@@ -289,6 +293,13 @@ export function remember(ctx: AppContext, key: string, st: ListEntry): void {
     if (lists.size <= MAX_LISTS) break;
     lists.delete(old);
   }
+}
+
+/** QA-NAV-7: папку удалили на другом устройстве (404) — её список забыт, а «Закладки» перечитают папки без неё. */
+function gone(ctx: AppContext, k: ListKey, code: KpErrorCode | undefined): void {
+  if (code !== "KP-404" || k.src !== "folder") return;
+  ctx.cache.delete(cacheKeys.bookmarks());
+  forgetList(ctx, k);
 }
 
 /** Список больше не верен (QA-NAV-1): из памяти — прочь, первая порция кэша не отдаётся — следующий показ перечитает её. */
