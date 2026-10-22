@@ -1,6 +1,7 @@
 import type { AppContext } from "../app/context.ts";
 import type { DeviceInfo, FileInfo, ServerLocation } from "../api/models.ts";
 import type { KvStore } from "../bridge/storage.ts";
+import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { fmtDate, fmtTime } from "../core/format.ts";
@@ -9,6 +10,7 @@ import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { qualityOf, withLoc } from "../playback/url.ts";
 import { ids, msgs } from "../router/ids.ts";
+import { SCREEN_DEADLINE_MS } from "../router/router.ts";
 import { countryName } from "../screens/panels-labels.ts";
 import { saveDevice } from "../screens/settings.ts";
 import { cspAllows } from "./cdn-hosts.ts";
@@ -241,7 +243,12 @@ function bestLabel(run: CdnRun | undefined, best: string | undefined, cur: strin
  */
 export async function cdnScreen(ctx: AppContext): Promise<MsxContentRoot> {
   if (!ctx.auth.isLoggedIn()) throw new KpError("KP-AUTH", "login required");
-  const [got, dev] = await Promise.all([ctx.repo.serverLocations(), softDevice(ctx)]);
+  // SET-14: у маршрутов пробника нет срока экрана (V-40) — справочник серверов ждём не дольше него.
+  const locations = new Promise<Got<ServerLocation[]>>((resolve, reject) => {
+    const id = ctx.clock.setTimeout(() => reject(new KpError("KP-NET", "no-answer")), SCREEN_DEADLINE_MS);
+    ctx.repo.serverLocations().then(resolve, reject).finally(() => ctx.clock.clearTimeout(id));
+  });
+  const [got, dev] = await Promise.all([locations, softDevice(ctx)]);
   const locs = usable(got.value);
   const run = loadRun(ctx.store);
   const busy = runs.has(ctx);

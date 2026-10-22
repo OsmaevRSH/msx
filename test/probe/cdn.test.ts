@@ -117,6 +117,17 @@ describe("the screen probe:cdn (S12 «Скорость серверов KinoPub�
     assert.match(JSON.stringify(await screen(t)), /KP-404/);
   });
 
+  // SET-14: маршрут пробника — без срока экрана (V-40), а справочник серверов ждался без срока: при висящем API — 9 с.
+  it("SET-14: the server list hangs on a live connection → «Нет связи» (KP-NET) within the 6 s screen deadline", async () => {
+    const t = await make();
+    await t.run(t.ctx.repo.user());
+    t.mock.setScenario({ rules: [{ path: "^/v1/references/server-location$", hang: true }] });
+    const t0 = t.clock.now();
+    const s = JSON.stringify(await screen(t));
+    assert.ok(t.clock.now() - t0 <= 6000, `${t.clock.now() - t0} fake ms`);
+    assert.match(s, /Код: KP-NET/);
+  });
+
   it("the TV's own `loc` (CDN panel) is the current one", async () => {
     const t = await make();
     t.ctx.prefs.update({ loc: "ru" });
