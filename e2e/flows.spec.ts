@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { chain, commitMsg, contentAction, panelAction, replaceContent, resolveAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids, listFlag, msgs } from "../src/router/ids.ts";
 import { MIN_POSITION } from "../src/progress/rules.ts";
-import { FIX, findItem } from "../tools/kpmock/fixtures.ts";
+import { FIX, catalog, findItem } from "../tools/kpmock/fixtures.ts";
 import { P, content, exec, expectContent, kp, login, mock, newMsxPage, noNotification, openMsx, press, stats } from "./fixtures.ts";
 import {
   ITEM_PATH, acts, answer, answered, attachDiagnostics, callCount, callsSince, closePlayer, evs, focusPlayerButton, installTimeline, isPf, kpWith, mark,
@@ -15,7 +15,8 @@ import type { Tl } from "./flows-kit.ts";
 // Пользовательские сценарии Plan B §12.6 E-03…E-14 на клиентской схеме (этап 34, спец. §14.4): одна сессия web MSX на
 // файл, навигация пультом, `exec` — короткий путь к экрану. E-01 нет (сопряжения нет), E-02 — в smoke, E-04 — это CE-02.
 // Порядок: навигация и главная до просмотров (E-03, E-13), списки и поиск (E-12, E-05, E-06, E-07, E-23), карточки (E-14),
-// плеер (E-08, E-10, E-09, E-15), ошибки последними (E-11: лимитер после 429 ещё 30 с держит параллельность 1).
+// плеер (E-08, E-10, E-09, E-15), ошибки последними (E-38, E-37, затем E-11: лимитер после 429 ещё 30 с держит
+// параллельность 1).
 
 test.describe.configure({ mode: "serial" });
 
@@ -24,6 +25,10 @@ let page: Page;
 const movies = encodeListKey({ src: "catalog", type: "movie", sort: "-updated" });
 const serials = encodeListKey({ src: "catalog", type: "serial", sort: "-updated" });
 const concerts = encodeListKey({ src: "catalog", type: "concert", sort: "-updated" });
+/** «Сериалы» по рейтингу КП: этого списка ещё нет в памяти — открытие идёт в сеть (E-37). */
+const serialsByRating = encodeListKey({ src: "catalog", type: "serial", sort: "-kinopoisk_rating" });
+/** Карточка, которую до E-37 никто не открывал и не префетчил: последний концерт каталога. */
+const UNSEEN = catalog().filter((i) => i.type === "concert").at(-1)!.id;
 const PORTION = 48;
 /** Серии SERIAL_SMALL по 60 с — как WebM mock; S1E3 → S2E1 — автопереход через границу сезона. */
 const SMALL = FIX.SERIAL_SMALL;
@@ -626,32 +631,89 @@ test("E-35: ◀◀/▶▶ и ⏪/⏩, пока MSX «занят» буфериз
   await kp(page, (k) => k.ctx.prefs.update({ seekStep: 10 }));
 });
 
-test("E-11: 429 без CORS на список — через 6 с KP-NET с «Повторить», поздний 429 его не меняет; сбой снят — «Повторить» открывает список", async () => {
+test("E-38: папку удалили на другом устройстве — из «Закладок» «Папка не найдена» с «Назад» и «Поиск»; «Назад» возвращает в «Закладки»", async () => {
+  // QA-API-10, QA-NAV-7: 404 у `/v1/bookmarks/<id>` — папки больше нет; текст про тайтл и «Повторить» тут не помогут.
+  await mock.scenario({ rules: [{ path: "^/v1/bookmarks/1$", method: "GET", status: 404 }] });
+  await open(page, ids.bookmarks());
+  await expectContent(page, "Избранное");
+  const c0 = await callCount();
+  await press(page, "f1", "Избранное");
+  await expectContent(page, "Папка не найдена — возможно, её удалили");
+  await expectContent(page, "Код: KP-404");
+  await expect(content(page), "не текст про тайтл").not.toContainText("Тайтл недоступен");
+  await expect(content(page), "вторая кнопка — поиск, не «Диагностика»").toContainText("Поиск");
+  await expect(selected(page), "фокус на «Назад»").toContainText("Назад");
+  expect((await callsSince(c0, /^\/v1\/bookmarks\/1$/)).map((c) => c.status), "404 без повторов").toEqual([404]);
+
+  await page.keyboard.press("Enter");
+  await expect(content(page), "«Назад» вернул «Закладки»").not.toContainText("Папка не найдена");
+  await expectContent(page, "Избранное");
+  await mock.scenario({ rules: [] });
+});
+
+test("E-37: 502 на карточке — «KinoPub не отвечает» (KP-5XX), а не «Проверьте VPN»; после «Повторить» другой раздел открывается с запросом к /v1/items, без KP-NET", async () => {
+  // QA-API-3, QA-API-4: сервер ответил 5xx — сеть и VPN в порядке. Раньше срок экрана писал «Проверьте VPN» (KP-NET), а
+  // 5 ответов 5xx (3 попытки и «Повторить») открывали breaker: все разделы 15 с — «Нет связи» без единого запроса.
+  const card = new RegExp(`^/v1/items/${UNSEEN}$`);
+  await mock.scenario({ rules: [{ path: `^/v1/items/${UNSEEN}$`, method: "GET", status: 502 }] });
+  const c0 = await callCount();
+  const fails = async (): Promise<number> => (await callsSince(c0, card)).filter((c) => c.status === 502).length;
+  await exec(page, contentAction(P, ids.item(UNSEEN)));
+  await expectContent(page, "Код: KP-5XX", { timeout: 15_000 });
+  await expectContent(page, "KinoPub не отвечает");
+  await expect(content(page), "KinoPub ответил: про VPN ни слова").not.toContainText("Проверьте VPN");
+  await expect(selected(page), "фокус на «Повторить»").toContainText("Повторить");
+  // Исходный запрос не отменяется: третья попытка на 9-й секунде; поздний 5xx того же кода экран не меняет.
+  await expect.poll(fails, { message: "три попытки карточки", timeout: 15_000 }).toBe(3);
+
+  const m = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.item(UNSEEN), m, 15_000);
+  await expectContent(page, "Код: KP-5XX");
+  await expect.poll(fails, { message: "пять ответов 5xx подряд — раньше это открывало breaker", timeout: 15_000 }).toBeGreaterThanOrEqual(5);
+
+  const c1 = await callCount();
+  await open(page, ids.list(serialsByRating));
+  await expectContent(page, /сериал \d+/i);
+  await expect(content(page)).not.toContainText("KP-NET");
+  expect((await callsSince(c1, /^\/v1\/items$/)).filter((c) => c.q.get("type") === "serial").map((c) => c.status), "список пошёл в сеть").toContain(200);
+  // Breaker закрыт: шестая попытка карточки тоже дошла до сети. Ждём её, чтобы её ответ не попал в E-11 (ответ сбрасывает
+  // счёт `TypeError` до пробы `no-cors`).
+  await expect.poll(fails, { message: "все 6 попыток карточки дошли до сети", timeout: 15_000 }).toBe(6);
+  await mock.scenario({ rules: [] });
+});
+
+test("E-11: 429 без CORS на список — через 6 с «не отвечает», затем поздний KP-429 его заменяет: «Слишком много запросов…» с «Повторить»; сбой снят — «Повторить» открывает список", async () => {
   // Как nginx без `always`: 429 без CORS-заголовков, браузер видит TypeError; проба `no-cors` доказывает, что сервер жив.
   await mock.scenario({ rules: [{ path: "^/v1/items$", method: "GET", status: 429, noCors: true }] });
   const c0 = await callCount();
   const m = await mark(page);
   await exec(page, contentAction(P, ids.list(concerts)));
-  // Повторы §5.3 (3 с и 6 с) дольше срока экрана: через 6 с — «не отвечает» (V-40, спец. §12), а не KP-429.
+  // Повторы §5.3 (3 с и 6 с) дольше срока экрана: через 6 с — «не отвечает» (V-40, спец. §12) — 429 без CORS браузер
+  // видит обрывом, вердикт «ответ без CORS» будет только после третьей попытки и пробы.
   await expectContent(page, "KinoPub не отвечает. Проверьте VPN", { timeout: 15_000 });
   await expectContent(page, "Код: KP-NET");
-  await expect(content(page), "не «нужен Plan B»: CORS у API есть").not.toContainText("KP-CORS");
-  await expect(selected(page), "фокус на «Повторить»").toContainText("Повторить");
-  // Запрос не отменяется: повторы доходят до пробы `no-cors`, её вердикт «ответ без CORS» — как 429.
+  // Запрос не отменяется: повторы доходят до пробы `no-cors`, её вердикт «ответ без CORS» — как 429 (QA-API-3): поздняя
+  // ошибка с новым кодом заменяет экран срока по его флагу.
   const probes = async (): Promise<string[]> => (await callsSince(c0, /^\/v1\/types$/)).map((c) => c.query);
   await expect.poll(probes, { message: "проба no-cors — фиксированный запрос (CM-01)", timeout: 20_000 }).toContain("access_token=x");
+  await until(page, (x) => acts(x, "replace:content:late_").length > 0, 15_000, "поздний KP-429 заменяет экран срока", m);
+  await expectContent(page, "Слишком много запросов к KinoPub. Подождите минуту и нажмите «Повторить»");
+  await expectContent(page, "Код: KP-429");
+  await expect(content(page), "не «нужен Plan B»: CORS у API есть").not.toContainText("KP-CORS");
+  await expect(selected(page), "фокус на «Повторить»").toContainText("Повторить");
   const failed = (await callsSince(c0, /^\/v1\/items$/)).filter((c) => c.q.get("type") === "concert");
   expect(failed.length, "список пробовал загрузиться").toBeGreaterThanOrEqual(1);
   expect(failed.every((c) => c.status === 429)).toBe(true);
-  // Поздняя ошибка ничего не меняет: экран тот же, KP-429 не появляется.
+  // Замена одна: перезапрос по ней получил тот же экран без сети, новых замен нет.
   await sleep(1000);
-  await expectContent(page, "Код: KP-NET");
-  await expect(content(page), "поздний 429 не заменяет экран срока").not.toContainText("KP-429");
+  expect(acts(await timeline(page, m), "replace:content:").length).toBe(1);
 
   // `mock.reset()` из плана сбросил бы и токены этого входа: снимается только правило сбоя.
   await mock.scenario({ rules: [] });
+  const r = await mark(page);
   await page.keyboard.press("Enter");
-  await until(page, (x) => x.some((e) => e.k === "res" && e.v === ids.list(concerts) && (e.n ?? 0) > 0), 20_000, "«Повторить» → список", m);
+  await until(page, (x) => x.some((e) => e.k === "res" && e.v === ids.list(concerts) && (e.n ?? 0) > 0), 20_000, "«Повторить» → список", r);
   await expectContent(page, /концерт \d+/i);
   expect((await stats(page)).requests.at(-1)).toBe(ids.list(concerts));
 });
