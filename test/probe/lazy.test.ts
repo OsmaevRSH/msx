@@ -102,7 +102,7 @@ describe("probe.js: loaded on first use (stage 23b)", () => {
     d.resolve();
     const [s, v] = (await t.run(Promise.all([screen, dev]))) as MsxContentRoot[];
     assert.equal(s?.headline, "Диагностика");
-    assert.equal(v?.headline, "Для разработчика");
+    assert.equal(v?.headline, "Переключатели развилок");
     assert.ok(probeLoaded(t));
     await t.request(ids.probe("report:1"));
     assert.equal(l.calls, 1, "loaded once per page");
@@ -182,7 +182,7 @@ describe("probe.js: loaded on first use (stage 23b)", () => {
     await pass(t, 100);
     assert.ok(probeLoaded(t));
     assert.equal(((await t.request(ids.probe())) as MsxContentRoot).headline, "Диагностика");
-    assert.equal(((await t.request(ids.dev())) as MsxContentRoot).headline, "Для разработчика");
+    assert.equal(((await t.request(ids.dev())) as MsxContentRoot).headline, "Переключатели развилок");
     assert.deepEqual([l.calls, mod.installs], [1, 1]);
   });
 

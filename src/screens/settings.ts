@@ -1,6 +1,6 @@
 import type { AppContext } from "../app/context.ts";
-import { deviceMismatch } from "../api/client.ts";
 import type { DeviceForm, DeviceInfo, DeviceSettings } from "../api/models.ts";
+import { saveDevice } from "../app/device.ts";
 import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import { fmtDate } from "../core/format.ts";
@@ -32,7 +32,7 @@ const T = {
   cdn: "Скорость серверов KinoPub",
   until: "До", left: "осталось", days: "дн.", inactive: "Не активна", authors: "Любимые студии",
   reset: "Сбросить любимые студии", noAuthors: "Студия добавляется, когда вы выбираете озвучку на карточке", none: "Нет",
-  logout: "Выйти из KinoPub", confirm: "Выйти из KinoPub?", yes: "Выйти", cancel: "Отмена", mismatch: "device-settings-mismatch",
+  logout: "Выйти из KinoPub", confirm: "Выйти из KinoPub?", yes: "Выйти", cancel: "Отмена",
   leaving: "Выхожу из KinoPub…",
 };
 /** V-33: заголовок группы — в нижней половине своей строки, вплотную к её пунктам (проверено в web MSX). */
@@ -204,20 +204,6 @@ export async function settingPanel(ctx: AppContext, key: string): Promise<MsxCon
 }
 
 /**
- * POST настроек своего устройства полной формой и сверка свежим чтением по всем её полям (Plan B §6.2.1; SET-3): оно же
- * обновляет кэш устройства, ссылки на поток устаревают (Plan B §7.3). Чтение не удалось — ошибка сети, а не сверка с
- * прежним значением из кэша. Тем же путём сервер устройства выбирает тест скорости CDN (`probe/cdn.ts`).
- */
-export async function saveDevice(ctx: AppContext, change: Partial<DeviceForm>): Promise<void> {
-  const sent = await ctx.api.deviceSettingsSave(await device(ctx), change);
-  ctx.repo.invalidateAfterDevice();
-  const got = await ctx.repo.deviceInfo({ fresh: true });
-  if (got.offline !== undefined) throw new KpError(got.offline, "device-reread-failed");
-  const keys = deviceMismatch(sent, got.value);
-  if (keys.length > 0) throw new KpError("KP-BAD", T.mismatch, undefined, keys.join(","));
-}
-
-/**
  * `act:set:<key>:<value>` → `prefs` или настройки устройства → `[back|reload:content]` (сбой устройства — ещё `info:`);
  * потолок 2160p включает 4K устройства; `act:set:logout` — выход, `replace:menu` даёт `onLoggedOut` (create-app).
  */
@@ -241,7 +227,7 @@ export async function onSettingsAct(ctx: AppContext, name: string, args: string[
     if (name === "authors") ctx.prefs.update({ audioAuthors: [] });
     if (d?.field) ctx.prefs.update({ [d.field]: o?.v } as Partial<Prefs>);
     const dev = d?.dev ? { [d.dev]: o?.v } : name === "quality" && o?.v === 2160 ? { support4k: 1 } : undefined;
-    if (dev !== undefined) await saveDevice(ctx, dev as Partial<DeviceForm>);
+    if (dev !== undefined) await saveDevice(ctx, await device(ctx), dev as Partial<DeviceForm>);
     if (d?.dev === "supportHevc") ctx.prefs.update({ allowHevc: o?.v === 1 });
   } catch (e) {
     ctx.log.warn(TAG, "device_failed", { name, err: toKpError(e).code });

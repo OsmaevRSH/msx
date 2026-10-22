@@ -1,5 +1,7 @@
 import type { AppContext } from "../app/context.ts";
 import type { DeviceInfo, FileInfo, ServerLocation } from "../api/models.ts";
+import { NO_ANSWER_MS } from "../api/transport.ts";
+import { saveDevice } from "../app/device.ts";
 import type { KvStore } from "../bridge/storage.ts";
 import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
@@ -10,9 +12,7 @@ import { gridEdges } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { qualityOf, withLoc } from "../playback/url.ts";
 import { ids, msgs } from "../router/ids.ts";
-import { SCREEN_DEADLINE_MS } from "../router/router.ts";
 import { countryName } from "../screens/panels-labels.ts";
-import { saveDevice } from "../screens/settings.ts";
 import { cspAllows } from "./cdn-hosts.ts";
 import { Meter } from "./cdn-measure.ts";
 import type { Accuracy, Measure } from "./cdn-measure.ts";
@@ -206,7 +206,8 @@ export function runCdn(ctx: AppContext): Promise<CdnRun> {
 export async function applyLocation(ctx: AppContext, code: string): Promise<ServerLocation> {
   const l = usable((await ctx.repo.serverLocations()).value).find((x) => x.location === code);
   if (l === undefined) throw new KpError("KP-BAD", "unknown-location", undefined, code);
-  if ((await ctx.repo.deviceInfo()).value.location?.id !== l.id) await saveDevice(ctx, { serverLocation: l.id });
+  const dev = (await ctx.repo.deviceInfo()).value;
+  if (dev.location?.id !== l.id) await saveDevice(ctx, dev, { serverLocation: l.id });
   if (ctx.prefs.get().loc !== undefined) {
     ctx.prefs.update({ loc: undefined });
     ctx.repo.invalidateAfterDevice();
@@ -243,9 +244,10 @@ function bestLabel(run: CdnRun | undefined, best: string | undefined, cur: strin
  */
 export async function cdnScreen(ctx: AppContext): Promise<MsxContentRoot> {
   if (!ctx.auth.isLoggedIn()) throw new KpError("KP-AUTH", "login required");
-  // SET-14: у маршрутов пробника нет срока экрана (V-40) — справочник серверов ждём не дольше него.
+  // SET-14: у маршрутов пробника нет срока экрана (V-40, 6 с) — справочник серверов ждём не дольше: те же 6 с, что
+  // вердикт транспорта «нет ответа» (`router.ts` в реестре probe.js замкнул бы цикл импортов).
   const locations = new Promise<Got<ServerLocation[]>>((resolve, reject) => {
-    const id = ctx.clock.setTimeout(() => reject(new KpError("KP-NET", "no-answer")), SCREEN_DEADLINE_MS);
+    const id = ctx.clock.setTimeout(() => reject(new KpError("KP-NET", "no-answer")), NO_ANSWER_MS);
     ctx.repo.serverLocations().then(resolve, reject).finally(() => ctx.clock.clearTimeout(id));
   });
   const [got, dev] = await Promise.all([locations, softDevice(ctx)]);
