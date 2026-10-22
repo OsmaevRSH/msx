@@ -1,4 +1,5 @@
 import type { AppContext } from "../app/context.ts";
+import type { KpErrorCode } from "../core/errors.ts";
 import { fmtCount } from "../core/format.ts";
 import { chain, panelAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
@@ -65,8 +66,14 @@ const T = {
   type: "Тип",
   allGenres: "все жанры",
   options: "{ico:msx-red:stop}",
-  offline: "{ico:msx-yellow:history} нет связи",
 };
+
+/**
+ * Пометка данных из кэша по причине сбоя (QA-API-12): KinoPub не отвечает — «нет связи», 429 — «KinoPub занят», любой
+ * другой ответ (5xx, 404…) — «не обновлено». Общая для списков, главной, «Я смотрю», «Закладок» и «Спорта».
+ */
+export const offlineMark = (code: KpErrorCode | undefined): string =>
+  code === undefined ? "" : `{ico:msx-yellow:history} ${code === "KP-NET" ? "нет связи" : code === "KP-429" ? "KinoPub занят" : "не обновлено"}`;
 
 const OPTION: MsxContentItem = { type: "control", layout: "0,0,8,1" };
 /** Опции экрана строками `control` 8×1: красная кнопка списков и полок (S5), главной (S4) и поиска (S7). */
@@ -185,7 +192,7 @@ function genreOf(k: ListKey, genre: string | undefined): string | undefined {
  * Что шапка знает о списке: название жанра, подписи фильтров (`filterTokens`, спец. §11.5), всего найдено (`pagination`)
  * и ответ из кэша без сети.
  */
-export interface ListHead { genre?: string; filters?: string[]; total?: number; offline?: boolean }
+export interface ListHead { genre?: string; filters?: string[]; total?: number; offline?: KpErrorCode | undefined }
 
 /**
  * «{■} Рейтинг КП · Драма · 1 234 фильма»; с фильтрами — «{■} 2010-е · КП ≥ 7 · Драма · 47 фильмов»: MSX обрезает
@@ -202,7 +209,7 @@ export function listExtension(k: ListKey, h: ListHead): string | undefined {
     parts.push(fmtCount(h.total, k.src === "collections" ? COLLECTIONS : NOUNS[k.type ?? ""] ?? PCS));
   }
   const text = parts.filter((s) => s !== "").join(" · ");
-  const out = [filtered(k) ? `${T.options} ${text}` : text, h.offline === true ? T.offline : ""].filter((s) => s !== "");
+  const out = [filtered(k) ? `${T.options} ${text}` : text, offlineMark(h.offline)].filter((s) => s !== "");
   return out.length > 0 ? out.join("  ") : undefined;
 }
 

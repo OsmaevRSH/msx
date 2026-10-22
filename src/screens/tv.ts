@@ -5,13 +5,14 @@ import type { Grid } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { ids } from "../router/ids.ts";
 import { RETRY_CONTENT, errorScreen } from "./error.ts";
+import { offlineMark } from "./list-head.ts";
 import { gridPreload } from "./tiles.ts";
 
 // «Спорт» S16 (спец. §11): каналы прямого эфира KinoPub `/v1/tv` — раздел `sporttv` официального PWA и «Спорт» webOS;
 // трансляции спортивные, KinoPub даёт их бонусом «как есть». Плитка — логотип 240×180 (4:3) и название, бейдж «Эфир».
 // Эфир — HLS live: плитка запускает `video:<stream>` прямо, без resolve, поэтому у запуска нет `kp:*` — трекер его не
 // считает просмотром (`load_without_kp`), `marktime` и прогресса нет. Адреса потока могут быть подписаны: список каналов
-// только в L1, 2 мин, без сети — до часа из кэша с пометкой «нет связи».
+// только в L1, 2 мин, без сети — до часа из кэша с пометкой по причине («нет связи», `offlineMark`).
 
 /** Плитки 3×2 в сетке 12×6: 4 канала в ряд. */
 const GRID: Grid = { width: 12, height: 6, w: 3, h: 2 };
@@ -23,7 +24,6 @@ const T = {
   channels: ["канал", "канала", "каналов"] as const,
   empty: "Сейчас трансляций нет. Каналы KinoPub — бонус, работают как есть",
   refresh: "Обновить",
-  offline: "{ico:msx-yellow:history} нет связи",
 };
 
 export async function tvScreen(ctx: AppContext): Promise<MsxContentRoot> {
@@ -35,7 +35,7 @@ export async function tvScreen(ctx: AppContext): Promise<MsxContentRoot> {
   }
   const channels = got.value;
   const root: MsxContentRoot = { type: "list", flag: "tv", cache: false, reuse: false, ...gridPreload(ctx), headline: T.headline };
-  root.extension = [channels.length > 0 ? `${T.live} · ${fmtCount(channels.length, T.channels)}` : "", got.offline === undefined ? "" : T.offline]
+  root.extension = [channels.length > 0 ? `${T.live} · ${fmtCount(channels.length, T.channels)}` : "", offlineMark(got.offline)]
     .filter((x) => x !== "").join(" · ");
   if (channels.length === 0) {
     root.pages = [{ items: [

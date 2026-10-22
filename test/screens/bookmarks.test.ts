@@ -5,8 +5,9 @@ import { contentAction, replaceContent } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids } from "../../src/router/ids.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
+import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
-import type { TestApp } from "../helpers/harness.ts";
+import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
 import { waitFor } from "../progress/progress-rig.ts";
 
 const P = TEST_P;
@@ -19,8 +20,8 @@ afterEach(async () => {
   apps = [];
 });
 
-async function make(): Promise<TestApp> {
-  const t = await createTestApp({ loggedIn: true });
+async function make(o: Omit<TestAppOptions, "loggedIn"> = {}): Promise<TestApp> {
+  const t = await createTestApp({ ...o, loggedIn: true });
   apps.push(t);
   return t;
 }
@@ -29,6 +30,19 @@ const screen = async (t: TestApp): Promise<MsxContentRoot> => (await t.request(i
 const allItems = (s: MsxContentRoot): MsxContentItem[] => [...(s.items ?? []), ...(s.pages ?? []).flatMap((p) => p.items)];
 
 describe("bookmarksScreen (S11)", () => {
+  it("QA-API-12: folders from an L2 copy a week old while KinoPub answers 502 → «не обновлено», not «нет связи»", async () => {
+    const a = await make();
+    await screen(a);
+    a.ctx.l2.flush();
+    const b = await make({ mock: a.mock, storage: a.storage, clock: new FakeClock(FAKE_EPOCH + 8 * 86_400_000) });
+    b.mock.setScenario({ rules: [{ path: "^/v1/bookmarks$", status: 502 }] });
+    await screen(b);
+    await waitFor(b, () => b.host.actions.length > 0, "the late replace");
+    const s = await screen(b);
+    assert.equal(s.items?.[0]?.headline, "{ico:bookmark} Избранное");
+    assert.equal(s.extension, "{ico:msx-yellow:history} не обновлено");
+  });
+
   it("16×8 list, not cached; «Избранное» is a 4×2 tile, the bookmark icon inside its headline (V-30), «2 шт.»", async () => {
     const t = await make();
     const s = await screen(t);

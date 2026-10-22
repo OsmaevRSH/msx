@@ -3,6 +3,7 @@ import type { HistoryEntry, ItemSummary, SerialWatching, Titled } from "../api/m
 import type { ReqClass } from "../api/transport.ts";
 import type { Got } from "../cache/swr.ts";
 import { sleep } from "../core/clock.ts";
+import type { KpErrorCode } from "../core/errors.ts";
 import { fmtCount } from "../core/format.ts";
 import { contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
@@ -11,7 +12,7 @@ import { badgeOf, byLeft, film, leftOf } from "./continue.ts";
 import { errorScreen } from "./error.ts";
 import { fill, remember } from "./list.ts";
 import type { ListEntry } from "./list.ts";
-import { FILMS, SERIALS } from "./list-head.ts";
+import { FILMS, SERIALS, offlineMark } from "./list-head.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import { NO_OPTIONS, WATCHING_OPTIONS } from "./tile-actions.ts";
 import { GRID, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
@@ -33,11 +34,10 @@ const T = {
   headline: "Я смотрю",
   empty: "Здесь появятся сериалы и фильмы, которые вы смотрите",
   find: "{ico:search} Найти фильм",
-  offline: "{ico:msx-yellow:history} нет связи",
 };
 
 /** `at` — `fetchedAt` истории (часы ТВ): с ним сравнивается оверлей ТВ, как у «Продолжить». */
-interface Snap { serials: SerialWatching[]; movies: ItemSummary[]; history: HistoryEntry[]; at: number; stale: boolean; offline: boolean }
+interface Snap { serials: SerialWatching[]; movies: ItemSummary[]; history: HistoryEntry[]; at: number; stale: boolean; offline: KpErrorCode | undefined }
 
 const ok = <V>(r: PromiseSettledResult<Got<V>>): Got<V> | undefined => (r.status === "fulfilled" ? r.value : undefined);
 const pct = (p: number): number => Math.round(p * 100) / 100;
@@ -52,7 +52,7 @@ async function load(ctx: AppContext, cls: ReqClass): Promise<Snap> {
   return {
     serials: ok(s)?.value ?? [], movies: ok(m)?.value ?? [], history: ok(h)?.value ?? [], at: ok(h)?.fetchedAt ?? 0,
     stale: [s, m, h].some((r) => r.status === "rejected") || gots.some((g) => g?.stale === true),
-    offline: gots.some((g) => g?.offline !== undefined),
+    offline: gots.find((g) => g?.offline !== undefined)?.offline,
   };
 }
 
@@ -84,7 +84,7 @@ function render(ctx: AppContext, s: Snap): { root: MsxContentRoot; hash: string 
   const { items, tiles, serials } = tilesOf(ctx, s);
   const root: MsxContentRoot = { type: "list", flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: T.headline };
   const counts = [serials > 0 ? fmtCount(serials, SERIALS) : "", items.length > serials ? fmtCount(items.length - serials, FILMS) : ""];
-  const ext = [...counts, s.offline ? T.offline : ""].filter((x) => x !== "").join(" · ");
+  const ext = [...counts, offlineMark(s.offline)].filter((x) => x !== "").join(" · ");
   if (ext !== "") root.extension = ext;
   const hash = personalHash([tiles.map((t) => [t.id, t.badge, t.progress, t.stamp]), s.offline]);
   if (items.length === 0) {

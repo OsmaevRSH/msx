@@ -574,8 +574,14 @@ describe("homeScreen: KinoPub hangs (stage 33b)", () => {
     return shown;
   }
 
-  for (const [name, rules] of [["hangs", HANG.rules], ["drops the connection", [{ path: "^/v1/", drop: true }]]] as const) {
-    it(`X-1: L2 older than a week, KinoPub ${name} → all shelves at once with «нет связи», ≤ 1 replace in 60 s`, async () => {
+  // QA-API-12: пометка — по причине: KinoPub не отвечает — «нет связи», отвечает 5xx — «не обновлено».
+  const CASES = [
+    ["hangs", HANG.rules, "нет связи"],
+    ["drops the connection", [{ path: "^/v1/", drop: true }], "нет связи"],
+    ["answers 502", [{ path: "^/v1/", status: 502 }], "не обновлено"],
+  ] as const;
+  for (const [name, rules, mark] of CASES) {
+    it(`X-1: L2 older than a week, KinoPub ${name} → all shelves at once with «${mark}», ≤ 1 replace in 60 s`, async () => {
       const first = await make();
       await open(first);
       await persisted(first);
@@ -591,7 +597,7 @@ describe("homeScreen: KinoPub hangs (stage 33b)", () => {
       const last = shown.at(-1);
       assert.ok(last !== undefined);
       assert.deepEqual(headers(last), ALL);
-      assert.match(last.extension ?? "", /нет связи/);
+      assert.equal(last.extension, `{ico:msx-yellow:history} ${mark}`);
       // KinoPub ожил: следующая сверка заменяет главную свежими полками без пометки.
       first.mock.setScenario({ rules: [] });
       first.mock.release();

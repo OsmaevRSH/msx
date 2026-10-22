@@ -385,7 +385,7 @@ function buildRoot(ctx: AppContext, key: string, sk: string, k: ListKey, st: Lis
   const root: MsxContentRoot = {
     type: "list", flag: listFlag(key), cache: false, reuse: false, ...gridPreload(ctx), headline: st.headline ?? listTitle(k),
   };
-  const head = { genre: st.genre, filters: filterTokens(k, st.country), total: st.total, offline: st.offline !== undefined };
+  const head = { genre: st.genre, filters: filterTokens(k, st.country), total: st.total, offline: st.offline };
   const extension = listExtension(k, head);
   if (extension !== undefined) root.extension = extension;
   const options = filterOptions(ctx, key, k);

@@ -7,6 +7,7 @@ import { OrderStore } from "../config/menu.ts";
 import { sleep } from "../core/clock.ts";
 import type { Clock } from "../core/clock.ts";
 import { KpError } from "../core/errors.ts";
+import type { KpErrorCode } from "../core/errors.ts";
 import { fmtDate } from "../core/format.ts";
 import { chain, contentAction, panelAction, replaceContent } from "../msx/actions.ts";
 import { guard } from "../msx/edges.ts";
@@ -17,7 +18,7 @@ import { buildContinue } from "./continue.ts";
 import type { ContinueTile } from "./continue.ts";
 import { RETRY_CONTENT, errorItems } from "./error.ts";
 import { MAX_BYTES, bytes } from "./list.ts";
-import { controlOptions, shelfTitle } from "./list-head.ts";
+import { controlOptions, offlineMark, shelfTitle } from "./list-head.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
 import { GRID, ROW, gridPreload, iconTile, shelfTile } from "./tiles.ts";
 
@@ -53,7 +54,6 @@ const T = {
   loading: "{ico:hourglass-empty} Загружаю главную…",
   empty: "Пока здесь пусто",
   warning: "{ico:msx-yellow:warning}",
-  offline: "{ico:msx-yellow:history} нет связи",
   shelves: "Секции главной",
   hidden: "Все секции главной скрыты",
   failed: "Не удалось загрузить",
@@ -105,14 +105,14 @@ export function redrawHome(ctx: AppContext): string {
 
 /**
  * Плитки без `layout`; `personal` — вклад полки в хеш (Plan B §7.7), `stale` — персональные данные устарели,
- * `offline` — данные из кэша, потому что KinoPub не ответил, `failed` — загрузка не удалась: вместо плиток — повтор.
+ * `offline` — код сбоя, из-за которого данные из кэша (QA-API-12), `failed` — загрузка не удалась: вместо плиток — повтор.
  */
-interface Shelf { def: Def; tiles: MsxContentItem[]; personal?: unknown; stale: boolean; offline: boolean; failed?: true }
+interface Shelf { def: Def; tiles: MsxContentItem[]; personal?: unknown; stale: boolean; offline?: KpErrorCode | undefined; failed?: true }
 /**
  * `stale` — устарели персональные данные полок или строка о подписке (или `user` ещё не пришёл); `none` — все полки
  * скрыты настройкой.
  */
-interface Snap { shelves: Shelf[]; pending: boolean; stale: boolean; offline: boolean; none: boolean; err?: unknown }
+interface Snap { shelves: Shelf[]; pending: boolean; stale: boolean; offline?: KpErrorCode | undefined; none: boolean; err?: unknown }
 
 type ShelfKind = "fresh" | "popular" | "hot";
 
@@ -196,7 +196,7 @@ const ok = <V>(r: PromiseSettledResult<Got<V>>): Got<V> | undefined => (r.status
  */
 function failedShelf(d: Def): Shelf {
   const tile: MsxContentItem = { ...iconTile("refresh", T.failed, T.retry, RETRY_CONTENT), id: `${d.id}_retry` };
-  return { def: d, tiles: [tile], personal: "!", stale: false, offline: false, failed: true };
+  return { def: d, tiles: [tile], personal: "!", stale: false, failed: true };
 }
 
 /**
@@ -232,7 +232,7 @@ async function continueShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> 
     def: d, tiles, personal: tiles.map((t) => [t.id, t.progress, t.tag, t.badge]),
     // Источник не ответил — тоже повод сверить экран позже.
     stale: miss !== undefined || gots.some((g) => g?.stale === true),
-    offline: gots.some((g) => g?.offline !== undefined),
+    offline: gots.find((g) => g?.offline !== undefined)?.offline,
   };
 }
 
@@ -250,12 +250,12 @@ async function loadShelf(ctx: AppContext, d: Def, src: Src): Promise<Shelf> {
     }));
     return {
       def: d, tiles: more ? withMore(ctx, d, tiles, ids.bookmarks()) : tiles,
-      personal: [folders.map((f) => [f.id, f.count, f.title]), more], stale: g.stale, offline: g.offline !== undefined,
+      personal: [folders.map((f) => [f.id, f.count, f.title]), more], stale: g.stale, offline: g.offline,
     };
   }
   const g = await src.shelf(d.kind, d.type ?? "");
   const more = ids.list(encodeListKey({ src: d.kind, type: d.type }));
-  return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES - 1)), more), stale: false, offline: g.offline !== undefined };
+  return { def: d, tiles: withMore(ctx, d, titles(ctx, d, g.value.slice(0, TILES - 1)), more), stale: false, offline: g.offline };
 }
 
 /**
@@ -319,7 +319,7 @@ function watch(ctx: AppContext, loads: Loads): Watch {
     const all = settled.flatMap((ok, i) => [ok ? done[i] : old[i]]).filter((s) => s !== undefined);
     const out: Snap = {
       shelves: all.filter((s) => s.tiles.length > 0), pending: settled.includes(false), none: settled.length === 0,
-      stale: userStale || all.some((s) => s.stale), offline: all.some((s) => s.offline),
+      stale: userStale || all.some((s) => s.stale), offline: all.find((s) => s.offline !== undefined)?.offline,
     };
     if (err !== undefined) out.err = err;
     return out;
@@ -356,13 +356,13 @@ function headline(ctx: AppContext): string {
  * Сетка 12×6 без `compress` — крупные плитки (спец. §11 S4). Без `template`: шаблон корня MSX к элементам `pages` не
  * применяет, поэтому вид плиток — в каждой плитке.
  */
-function rootOf(ctx: AppContext, head: string, pages: MsxContentPage[], offline = false): MsxContentRoot {
+function rootOf(ctx: AppContext, head: string, pages: MsxContentPage[], offline?: KpErrorCode): MsxContentRoot {
   const root: MsxContentRoot = {
     type: "list", flag: FLAG, cache: false, reuse: false, ...gridPreload(ctx), headline: head, pages,
     // Красная кнопка — «Секции главной» поверх главной: опции закрываются, изменения видны сразу (`redrawHome`).
     options: controlOptions(T.title, [{ icon: "tune", label: T.shelves, action: chain(["back", openShelves(ctx)]) }]),
   };
-  if (offline) root.extension = T.offline;
+  if (offline !== undefined) root.extension = offlineMark(offline);
   return root;
 }
 

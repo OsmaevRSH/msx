@@ -6,7 +6,7 @@ import { ids } from "../../src/router/ids.ts";
 import { CHANNELS } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
-import { player } from "../progress/progress-rig.ts";
+import { player, waitFor } from "../progress/progress-rig.ts";
 
 // «Спорт» S16 (спец. §11, v1.11): каналы эфира `/v1/tv`, запуск `video:<stream>` без resolve и без прогресса.
 
@@ -27,6 +27,18 @@ const screen = async (t: TestApp): Promise<MsxContentRoot> => (await t.request(i
 const tiles = (s: MsxContentRoot): MsxContentItem[] => s.items ?? [];
 
 describe("tvScreen «Спорт» (S16)", () => {
+  it("QA-API-12: channels kept in L1 over an hour while KinoPub answers 429 → «KinoPub занят», not «нет связи»", async () => {
+    const t = await make();
+    await screen(t);
+    await t.clock.advance(61 * 60_000);
+    t.mock.setScenario({ rules: [{ path: "^/v1/tv$", status: 429 }] });
+    await screen(t);
+    await waitFor(t, () => t.host.actions.length > 0, "the late replace");
+    const s = await screen(t);
+    assert.equal(tiles(s).length, CHANNELS.length);
+    assert.equal(s.extension, "Эфир · 6 каналов · {ico:msx-yellow:history} KinoPub занят");
+  });
+
   it("channels as 3×2 tiles (4 in a row): logo, name, «Эфир»; the tile plays the live stream directly", async () => {
     const t = await make();
     const s = await screen(t);

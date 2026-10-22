@@ -7,6 +7,7 @@ import type { Grid } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { encodeListKey, ids } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
+import { offlineMark } from "./list-head.ts";
 import { personalHash, scheduleRefresh } from "./refresh.ts";
 import { gridPreload } from "./tiles.ts";
 
@@ -26,7 +27,6 @@ const GRID: Grid = { width: 16, height: 8, w: 4, h: 2 };
 const T = {
   headline: "Закладки",
   pcs: "шт.",
-  offline: "нет связи",
   folder: "{ico:bookmark}",
   empty: "Здесь появятся папки с закладками. Добавьте фильм кнопкой ☆ на карточке",
   find: "{ico:search} Найти фильм",
@@ -48,7 +48,7 @@ export async function bookmarksScreen(ctx: AppContext): Promise<MsxContentRoot> 
     });
   }
   const root: MsxContentRoot = { type: "list", flag: FLAG, compress: true, cache: false, reuse: false, ...gridPreload(ctx), headline: T.headline };
-  if (got.offline !== undefined) root.extension = `{ico:msx-yellow:history} ${T.offline}`;
+  if (got.offline !== undefined) root.extension = offlineMark(got.offline);
   const items = got.value.filter((f) => f.id > 0).map((f, i): MsxContentItem => ({
     id: `f${f.id}`, ...(i === 0 ? { focus: true } : {}), headline: `${T.folder} ${f.title}`, text: `${f.count} ${T.pcs}`,
     action: contentAction(ctx.P, ids.list(encodeListKey({ src: "folder", folder: f.id }))),

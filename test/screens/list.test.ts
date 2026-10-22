@@ -9,6 +9,7 @@ import { decodeListKey, encodeListKey, ids, listFlag } from "../../src/router/id
 import type { ListKey } from "../../src/router/ids.ts";
 import { errorScreen, slowScreen } from "../../src/screens/error.ts";
 import { MAX_LISTS, SORTS, listScreen, listSource, listTitle, onExtend } from "../../src/screens/list.ts";
+import { offlineMark } from "../../src/screens/list-head.ts";
 import { chain, panelAction, replaceContent } from "../../src/msx/actions.ts";
 import { sleep } from "../../src/core/clock.ts";
 import { gridTemplate, posterTiles } from "../../src/screens/tiles.ts";
@@ -149,6 +150,30 @@ describe("listScreen (S5, CC-05)", () => {
     assert.deepEqual(items(s).at(-1)?.live, live(MOVIES, "down", 48));
     assert.equal(b.mock.calls().length, calls, "the replace gets the late list without a new request");
   });
+
+  it("QA-API-12: the mark of a cached list names the reason — KP-NET «нет связи», KP-429 «KinoPub занят», others «не обновлено»", () => {
+    assert.equal(offlineMark(undefined), "");
+    assert.equal(offlineMark("KP-NET"), "{ico:msx-yellow:history} нет связи");
+    assert.equal(offlineMark("KP-429"), "{ico:msx-yellow:history} KinoPub занят");
+    for (const code of ["KP-5XX", "KP-404", "KP-AUTH", "KP-BAD", "KP-CORS"] as const) {
+      assert.equal(offlineMark(code), "{ico:msx-yellow:history} не обновлено", code);
+    }
+  });
+
+  for (const [status, mark] of [[503, "не обновлено"], [429, "KinoPub занят"]] as const) {
+    it(`QA-API-12: first page answers ${status} but L2 has it → the list with «${mark}», not «нет связи»`, async () => {
+      const a = await make();
+      await a.request(ids.list(MOVIES));
+      a.ctx.l2.flush();
+      const b = await make({ mock: a.mock, storage: a.storage, clock: new FakeClock(FAKE_EPOCH + 8 * DAY) });
+      b.mock.setScenario({ rules: [{ path: "^/v1/items$", status }] });
+      await b.request(ids.list(MOVIES));
+      await waitFor(b, () => b.host.actions.length > 0, "the late replace");
+      const s = await b.request(ids.list(MOVIES));
+      assert.equal(items(s).length, 48);
+      assert.equal(s.extension, `{ico:msx-red:stop} Обновлённые · 203 фильма  {ico:msx-yellow:history} ${mark}`);
+    });
+  }
 
   it("an empty list: «Ничего не найдено» and a focusable «Назад», no live", async () => {
     const t = await make();

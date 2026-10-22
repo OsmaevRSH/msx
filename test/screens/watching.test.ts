@@ -152,6 +152,19 @@ describe("watchingScreen «Я смотрю» (S15)", () => {
     assert.equal(s.extension, "2 сериала · 1 фильм · {ico:msx-yellow:history} нет связи");
   });
 
+  it("QA-API-12: KinoPub answers 429 with an L2 copy a week old → the tiles from L2 with «KinoPub занят», not «нет связи»", async () => {
+    const a = await make();
+    await screen(a);
+    a.ctx.l2.flush();
+    const b = await make({ mock: a.mock, storage: a.storage, clock: new FakeClock(FAKE_EPOCH + 8 * DAY) });
+    b.mock.setScenario({ rules: [{ path: "^/v1/", status: 429 }] });
+    await screen(b);
+    await waitFor(b, () => actions(b).length > 0, "the late replace");
+    const s = await screen(b);
+    assert.equal(tiles(s).length, 3);
+    assert.equal(s.extension, "2 сериала · 1 фильм · {ico:msx-yellow:history} KinoPub занят");
+  });
+
   it(`a long list: window ≤ ${WINDOW} tiles and ≤ 32 KB, live edge → extend shifts the window from memory, reload only while current`, async () => {
     const t = await make();
     const serials = catalog().filter((it) => it.seasons !== undefined && !it.unlisted && !it.deleted).slice(0, 150);
