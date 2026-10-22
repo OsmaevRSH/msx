@@ -62,7 +62,8 @@ test("E-30: «Буду смотреть» на карточке сериала �
   await expectContent(page, "★ Буду смотреть");
   const toggles = await callsSince(c0, /^\/v1\/watching\/togglewatchlist$/);
   expect(toggles.map((c) => c.q.get("id")), "один переключатель, без повторов").toEqual([String(BIG)]);
-  expect((await callsSince(c0, /^\/v1\/items\/\d+$/)).length, "свежая карточка до и после").toBeGreaterThanOrEqual(2);
+  // QA-PLAY-13: итог — из ответа переключателя, карточка перечитывается только до него.
+  expect((await callsSince(c0, /^\/v1\/items\/\d+$/)).length, "свежая карточка до переключения").toBeGreaterThanOrEqual(1);
 
   // «Я смотрю» устарел: экран отдаётся из кэша и заменяется сверкой — сериала в нём больше нет.
   await open(page, ids.watching());
@@ -74,6 +75,28 @@ test("E-30: «Буду смотреть» на карточке сериала �
   expect((await callsSince(c0, /^\/v1\/watching\/togglewatchlist$/)).length).toBe(2);
 });
 
+test("E-45: двойное OK на «✓ В списке» до ответа — «Убираю…» сразу, повтор «Уже выполняется», один togglewatchlist, «★ Буду смотреть»", async () => {
+  await open(page, ids.item(BIG));
+  await expectContent(page, "✓ В списке");
+  const wl = ((await answer(page, ids.item(BIG))).pages[0].items as { id?: string; action?: string }[]).find((i) => i.id === "b_wl")!.action!;
+  // Ответ переключателя идёт 1,5 с: второе OK успевает до него (QA-PLAY-1).
+  await mock.scenario({ rules: [{ path: "^/v1/watching/togglewatchlist$", delayMs: 1500 }] });
+  try {
+    const c0 = await callCount();
+    const m = await mark(page);
+    await press(page, "b_wl", "В списке");
+    await until(page, (x) => acts(x, "info:Убираю…").length > 0, 5000, "сразу «Убираю…»", m);
+    await exec(page, wl);
+    await until(page, (x) => acts(x, "info:Уже выполняется").length > 0, 5000, "второе OK — «Уже выполняется»", m);
+    await until(page, (x) => acts(x, "reload:content").length > 0, 15_000, "перерисовка карточки", m);
+    await expectContent(page, "★ Буду смотреть");
+    const toggles = await callsSince(c0, /^\/v1\/watching\/togglewatchlist$/);
+    expect(toggles.map((c) => c.q.get("id")), "второе OK не переключает обратно").toEqual([String(BIG)]);
+  } finally {
+    await mock.scenario({ rules: [] });
+  }
+});
+
 test("E-31: сезон отмечается целиком — опции → «Отметить сезон» → toggle без video, ✓ на всех сериях", async () => {
   await open(page, ids.season(ONE, 1));
   await expectContent(page, "Серия 1");
@@ -81,7 +104,9 @@ test("E-31: сезон отмечается целиком — опции → «
   const c0 = await callCount();
   const m = await mark(page);
   await page.keyboard.press("Enter");
-  await until(page, (x) => acts(x, "[cleanup|reload:content]").length > 0, 10_000, "опции закрыты, сезон перерисован", m);
+  // QA-PLAY-10: опции закрываются сразу, перерисовка — после ответа.
+  const done = await until(page, (x) => acts(x, "reload:content").length > 0, 10_000, "опции закрыты, сезон перерисован", m);
+  expect(acts(done, "cleanup")[0]?.i ?? Infinity, "cleanup раньше перерисовки").toBeLessThan(acts(done, "reload:content")[0]!.i);
   await expect(panel(page)).toBeHidden();
   const toggles = await callsSince(c0, /^\/v1\/watching\/toggle$/);
   expect(toggles.map((c) => [c.q.get("season"), c.q.has("video")]), "сезон одним toggle без video").toEqual([["1", false]]);
@@ -126,4 +151,21 @@ test("E-33: трейлер — «Трейлер» → resolve play:<id>:trailer 
   await closePlayer(page);
   await expectContent(page, "Тестовый фильм «Простой»");
   expect(await callsSince(c0, /^\/v1\/watching\/(marktime|toggle)$/), "трейлер — не просмотр: ни marktime, ни toggle").toEqual([]);
+});
+
+test("E-46: «Отметить просмотренным» в опциях фильма — опции закрыты сразу, после ответа «Отмечено» и новая подпись", async () => {
+  const id = FIX.MOVIE_SIMPLE;
+  await open(page, ids.item(id));
+  await expectContent(page, "Тестовый фильм «Простой»");
+  await option(page, "b_main", "Отметить просмотренным");
+  const c0 = await callCount();
+  const m = await mark(page);
+  await page.keyboard.press("Enter");
+  await until(page, (x) => acts(x, "cleanup").length > 0, 5000, "опции закрываются сразу (QA-PLAY-8)", m);
+  await expect(panel(page)).toBeHidden();
+  await until(page, (x) => acts(x, "[reload:content|info:Отмечено]").length > 0, 10_000, "перерисовка и «Отмечено»", m);
+  await expectContent(page, "▶ Смотреть снова");
+  await expect.poll(async () => (await answer(page, ids.item(id))).options.items[0].label, { message: "в опциях — «Снять отметку»", timeout: 10_000 })
+    .toBe("Снять отметку");
+  expect((await callsSince(c0, /^\/v1\/watching\/toggle$/)).map((c) => c.q.get("id")), "одна отметка").toEqual([String(id)]);
 });

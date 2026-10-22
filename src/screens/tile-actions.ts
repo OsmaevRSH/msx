@@ -107,6 +107,7 @@ export async function setWatchlist(ctx: AppContext, id: number, want: boolean): 
     let on: boolean;
     try {
       on = (await ctx.api.toggleWatchlist(id, "fg")).watching;
+      last = undefined;
     } catch (e) {
       if (!LOST.has(toKpError(e).code)) throw e;
       last = e;

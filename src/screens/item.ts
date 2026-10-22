@@ -8,8 +8,8 @@ import { fmtMinutes, fmtRating, ruTitle } from "../core/format.ts";
 import { chain, commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot, MsxResolveResponse } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
-import { FRESH_CARD_MS } from "../playback/resolve.ts";
 import type { ContinueTarget, EpRef } from "../playback/episodes.ts";
+import { FRESH_CARD_MS } from "../playback/resolve.ts";
 import { parseSubsValue, pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
 import type { SelectPrefs } from "../playback/select.ts";
 import { qualityLabel } from "../playback/url.ts";
@@ -18,8 +18,8 @@ import { errorScreen, errorText } from "./error.ts";
 import { audioTitle, playerProps, subsTitle } from "./player.ts";
 import type { PlayerPropsInput } from "./player.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
-import { setWatchlist } from "./tile-actions.ts";
 import type { RefreshSpec } from "./refresh.ts";
+import { setWatchlist } from "./tile-actions.ts";
 
 // Карточка S8 (спец. §11, Plan B §8.3 S8): кнопки ведут в resolve, серия «Продолжить» выбирается в момент запуска (D-41).
 
