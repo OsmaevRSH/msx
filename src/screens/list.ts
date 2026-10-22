@@ -1,7 +1,8 @@
 import type { AppContext, ListState } from "../app/context.ts";
 import type { BookmarkFolder, Page, Titled } from "../api/models.ts";
-import { cacheKeys } from "../cache/repo.ts";
+import { cacheKeys, listTtl } from "../cache/repo.ts";
 import type { ListSource } from "../cache/repo.ts";
+import type { Got } from "../cache/swr.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
 import { commitMsg } from "../msx/actions.ts";
@@ -14,6 +15,7 @@ import { countryTitle, filterSource, filterTokens, hasFilters, resetAction, with
 import {
   COLLECTION_SORT, DEFAULT_SORT, SHELF_TYPE, filterOptions, genreType, isShelf, listExtension, listTitle, sectionGenre, shelfQueryType, shelfType,
 } from "./list-head.ts";
+import { scheduleRefresh } from "./refresh.ts";
 import { listTileOptions } from "./tile-actions.ts";
 import { GRID, ROW, collectionTiles, gridPreload, gridTemplate, posterTiles } from "./tiles.ts";
 
@@ -62,12 +64,13 @@ const T = {
  * Состояние списка в памяти и то, что не входит в общий `ListState`: заголовок, названия жанра и страны фильтра, всего
  * найдено (`pagination`), пометка офлайна и окно ответа [from, to). `anchor` — край, к которому шёл пользователь, `pivot` —
  * граница последнего сдвига: по одну сторону уже виденные плитки, по другую новые. Экран не из списков («Я смотрю»)
- * кладёт сюда готовые плитки (`tiles`) и свой `dataId` — окно, сдвиг и `extend` у него те же.
+ * кладёт сюда готовые плитки (`tiles`) и свой `dataId` — окно, сдвиг и `extend` у него те же. `at` — когда загружена
+ * первая порция (0 — из кэша, помеченного устаревшим): по нему список старше TTL источника сверяется (QA-NAV-2).
  */
 export type ListEntry = ListState & {
   headline?: string; genre?: string; country?: string; total?: number; offline?: KpErrorCode;
   from?: number; to?: number; anchor?: "start" | "end"; pivot?: number;
-  dataId?: string; tiles?: MsxContentItem[];
+  dataId?: string; tiles?: MsxContentItem[]; at?: number;
 };
 
 type Edge = "up" | "down";
@@ -134,7 +137,34 @@ export async function listScreen(ctx: AppContext, key: string): Promise<MsxConte
   else st.dataId = ids.list(key);
   const root = buildRoot(ctx, key, sk, k, st);
   prefetchNext(ctx, src, st);
+  // QA-NAV-2: список старше TTL источника отдан как есть, первая порция сверяется фоном; изменилась — замена экрана.
+  if (st.at !== undefined && ctx.clock.now() - st.at >= listTtl(src)) {
+    scheduleRefresh(ctx, { dataId: ids.list(key), flag: listFlag(key), hash: "", recompute: () => recheck(ctx, sk, k, src, st) });
+  }
   return root;
+}
+
+/**
+ * Сверка списка в памяти: первая порция в обход кэша. Те же тайтлы в начале — список свежий; иначе он забыт (следующий
+ * показ соберёт его из обновлённого кэша) и `scheduleRefresh` заменяет экран, если тот текущий. Папку удалили (404) — тоже.
+ */
+async function recheck(ctx: AppContext, sk: string, k: ListKey, src: ListSource, st: ListEntry): Promise<string> {
+  let got: Got<Page<Titled>>;
+  try {
+    got = await ctx.repo.listPage(src, 1, { cls: "bg", fresh: true });
+    if (got.offline !== undefined) throw new KpError(got.offline, "list-recheck");
+  } catch (e) {
+    if (gone(ctx, k, toKpError(e).code)) return "gone";
+    throw e;
+  }
+  const now: ListState = { key: sk, items: [], page: 0, totalPages: 0, done: false };
+  apply(now, got.value, 1);
+  if (now.items.every((it, i) => st.items[i]?.id === it.id) && (!now.done || now.items.length === st.items.length)) {
+    st.at = got.fetchedAt;
+    return "";
+  }
+  if (ctx.state.lists.get(sk) === st) ctx.state.lists.delete(sk);
+  return "changed";
 }
 
 /**
@@ -262,6 +292,7 @@ async function firstPage(ctx: AppContext, key: string, k: ListKey, src: ListSour
   if (country !== undefined) st.country = country;
   if (got.offline !== undefined) st.offline = got.offline;
   st.total = got.value.pagination.totalItems;
+  st.at = got.stale ? 0 : got.fetchedAt;
   apply(st, got.value, 1);
   remember(ctx, key, st);
   return st;
@@ -315,10 +346,11 @@ export function remember(ctx: AppContext, key: string, st: ListEntry): void {
 }
 
 /** QA-NAV-7: папку удалили на другом устройстве (404) — её список забыт, а «Закладки» перечитают папки без неё. */
-function gone(ctx: AppContext, k: ListKey, code: KpErrorCode | undefined): void {
-  if (code !== "KP-404" || k.src !== "folder") return;
+function gone(ctx: AppContext, k: ListKey, code: KpErrorCode): boolean {
+  if (code !== "KP-404" || k.src !== "folder") return false;
   ctx.cache.delete(cacheKeys.bookmarks());
   forgetList(ctx, k);
+  return true;
 }
 
 /** Список больше не верен (QA-NAV-1): из памяти — прочь, первая порция кэша не отдаётся — следующий показ перечитает её. */

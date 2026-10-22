@@ -1,4 +1,5 @@
 import type { AppContext } from "../app/context.ts";
+import type { BookmarkFolder } from "../api/models.ts";
 import { toKpError } from "../core/errors.ts";
 import { contentAction } from "../msx/actions.ts";
 import { gridEdges } from "../msx/edges.ts";
@@ -6,6 +7,7 @@ import type { Grid } from "../msx/edges.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { encodeListKey, ids } from "../router/ids.ts";
 import { errorScreen } from "./error.ts";
+import { personalHash, scheduleRefresh } from "./refresh.ts";
 import { gridPreload } from "./tiles.ts";
 
 // S11 (Plan B S11): плитки папок 4×2 в сетке 16×8; папка открывается списком S5 (`list.ts`: порции, окно, догрузка).
@@ -13,6 +15,10 @@ import { gridPreload } from "./tiles.ts";
 // в «…»», `tile-actions.ts`, спец. §11.4); после них `Repo` помечает кэш папок устаревшим.
 // Значок закладки — в `headline` плитки: `icon` шаблона MSX рисует поверх названия (V-30). Над первым и под последним
 // рядом — стражи `msx/edges.ts`: «вверх» и «вниз» на краю не переносят фокус по кругу.
+
+/** Флаг экрана: устаревший кэш папок сверяется фоном и заменяет экран `replace:content:bookmarks` (QA-NAV-2). */
+const FLAG = "bookmarks";
+const folderHash = (fs: BookmarkFolder[]): string => personalHash(fs.map((f) => [f.id, f.title, f.count]));
 
 /** Плитки папок 4×2 в сетке 16×8 (`compress`): 4 в ряд. */
 const GRID: Grid = { width: 16, height: 8, w: 4, h: 2 };
@@ -34,7 +40,14 @@ export async function bookmarksScreen(ctx: AppContext): Promise<MsxContentRoot> 
     ctx.log.warn("bookmarks", "failed", { err: toKpError(e).code });
     return errorScreen(ctx, e, ids.bookmarks());
   }
-  const root: MsxContentRoot = { type: "list", compress: true, cache: false, reuse: false, ...gridPreload(ctx), headline: T.headline };
+  if (got.stale) {
+    // Папки, созданные или изменённые на другом устройстве, появятся без повторного входа (QA-NAV-2).
+    scheduleRefresh(ctx, {
+      dataId: ids.bookmarks(), flag: FLAG, hash: folderHash(got.value),
+      recompute: async () => folderHash((await ctx.repo.bookmarkFolders({ cls: "bg", fresh: true })).value),
+    });
+  }
+  const root: MsxContentRoot = { type: "list", flag: FLAG, compress: true, cache: false, reuse: false, ...gridPreload(ctx), headline: T.headline };
   if (got.offline !== undefined) root.extension = `{ico:msx-yellow:history} ${T.offline}`;
   const items = got.value.filter((f) => f.id > 0).map((f, i): MsxContentItem => ({
     id: `f${f.id}`, ...(i === 0 ? { focus: true } : {}), headline: `${T.folder} ${f.title}`, text: `${f.count} ${T.pcs}`,

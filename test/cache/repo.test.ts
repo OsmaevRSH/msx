@@ -4,7 +4,7 @@ import { setTimeout as realSleep } from "node:timers/promises";
 import { KvStore } from "../../src/bridge/storage.ts";
 import { L2 } from "../../src/cache/l2.ts";
 import { Lru } from "../../src/cache/lru.ts";
-import { Repo, cacheKeys } from "../../src/cache/repo.ts";
+import { Repo, cacheKeys, listTtl } from "../../src/cache/repo.ts";
 import type { ListSource } from "../../src/cache/repo.ts";
 import { type Got, SwrCache } from "../../src/cache/swr.ts";
 import { b64urlDecode } from "../../src/core/b64url.ts";
@@ -107,6 +107,21 @@ describe("Repo", () => {
     assert.equal(count("/v1/items"), 2);
     assert.equal((await repo.listPage(CATALOG, 1)).stale, false);
     assert.equal(count("/v1/items"), 2);
+  });
+
+  it("QA-NAV-2: listPage and bookmarkFolders with fresh go to the network within the TTL; listTtl — the TTL of the source", async () => {
+    const r = env.rig();
+    const { repo } = setup(r);
+    await r.run(repo.listPage(CATALOG, 1));
+    const fresh = await r.run(repo.listPage(CATALOG, 1, { fresh: true }));
+    assert.equal(fresh.source, "net");
+    assert.equal(count("/v1/items"), 2);
+    await r.run(repo.bookmarkFolders());
+    await r.run(repo.bookmarkFolders());
+    await r.run(repo.bookmarkFolders({ fresh: true }));
+    assert.equal(count("/v1/bookmarks"), 2);
+    const ttl = [{ kind: "history" }, { kind: "folder", folder: 1 }, CATALOG, { kind: "similar", id: 1 }] as const;
+    assert.deepEqual(ttl.map((src) => listTtl(src)), [MIN, 2 * MIN, 10 * MIN, 60 * MIN]);
   });
 
   it("listPage: similar and folder become a Page; only page 1 of a list goes to L2", async () => {

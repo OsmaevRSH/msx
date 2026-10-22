@@ -58,6 +58,12 @@ const BOOKMARKS = pol(5 * MIN, WEEK, true);
 const LINKS = pol(600 * SEC, 0, false);
 
 const memOnly = (p: Policy): Policy => ({ ...p, persist: false });
+const force = (o?: { fresh?: boolean }): { force: true } | undefined => (o?.fresh === true ? { force: true } : undefined);
+const listPolicy = (src: ListSource): Policy =>
+  src.kind === "similar" ? SIMILAR : src.kind === "folder" ? FOLDER : src.kind === "history" ? PERSONAL : LIST;
+
+/** TTL первой порции списка (Plan B §7.2): дольше список в памяти экрана живёт без сверки (QA-NAV-2). */
+export const listTtl = (src: ListSource): number => listPolicy(src).ttlMs;
 const noop = (): void => undefined;
 const opt = (s: string | undefined): string | undefined => (s === "" ? undefined : s);
 
@@ -185,7 +191,7 @@ export class Repo {
    * POST настроек, Plan B §6.2.1); при сбое сети — прежнее значение с `offline`, как у `SwrCache.get`.
    */
   deviceInfo(opts?: { fresh?: boolean }): Promise<Got<DeviceInfo>> {
-    return this.cache.get(cacheKeys.device(), DEVICE, () => this.api.deviceInfo(), opts?.fresh === true ? { force: true } : undefined);
+    return this.cache.get(cacheKeys.device(), DEVICE, () => this.api.deviceInfo(), force(opts));
   }
 
   serverLocations(): Promise<Got<ServerLocation[]>> {
@@ -203,15 +209,16 @@ export class Repo {
   /**
    * По 48 на страницу; в L2 — только первая порция раздела, и без фильтров спец. §11.5: они живут сессию, после
    * перезапуска их первые порции только вытесняли бы из L2 нужное холодному старту. `opts.cls` — класс запроса для
-   * лимитера (спец. §8.3). «История» — персональная, как полки «Продолжить» (1 мин).
+   * лимитера (спец. §8.3). «История» — персональная, как полки «Продолжить» (1 мин). `fresh` — в обход кэша (сверка
+   * списка в памяти, QA-NAV-2).
    */
-  listPage(src: ListSource, page: number, opts?: { cls?: ReqClass }): Promise<Got<Page<Titled>>> {
+  listPage(src: ListSource, page: number, opts?: { cls?: ReqClass; fresh?: boolean }): Promise<Got<Page<Titled>>> {
     const cls = opts?.cls;
-    if (src.kind === "similar") return this.similarPage(src.id, page, cls);
-    const base = src.kind === "folder" ? FOLDER : src.kind === "history" ? PERSONAL : LIST;
+    if (src.kind === "similar") return this.similarPage(src.id, page, cls, opts?.fresh);
+    const base = listPolicy(src);
     const filtered = src.kind === "catalog" && [src.year, src.country, src.kp, src.fin].some((v) => opt(v) !== undefined);
     const k = cacheKeys.list(src, page);
-    return this.cache.get(k, page === 1 && !filtered ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)));
+    return this.cache.get(k, page === 1 && !filtered ? base : memOnly(base), this.loader(k, cls, (c) => this.loadList(src, page, c)), force(opts));
   }
 
   shelf(kind: "fresh" | "popular" | "hot", type: string, opts?: { cls?: ReqClass }): Promise<Got<ItemSummary[]>> {
@@ -274,9 +281,10 @@ export class Repo {
     return this.cache.get(cacheKeys.tv(), TV, () => this.api.tv());
   }
 
-  bookmarkFolders(opts?: { cls?: ReqClass }): Promise<Got<BookmarkFolder[]>> {
+  /** `fresh` — в обход кэша: сверка экрана «Закладки», отданного из устаревшего кэша (QA-NAV-2). */
+  bookmarkFolders(opts?: { cls?: ReqClass; fresh?: boolean }): Promise<Got<BookmarkFolder[]>> {
     const k = cacheKeys.bookmarks();
-    return this.cache.get(k, BOOKMARKS, this.loader(k, opts?.cls, (c) => this.api.bookmarkFolders(c)));
+    return this.cache.get(k, BOOKMARKS, this.loader(k, opts?.cls, (c) => this.api.bookmarkFolders(c)), force(opts));
   }
 
   /** Только L1, 600 с; префетч и resolve одного `mid` делят один запрос. `fresh` — в обход кэша (шаг 2 fallback). */
@@ -291,7 +299,7 @@ export class Repo {
         throw e;
       }
     });
-    const got = await this.cache.get(k, LINKS, load, opts.fresh === true ? { force: true } : undefined);
+    const got = await this.cache.get(k, LINKS, load, force(opts));
     // SwrCache при сбое сети отдаёт прежнюю запись с `offline`; для ссылок это недопустимо.
     if (got.offline !== undefined) throw failure ?? new KpError(got.offline, "links-unavailable");
     // Пустой или битый ответ (200 без потоков) не держим 600 с: следующий шаг fallback сразу берёт свежие.
@@ -368,9 +376,9 @@ export class Repo {
   }
 
   /** «Похожие» — одна страница; дальше пусто. */
-  private async similarPage(id: number, page: number, cls?: ReqClass): Promise<Got<Page<ItemSummary>>> {
+  private async similarPage(id: number, page: number, cls?: ReqClass, fresh?: boolean): Promise<Got<Page<ItemSummary>>> {
     const k = cacheKeys.similar(id);
-    const got = await this.cache.get(k, SIMILAR, this.loader(k, cls, (c) => this.api.similar(id, c)));
+    const got = await this.cache.get(k, SIMILAR, this.loader(k, cls, (c) => this.api.similar(id, c)), force({ fresh }));
     const items = page === 1 ? got.value : [];
     return { ...got, value: { items, pagination: { total: 1, current: page, perpage: PER_PAGE, totalItems: got.value.length } } };
   }

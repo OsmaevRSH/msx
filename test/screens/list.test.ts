@@ -12,7 +12,7 @@ import { MAX_LISTS, SORTS, listScreen, listSource, listTitle, onExtend } from ".
 import { chain, panelAction, replaceContent } from "../../src/msx/actions.ts";
 import { sleep } from "../../src/core/clock.ts";
 import { gridTemplate, posterTiles } from "../../src/screens/tiles.ts";
-import { catalog } from "../../tools/kpmock/fixtures.ts";
+import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
@@ -368,6 +368,79 @@ describe("onExtend (spec §3.4, §6.3, CD-16)", () => {
     await t.run(onExtend(t.ctx, CONCERTS));
     assert.deepEqual(actions(t), []);
     assert.equal(pageCalls(t, 2), 0);
+  });
+});
+
+describe("QA-NAV-2: a list in memory follows the TTL of its source", () => {
+  const HISTORY = encodeListKey({ src: "history" });
+  const tileIds = (s: MsxContentRoot): string[] => items(s).map((i) => i.id ?? "").filter((id) => /^i\d+$/.test(id));
+  const replaced = (key: string): string => replaceContent(listFlag(key), TEST_P, ids.list(key));
+
+  it("«История» older than 1 min: from memory at once and read again in the background; new titles replace the screen once", async () => {
+    const t = await make();
+    const reads = (): number => pageCalls(t, 1, "/v1/history");
+    const first = await t.request(ids.list(HISTORY));
+    assert.equal(tileIds(first).length, 3);
+    await t.clock.advance(30_000);
+    await t.request(ids.list(HISTORY));
+    await t.clock.advance(1000);
+    assert.equal(reads(), 1, "within the TTL — memory only");
+
+    await t.clock.advance(31_000);
+    t.mock.state.history.unshift({ item: FIX.MOVIE_AUDIO12, season: 0, video: 1, time: 100, lastSeen: Math.floor(Date.now() / 1000) + 60 });
+    t.host.clearActions();
+    const again = await t.request(ids.list(HISTORY));
+    assert.deepEqual(tileIds(again), tileIds(first), "the old list at once");
+    await waitFor(t, () => actions(t).length > 0, "the replace");
+    assert.equal(reads(), 2);
+    assert.deepEqual(actions(t), [replaced(HISTORY)]);
+    const fresh = await t.request(ids.list(HISTORY));
+    assert.deepEqual(tileIds(fresh), [`i${FIX.MOVIE_AUDIO12}`, ...tileIds(first)]);
+    assert.equal(reads(), 2, "the replace answers from memory");
+
+    // Ещё через минуту — та же сверка, но список не изменился: замены нет.
+    await t.clock.advance(61_000);
+    t.host.clearActions();
+    await t.request(ids.list(HISTORY));
+    await waitFor(t, () => reads() === 3, "the second check");
+    await t.clock.advance(1000);
+    assert.deepEqual(actions(t), []);
+  });
+
+  it("a check is not a replace when the list is no longer on the screen: the new list waits in memory", async () => {
+    const t = await make();
+    await t.request(ids.list(HISTORY));
+    await t.clock.advance(61_000);
+    t.mock.state.history.unshift({ item: FIX.MOVIE_AUDIO12, season: 0, video: 1, time: 100, lastSeen: Math.floor(Date.now() / 1000) + 60 });
+    t.host.clearActions();
+    t.mock.setScenario({ rules: [{ path: "^/v1/history$", hang: true, times: 1 }] });
+    await t.request(ids.list(HISTORY));
+    // Пока сверка ждёт ответа, пользователь ушёл на главную (реальное время: поддельные таймеры не трогаем).
+    t.ctx.current.onRequest(ids.home());
+    for (let n = 0; n < 500 && pageCalls(t, 1, "/v1/history") < 2; n++) await new Promise((r) => setTimeout(r, 5));
+    assert.equal(t.mock.release(), 1);
+    await waitFor(t, () => !t.ctx.state.lists.has(HISTORY), "the check forgets the old list");
+    await t.clock.advance(1000);
+    assert.deepEqual(actions(t), []);
+    assert.equal(tileIds(await t.request(ids.list(HISTORY)))[0], `i${FIX.MOVIE_AUDIO12}`);
+    assert.equal(pageCalls(t, 1, "/v1/history"), 2);
+  });
+
+  it("«Новинки» opened again after 3 h ask for their first page again (10 min); within 10 min — memory only", async () => {
+    const t = await make();
+    const menu = encodeListKey({ src: "fresh" });
+    const reads = (): number => pageCalls(t, 1, "/v1/items/fresh");
+    await t.request(ids.list(menu));
+    await t.clock.advance(5 * 60_000);
+    await t.request(ids.list(menu));
+    await t.clock.advance(1000);
+    assert.equal(reads(), 1);
+    await t.clock.advance(3 * 3_600_000);
+    t.host.clearActions();
+    await t.request(ids.list(menu));
+    await waitFor(t, () => reads() === 2, "the first page again");
+    await t.clock.advance(1000);
+    assert.deepEqual(actions(t), [], "nothing changed — no replace");
   });
 });
 

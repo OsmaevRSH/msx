@@ -1,12 +1,13 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { cacheKeys } from "../../src/cache/repo.ts";
-import { contentAction } from "../../src/msx/actions.ts";
+import { contentAction, replaceContent } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids } from "../../src/router/ids.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
+import { waitFor } from "../progress/progress-rig.ts";
 
 const P = TEST_P;
 const folderKey = (folder: number): string => encodeListKey({ src: "folder", folder });
@@ -84,6 +85,25 @@ describe("bookmarksScreen (S11)", () => {
     const items = allItems(s);
     assert.match(String(items[0]?.text), /KP-404/);
     assert.equal(items[1]?.action, "[invalidate:content|reload:content]");
+  });
+
+  it("QA-NAV-2: «Закладки» from a stale cache come at once and are checked; a folder made on the phone replaces the screen", async () => {
+    const t = await make();
+    await screen(t);
+    t.mock.state.folders.set(77, { title: "С телефона", items: [], created: Math.floor(Date.now() / 1000) });
+    await t.clock.advance(6 * 60_000);
+    t.host.clearActions();
+    const stale = await screen(t);
+    assert.equal(stale.flag, "bookmarks");
+    assert.ok(!allItems(stale).some((i) => i.id === "f77"), "the cached folders at once");
+    await waitFor(t, () => t.host.actions.length > 0, "the replace");
+    assert.deepEqual(t.host.actions.map((a) => a.action), [replaceContent("bookmarks", P, ids.bookmarks())]);
+    assert.ok(allItems(await screen(t)).some((i) => i.id === "f77"));
+    // Свежий кэш — без сверки.
+    t.host.clearActions();
+    await screen(t);
+    await t.clock.advance(5000);
+    assert.deepEqual(t.host.actions, []);
   });
 
   it("QA-NAV-7: a folder deleted elsewhere answers 404 — its list is forgotten and «Закладки» are read again, without it", async () => {
