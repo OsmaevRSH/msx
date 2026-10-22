@@ -200,6 +200,21 @@ describe("run: act:probe:cdnRun", () => {
     assert.equal(actions(t).at(-1), "info:Проверка прервана: началось видео", "the screen is not current — only the notification");
   });
 
+  // SET-9: сбой ссылок у первого фильма полки — берётся следующий из трёх кандидатов; ошибка — только если не подошёл ни один.
+  it("SET-9: media-links of the first new movie fail → the next one is measured; all three fail → «Проверка не удалась»", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/items/media-links$", status: 404, times: 1 }] });
+    await t.run(onCdnRun(t.ctx));
+    assert.equal(t.mock.calls().filter((c) => c.path === "/v1/items/media-links").length, 2);
+    assert.equal(loadRun(t.ctx.store)?.rows.length, 3);
+
+    const u = await make();
+    u.mock.setScenario({ rules: [{ path: "^/v1/items/media-links$", status: 404 }] });
+    await u.run(onCdnRun(u.ctx));
+    assert.equal(u.mock.calls().filter((c) => c.path === "/v1/items/media-links").length, 3);
+    assert.equal(actions(u).at(-1), "info:Проверка не удалась: KP-404");
+  });
+
   it("a second press while running gets «Проверка уже идёт» and one run", async () => {
     const t = await make();
     const a = onCdnRun(t.ctx);

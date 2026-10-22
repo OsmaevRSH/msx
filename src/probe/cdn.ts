@@ -139,16 +139,23 @@ function pickFile(files: FileInfo[]): FileInfo | undefined {
   return [...(avc.length > 0 ? avc : files)].sort((a, b) => Math.abs(qualityOf(a) - 720) - Math.abs(qualityOf(b) - 720))[0];
 }
 
-/** Поток для замера — фильм из «Новых фильмов» (полка обычно уже в кэше главной): `hls`, иначе `hls2`, иначе файл. */
+/**
+ * Поток для замера — фильм из «Новых фильмов» (полка обычно уже в кэше главной): `hls`, иначе `hls2`, иначе файл. Сбой
+ * карточки или ссылок одного фильма — следующий (SET-9); ошибка — последняя, если не подошёл ни один.
+ */
 async function testStream(ctx: AppContext): Promise<string> {
+  let err: unknown = new KpError("KP-404", "no-test-stream");
   for (const it of (await ctx.repo.shelf("fresh", "movie")).value.slice(0, SOURCE_TRIES)) {
-    const unit = (await ctx.repo.item(it.id)).value.videos[0];
-    if (unit === undefined) continue;
-    const f = pickFile((await ctx.repo.links(unit.id, { cls: "fg" })).files);
-    const url = f?.urls.hls || f?.urls.hls2 || f?.urls.http;
-    if (url) return url;
+    try {
+      const unit = (await ctx.repo.item(it.id)).value.videos[0];
+      const f = unit && pickFile((await ctx.repo.links(unit.id, { cls: "fg" })).files);
+      const url = f?.urls.hls || f?.urls.hls2 || f?.urls.http;
+      if (url) return url;
+    } catch (e) {
+      err = e;
+    }
   }
-  throw new KpError("KP-404", "no-test-stream");
+  throw err;
 }
 
 async function measureAll(ctx: AppContext): Promise<CdnRun> {
