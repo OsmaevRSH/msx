@@ -1,14 +1,16 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { panelAction } from "../src/msx/actions.ts";
 import { encodeListKey, ids, msgs } from "../src/router/ids.ts";
 import { FIX } from "../tools/kpmock/fixtures.ts";
-import { expectContent, login, mock, newMsxPage, noNotification, openMsx, press } from "./fixtures.ts";
+import { P, exec, expectContent, login, mock, newMsxPage, noNotification, openMsx, press } from "./fixtures.ts";
 import {
   answer, answered, attachDiagnostics, callCount, callsSince, installTimeline, kpWith, mark, open, panel, selected, sleep, timeline,
 } from "./flows-kit.ts";
 
 // Списки в памяти (QA 2026-10-22, пакет B) в web MSX: ☆ на карточке сразу видна в папке (QA-NAV-1), «Показать все»
-// открывает общий с меню список с начала, а не с окна, до которого его пролистали (QA-NAV-3). Одна сессия web MSX на файл.
+// открывает общий с меню список с начала, а не с окна, до которого его пролистали (QA-NAV-3). Панели выбора — без
+// счётчика MSX «(N/M)» в заголовке (QA-NAV-9, пакет F). Одна сессия web MSX на файл.
 
 test.describe.configure({ mode: "serial" });
 
@@ -98,4 +100,27 @@ test("E-40: «Новинки» пролистаны до окна [48, 144) → 
   expect(tl.filter((e) => e.k === "act" && e.v === "reload:content")).toEqual([]);
   expect(tl.filter((e) => e.k === "req" && e.v === ids.list(FRESH))).toHaveLength(1);
   await expect(selected(page), "фокус остался на первом тайтле").toContainText(/фильм\s*1000/);
+});
+
+test("E-49: панели выбора без счётчика MSX «(N/M)» — «Тип» «Новинок», «Страна» и «Жанр» каталога, озвучка и качество карточки, «Выйти из KinoPub?» (QA-NAV-9)", async () => {
+  const movies = encodeListKey({ src: "catalog", type: "movie", sort: "-updated" });
+  const m12 = A12 * 1000 + 1;
+  const counters = (): Promise<string[]> => page.evaluate(() => document.body.innerText.match(/\(\d+\/\d+\)/g) ?? []);
+  const panels: [string, string][] = [
+    [ids.panel("type", encodeListKey({ src: "fresh" })), "Сериалы"],
+    [ids.panel("country", movies), "Другие страны…"],
+    [ids.panel("genre", movies), "Драма"],
+    [ids.panel("audio", A12, m12, "c"), "Студия"],
+    [ids.panel("quality", A12, m12, "c"), "1080p"],
+    [ids.panel("setting", "account"), "Отмена"],
+  ];
+  for (const [dataId, text] of panels) {
+    await noNotification(page);
+    await exec(page, panelAction(P, dataId));
+    await expect(panel(page)).toContainText(text);
+    await sleep(300);
+    expect(await counters(), `${dataId}: без счётчика MSX в заголовке панели`).toEqual([]);
+    await page.keyboard.press("Backspace");
+    await expect(panel(page)).toBeHidden();
+  }
 });
