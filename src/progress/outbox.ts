@@ -157,9 +157,16 @@ export class Outbox {
   /**
    * Сверка `GET /v1/watching?id=` → `toggle` только при расхождении → проверка ответа и одна коррекция.
    * Сеть, 429, 5xx на любом шаге → запись с желаемым состоянием, `"queued"`; прочие ошибки — исключение.
+   * Отметки одного ключа идут по очереди (QA-PLAY-10): иначе обе сверки увидели бы старый статус и обе переключили.
    */
-  async setWatched(itemId: number, season: number, video: number, desired: 0 | 1): Promise<"done" | "queued"> {
+  setWatched(itemId: number, season: number, video: number, desired: 0 | 1): Promise<"done" | "queued"> {
     const key = keyOf("w", itemId, season, video);
+    return this.inLane(key, () => this.watched(key, itemId, season, video, desired));
+  }
+
+  // --- Внутреннее ---
+
+  private async watched(key: string, itemId: number, season: number, video: number, desired: 0 | 1): Promise<"done" | "queued"> {
     try {
       await this.apply(itemId, season, video, desired, "fg");
     } catch (e) {
@@ -177,8 +184,6 @@ export class Outbox {
     this.ctx.store.remove("out", key);
     return "done";
   }
-
-  // --- Внутреннее ---
 
   /** `cls`: немедленная отметка из трекера — передний план, повторы из `kp.out.*` — фон (Plan B §9.5). */
   private async apply(item: number, season: number, video: number, desired: 0 | 1, cls: ReqClass): Promise<void> {
@@ -224,9 +229,8 @@ export class Outbox {
     }
   }
 
-  /** `marktime` — в очереди своего ключа; пока запись ждала, её могла заменить или снять более новая позиция. */
+  /** В очереди своего ключа; пока запись ждала, её могла заменить или снять более новая позиция или отметка. */
   private send(key: string, rec: Rec): Promise<void> {
-    if (!("time" in rec)) return this.attempt(key, rec);
     return this.inLane(key, async () => {
       const cur = this.read(key);
       if (cur !== undefined && same(cur, rec)) await this.attempt(key, rec);

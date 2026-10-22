@@ -29,6 +29,23 @@ describe("Outbox.setWatched: status check first (спец. §10.3, CM-01, Р-20)
     assert.equal(t.mock.state.watching.get("2001:1:5")?.status, -1);
   });
 
+  it("QA-PLAY-10: two marks of one episode in flight go one after another — the second sees the first and does not toggle", async () => {
+    const t = await make();
+    const both = await t.run(Promise.all([t.ctx.outbox.setWatched(EP.item, 1, 5, 1), t.ctx.outbox.setWatched(EP.item, 1, 5, 1)]));
+    assert.deepEqual(both, ["done", "done"]);
+    assert.deepEqual(t.mock.calls().map((c) => c.path), ["/v1/watching", "/v1/watching/toggle", "/v1/watching"]);
+    assert.equal(t.mock.state.watching.get("2001:1:5")?.status, 1);
+  });
+
+  it("QA-PLAY-10: a retry from kp.out.* waits for the mark of the same key in flight", async () => {
+    const t = await make();
+    const k = "w_2001_1_5";
+    t.ctx.store.set("out", k, { item: EP.item, season: 1, video: 5, desired: 1, createdAt: t.clock.now(), attempts: 0, nextAt: 0 });
+    await t.run(Promise.all([t.ctx.outbox.setWatched(EP.item, 1, 5, 1), t.ctx.outbox.flush()]));
+    assert.equal(toggles(t).length, 1);
+    assert.equal(t.ctx.outbox.size(), 0);
+  });
+
   it("a movie toggle goes without season", async () => {
     const t = await make();
     assert.equal(await t.run(t.ctx.outbox.setWatched(MOVIE.item, 0, 1, 1)), "done");

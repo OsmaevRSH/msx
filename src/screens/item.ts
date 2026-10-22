@@ -49,6 +49,8 @@ const T = {
   onAir: "Выходит",
   ended: "Завершён",
   noTrailer: "Трейлер недоступен",
+  marked: "Отмечено",
+  unmarked: "Отметка снята",
   more: "{ico:msx-red:stop} Ещё",
 };
 /** V-15: значения без префиксов «Озвучка:», «Качество:», «Субтитры:» — иконки MSX. */
@@ -371,18 +373,54 @@ const int = (s: string | undefined, min: number): number | undefined => {
   return Number.isSafeInteger(n) && n >= min ? n : undefined;
 };
 
-/** `watched:<id>:<season>:<video>:<0|1>`; отметка видна сразу через оверлей, даже если ушла в outbox (спец. §12). */
+/** Действия в полёте по ключу (`w:…`, `s:…`, `wl:…`): повтор до ответа не шлёт мутаций (QA-PLAY-1, QA-PLAY-10). */
+const busy = new WeakMap<AppContext, Set<string>>();
+
+/** `fn`, если действия `key` нет в полёте; иначе `false` — повтор. */
+async function single(ctx: AppContext, key: string, fn: () => Promise<void>): Promise<boolean> {
+  const set = busy.get(ctx) ?? new Set<string>();
+  busy.set(ctx, set);
+  if (set.has(key)) return false;
+  set.add(key);
+  try {
+    await fn();
+  } finally {
+    set.delete(key);
+  }
+  return true;
+}
+
+/** Опции, из которых пришла команда, закрываются сразу (QA-PLAY-8): иначе висят с прежней подписью. */
+function closeOptions(ctx: AppContext, id: number): void {
+  if (showsTitle(ctx, id)) ctx.host.executeAction("cleanup");
+}
+
+/**
+ * `watched:<id>:<season>:<video>:<0|1>`; отметка видна сразу через оверлей, даже если ушла в outbox (спец. §12). Опции
+ * закрываются сразу, итог — коротким `info:`; отказ KinoPub — его текстом (QA-PLAY-8, QA-PLAY-9); повтор до ответа
+ * игнорируется (QA-PLAY-10).
+ */
 async function markWatched(ctx: AppContext, args: string[]): Promise<void> {
   const [id, season, video, desired] = [int(args[0], 1), int(args[1], 0), int(args[2], 1), int(args[3], 0)];
   if (id === undefined || season === undefined || video === undefined || (desired !== 0 && desired !== 1)) {
     ctx.log.warn(TAG, "watched_bad_args", { args });
     return;
   }
-  const result = await ctx.outbox.setWatched(id, season, video, desired);
-  ctx.overlay.set(id, season, video, { time: knownTime(ctx, id, season, video), status: desired === 1 ? 1 : -1 });
-  ctx.repo.invalidateAfterProgress(id);
-  ctx.log.info(TAG, "watched", { id, season, video, desired, result });
-  if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
+  await single(ctx, `w:${id}:${season}:${video}`, async () => {
+    closeOptions(ctx, id);
+    let result: string;
+    try {
+      result = await ctx.outbox.setWatched(id, season, video, desired);
+    } catch (e) {
+      ctx.log.warn(TAG, "watched_failed", { id, season, video, err: toKpError(e).code });
+      return ctx.host.executeAction(`info:${errorText(e).text}`);
+    }
+    ctx.overlay.set(id, season, video, { time: knownTime(ctx, id, season, video), status: desired === 1 ? 1 : -1 });
+    ctx.repo.invalidateAfterProgress(id);
+    ctx.log.info(TAG, "watched", { id, season, video, desired, result });
+    const info = `info:${desired === 1 ? T.marked : T.unmarked}`;
+    ctx.host.executeAction(showsTitle(ctx, id) ? chain(["reload:content", info]) : info);
+  });
 }
 
 async function refreshCard(ctx: AppContext, args: string[]): Promise<void> {
@@ -429,6 +467,12 @@ async function watchlist(ctx: AppContext, args: string[]): Promise<void> {
 async function markSeason(ctx: AppContext, args: string[]): Promise<void> {
   const [id, n, desired] = [int(args[0], 1), int(args[1], 1), int(args[2], 0)];
   if (id === undefined || n === undefined || (desired !== 0 && desired !== 1)) return ctx.log.warn(TAG, "season_bad_args", { args });
+  // QA-PLAY-10: повтор до ответа — ни одной мутации; опции закрываются сразу.
+  await single(ctx, `s:${id}:${n}`, () => seasonMark(ctx, id, n, desired));
+}
+
+async function seasonMark(ctx: AppContext, id: number, n: number, desired: 0 | 1): Promise<void> {
+  closeOptions(ctx, id);
   const got = ctx.repo.peekItem(id);
   const eps = got === undefined ? [] : orderedUnits(got.value).filter((r) => r.season === n).map((r) => r.video);
   let left = eps;
@@ -444,8 +488,7 @@ async function markSeason(ctx: AppContext, args: string[]): Promise<void> {
   for (const v of eps) ctx.overlay.set(id, n, v, { time: knownTime(ctx, id, n, v), status: desired === 1 ? 1 : -1 });
   ctx.repo.invalidateAfterProgress(id);
   ctx.log.info(TAG, "season", { id, n, desired, left: left.length });
-  // Опции, из которых пришла команда, после перерисовки остались бы открытыми с прежними подписями — `cleanup` их закрывает.
-  if (showsTitle(ctx, id)) ctx.host.executeAction(chain(["cleanup", "reload:content"]));
+  if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
   for (const v of left) {
     await ctx.outbox.setWatched(id, n, v, desired).catch((e: unknown) => ctx.log.warn(TAG, "season_unit_failed", { id, n, v, err: toKpError(e).code }));
   }

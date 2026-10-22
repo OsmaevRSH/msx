@@ -5,6 +5,8 @@ import type { Flags } from "../../src/config/flags.ts";
 import { commitMsg, contentAction, panelAction, resolveAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids, msgs } from "../../src/router/ids.ts";
+import { KpError } from "../../src/core/errors.ts";
+import { errorText } from "../../src/screens/error.ts";
 import { itemHash, itemRefreshSpec, itemScreen, onItemAct } from "../../src/screens/item.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
 import { watchKey } from "../../tools/kpmock/state.ts";
@@ -281,7 +283,8 @@ describe("onItemAct", () => {
     await t.clock.advance(5000);
     await t.run(onItemAct(t.ctx, "watched", [String(FIX.MOVIE_SIMPLE), "0", "1", "1"]));
     assert.equal(t.mock.state.watching.get(watchKey(FIX.MOVIE_SIMPLE, 0, 1))?.status, 1);
-    assert.deepEqual(actions(t), ["reload:content"]);
+    // QA-PLAY-8: опции закрываются сразу, после ответа — перерисовка и короткое сообщение.
+    assert.deepEqual(actions(t), ["cleanup", "[reload:content|info:Отмечено]"]);
     const s = await open(t, FIX.MOVIE_SIMPLE);
     assert.equal(options(s)[0]?.label, "Снять отметку");
     assert.equal(options(s)[0]?.action, commitMsg(msgs.act("item", "watched", FIX.MOVIE_SIMPLE, 0, 1, 0)));
@@ -293,13 +296,39 @@ describe("onItemAct", () => {
     const t = await make();
     await t.request(ids.season(BIG, 1));
     await t.run(onItemAct(t.ctx, "watched", [String(BIG), "1", "5", "1"]));
-    assert.deepEqual(actions(t), ["reload:content"]);
+    assert.deepEqual(actions(t), ["cleanup", "[reload:content|info:Отмечено]"]);
 
     t.host.clearActions();
     await t.request(ids.item(FIX.MOVIE_SIMPLE));
     await t.run(onItemAct(t.ctx, "watched", [String(BIG), "1", "6", "1"]));
     assert.equal(t.mock.state.watching.get(watchKey(BIG, 1, 6))?.status, 1);
-    assert.deepEqual(actions(t), []);
+    assert.deepEqual(actions(t), ["info:Отмечено"], "another screen is neither closed nor redrawn");
+
+    t.host.clearActions();
+    await t.request(ids.season(BIG, 1));
+    await t.run(onItemAct(t.ctx, "watched", [String(BIG), "1", "6", "0"]));
+    // Перед этим экран сезона мог замениться своей сверкой: карточка устарела после прошлой отметки.
+    assert.deepEqual(actions(t).filter((a) => !a.startsWith("replace:content:")), ["cleanup", "[reload:content|info:Отметка снята]"]);
+  });
+
+  it("QA-PLAY-9: KinoPub rejects the mark (400) → its text in info:, no overlay, no redraw", async () => {
+    const t = await make();
+    await open(t, FIX.MOVIE_SIMPLE);
+    t.mock.setScenario({ rules: [{ path: "^/v1/watching/toggle$", status: 400 }] });
+    await t.run(onItemAct(t.ctx, "watched", [String(FIX.MOVIE_SIMPLE), "0", "1", "1"]));
+    assert.deepEqual(actions(t), ["cleanup", `info:${errorText(new KpError("KP-BAD", "x", 400)).text}`]);
+    assert.equal(t.ctx.overlay.get(FIX.MOVIE_SIMPLE, 0, 1), undefined);
+    assert.equal(el(await open(t, FIX.MOVIE_SIMPLE), "b_main").label, "▶ Продолжить с 19:57");
+  });
+
+  it("QA-PLAY-10: a second «Отметить» before the answer is ignored — one reconcile, one toggle", async () => {
+    const t = await make();
+    await open(t, FIX.MOVIE_SIMPLE);
+    const args = [String(FIX.MOVIE_SIMPLE), "0", "1", "1"];
+    await t.run(Promise.all([onItemAct(t.ctx, "watched", args), onItemAct(t.ctx, "watched", args)]));
+    assert.equal(t.mock.calls().filter((c) => c.path === "/v1/watching/toggle").length, 1);
+    assert.equal(t.mock.calls().filter((c) => c.path === "/v1/watching").length, 1);
+    assert.equal(t.mock.state.watching.get(watchKey(FIX.MOVIE_SIMPLE, 0, 1))?.status, 1);
   });
 
   it("watched with malformed arguments sends nothing", async () => {

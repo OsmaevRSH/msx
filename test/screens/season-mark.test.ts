@@ -77,11 +77,22 @@ describe("act:item:season — the whole season (CM-01, Р-20)", () => {
     assert.deepEqual(paths(t, n0), ["/v1/watching", "/v1/watching/toggle?season", "/v1/watching"]);
     assert.ok(statuses(t, BIG, 1).every((x) => x === 1));
     assert.ok(statuses(t, BIG, 2).every((x) => x === -1), "other seasons untouched");
-    assert.deepEqual(t.host.actions.map((a) => a.action), ["[cleanup|reload:content]"], "the options it came from close");
+    assert.deepEqual(t.host.actions.map((a) => a.action), ["cleanup", "reload:content"], "the options it came from close at once (QA-PLAY-10)");
     const s = await open(t, BIG, 1);
     assert.ok(episodes(s).every((e) => e.badge === "✓"), "overlay: ✓ on every episode");
     assert.equal(row(s.options, UNMARK)?.action, commitMsg(msgs.act("item", "season", BIG, 1, 0)));
     assert.equal(t.ctx.outbox.size(), 0);
+  });
+
+  it("QA-PLAY-10: a second «Отметить сезон» before the answer is ignored — the same requests as one press", async () => {
+    const t = await make();
+    await open(t, BIG, 1);
+    await t.clock.advance(1000);
+    const n0 = t.mock.calls().length;
+    const args = [String(BIG), "1", "1"];
+    await t.run(Promise.all([onItemAct(t.ctx, "season", args), onItemAct(t.ctx, "season", args)]));
+    assert.deepEqual(paths(t, n0), ["/v1/watching", "/v1/watching/toggle?season", "/v1/watching"]);
+    assert.ok(statuses(t, BIG, 1).every((x) => x === 1));
   });
 
   it("unmarking a part-watched season: the server completes it first, the second toggle clears it — two toggles at most", async () => {
