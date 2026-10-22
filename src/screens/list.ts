@@ -291,6 +291,12 @@ export function remember(ctx: AppContext, key: string, st: ListEntry): void {
   }
 }
 
+/** Список больше не верен (QA-NAV-1): из памяти — прочь, первая порция кэша не отдаётся — следующий показ перечитает её. */
+export function forgetList(ctx: AppContext, k: ListKey): void {
+  ctx.state.lists.delete(encodeListKey(k));
+  ctx.cache.delete(cacheKeys.list(listSource(k), 1));
+}
+
 /**
  * После просмотра: «История» из памяти устарела. Если её открывали, она забывается, а первая порция обновляется фоном —
  * к следующему открытию она уже свежая (кэш помечен устаревшим `invalidateAfterProgress`).

@@ -15,6 +15,7 @@ import { type ListKey, decodeListKey, encodeListKey, ids, listFlag, msgs } from 
 import { errorScreen, errorText } from "./error.ts";
 import { filterPanel, onFilterAct } from "./filters.ts";
 import { genresOrStatic } from "./genres-static.ts";
+import { forgetList } from "./list.ts";
 import { freshItem } from "./item.ts";
 import { SHELF_TYPES, genreType, isShelf, setShelfType, shelfType, shelfTypeTitle, sortChoices } from "./list-head.ts";
 import { orderPanel } from "./order-edit.ts";
@@ -397,8 +398,10 @@ async function bookmark(ctx: AppContext, args: string[]): Promise<void> {
     return;
   }
   ctx.repo.invalidateAfterBookmark(id, target);
-  // Пометка «устаревшее» отдала бы прежний список (без новой папки) и прежние отметки: панель ждёт свежие.
+  // Пометка «устаревшее» отдала бы прежний список (без новой папки) и прежние отметки: панель ждёт свежие. Список папки
+  // в памяти и его первая порция тоже прежние — папка без них перечитается (QA-NAV-1).
   ctx.cache.delete(cacheKeys.bookmarks());
+  forgetList(ctx, { src: "folder", folder: target });
   await freshItem(ctx, id, "fg").catch((e: unknown) => ctx.log.debug(TAG, "item_refresh_failed", { id, err: toKpError(e).code }));
   // Спец. §6.3: ответы API приходят не сразу — перерисовка, только если под панелью всё ещё карточка этого тайтла.
   if (ctx.current.isCurrent(ids.item(id))) ctx.host.executeAction(chain(["reload:panel", "reload:content"]));
