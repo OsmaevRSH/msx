@@ -129,7 +129,8 @@ export async function checkPostBody(ctx: AppContext): Promise<CheckResult> {
   }
   if (failure !== undefined) throw failure;
   const values = { accepted, restored, postBody };
-  if (!accepted) return result(ctx, "CDG-03", false, `тело POST (${postBody}) не принято: нужен postBody=query`, values);
+  // API-13: обхода нет — `postBody: query` KinoPub для закладок и настроек устройства молча не принимает.
+  if (!accepted) return result(ctx, "CDG-03", false, `тело POST (${postBody}) не принято: обхода нет — пришлите отчёт`, values);
   return result(ctx, "CDG-03", restored, `тело POST (${postBody}) принято${restored ? "" : "; название устройства не вернулось"}`, values);
 }
 

@@ -107,28 +107,38 @@ describe("kpmock bookmarks", () => {
     assert.equal((await fetch(url(`/v1/bookmarks/${created.folder.id}`))).status, 404);
   });
 
-  it("silently ignores a text/plain body with {status:200} (Apple trap)", async () => {
+  // M-4, M-5: как у настоящего API (Apple ToggleBookmarkRequest, живой замер) — `item`/`folder` только из формы; без них
+  // (query, тело text/plain, пустая форма) — 404 «item not found». Без названия `create` молча отвечает 200.
+  it("M-4: add, remove-item and remove-folder without parameters → 404 «item not found»; create without a title → 200", async () => {
+    for (const path of ["/v1/bookmarks/add", "/v1/bookmarks/remove-item", "/v1/bookmarks/remove-folder"]) {
+      const r = await postForm(path, {});
+      assert.equal(r.status, 404, path);
+      assert.deepEqual(await r.json(), { status: 404, error: "item not found" }, path);
+    }
+    assert.deepEqual(await (await postForm("/v1/bookmarks/create", {})).json(), { status: 200 });
+    assert.deepEqual((await folders()).map((f) => [f.id, f.count]), [[1, 2]]);
+  });
+
+  it("M-5: a text/plain body (Apple trap) is ignored: add, remove-item, remove-folder → 404; create → 200, no folder", async () => {
     const send = (path: string, body: string): Promise<Response> =>
       fetch(url(path), { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body });
-    for (const [path, body] of [
-      ["/v1/bookmarks/create", "title=Тайком"],
-      ["/v1/bookmarks/add", `item=${FIX.MOVIE_MULTI}&folder=1`],
-      ["/v1/bookmarks/remove-item", `item=${FIX.SERIAL_BIG}&folder=1`],
-      ["/v1/bookmarks/remove-folder", "folder=1"],
-    ]) {
-      const r = await send(path, body);
-      assert.equal(r.status, 200, path);
-      assert.deepEqual(await r.json(), { status: 200 }, path);
+    for (const [path, body, status] of [
+      ["/v1/bookmarks/create", "title=Тайком", 200],
+      ["/v1/bookmarks/add", `item=${FIX.MOVIE_MULTI}&folder=1`, 404],
+      ["/v1/bookmarks/remove-item", `item=${FIX.SERIAL_BIG}&folder=1`, 404],
+      ["/v1/bookmarks/remove-folder", "folder=1", 404],
+    ] as const) {
+      assert.equal((await send(path, body)).status, status, path);
     }
     const list = await folders();
     assert.deepEqual(list.map((f) => [f.id, f.count]), [[1, 2]]);
     assert.ok(mock.calls().some((c) => c.contentType?.startsWith("text/plain")));
   });
 
-  it("accepts parameters in the query as well (postBody: query)", async () => {
+  it("M-5: parameters in the query are not taken (postBody: query does not work on the real API) → 404", async () => {
     const r = await fetch(url("/v1/bookmarks/add", { item: FIX.MOVIE_AUDIO12, folder: 1 }), { method: "POST" });
-    assert.deepEqual(await r.json(), { status: 200 });
-    assert.equal((await folders())[0].count, 3);
+    assert.equal(r.status, 404);
+    assert.equal((await folders())[0].count, 2);
   });
 
   it("is reflected in the folder list after reset", async () => {

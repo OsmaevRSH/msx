@@ -123,6 +123,15 @@ describe("CDG-03: POST body accepted by /v1/device/notify", () => {
     });
   }
 
+  // API-13: запасного режима нет — query KinoPub для закладок и настроек молча не принимает; совет «postBody=query» убран.
+  it("API-13: the body is not taken → ✗ without the «postBody=query» advice: there is no workaround, report it", async () => {
+    const t = await make({ loggedIn: true });
+    t.mock.setScenario({ rules: [{ path: "^/v1/device/notify$", method: "POST", status: 200 }] });
+    const r = await run(t, "CDG-03");
+    assert.equal(r.ok, false);
+    assert.equal(r.summary, "тело POST (form) не принято: обхода нет — пришлите отчёт");
+  });
+
   it("without login → not run, ok null", async () => {
     const t = await make();
     const r = await run(t, "CDG-03");

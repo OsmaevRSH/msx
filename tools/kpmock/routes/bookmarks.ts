@@ -5,27 +5,30 @@ import type { FolderRec, MockState } from "../state.ts";
 import { listItem } from "./catalog.ts";
 import { num } from "./watching.ts";
 
-// Закладки (research kinopub-api §8.2, Plan B §12.3). POST-параметры берутся из формы только при
-// `Content-Type: application/x-www-form-urlencoded`, иначе тело игнорируется (ловушка Apple, спец. §14.2);
-// параметры в query принимаются всегда (переключатель postBody: "query").
+// Закладки (research kinopub-api §8.2, Plan B §12.3). POST-параметры — только из формы при
+// `Content-Type: application/x-www-form-urlencoded` (M-5): тело другого типа (ловушка Apple, спец. §14.2) и query не
+// принимаются, как у настоящего API (Apple ToggleBookmarkRequest: в query → 404 «item not found»).
 
 /** `updated` сверх `FolderRec` (state.ts общий): у папок из фикстур его нет, берётся `created`. */
 type FolderRow = FolderRec & { updated?: number };
 
 const NOT_FOUND = { status: 404, error: "Not found" };
+/** M-4: без `item`/`folder` в форме — 404, а не молча 200. */
+const NO_ITEM = { status: 404, error: "item not found" };
 const OK: MockResponse = { status: 200, json: { status: 200 } };
 
 const nowSec = (): number => Math.floor(Date.now() / 1000);
 
 function param(ctx: HandlerCtx, name: string): string | undefined {
-  const v = (ctx.formAccepted ? ctx.form?.get(name) : undefined) ?? ctx.query.get(name) ?? "";
+  const v = ctx.form?.get(name) ?? "";
   return v.trim() === "" ? undefined : v;
 }
 
-function numParam(ctx: HandlerCtx, name: string): number | undefined {
-  const v = param(ctx, name);
-  const n = v === undefined ? NaN : Number(v);
-  return Number.isFinite(n) ? n : undefined;
+/** Число из формы; нет — 404 «item not found» (M-4). */
+function numParam(ctx: HandlerCtx, name: string): number {
+  const n = Number(param(ctx, name) ?? NaN);
+  if (!Number.isFinite(n)) throw new HttpError(404, NO_ITEM);
+  return n;
 }
 
 function folderJson(id: number, f: FolderRow): Record<string, unknown> {
@@ -53,11 +56,10 @@ function folderPage(ctx: HandlerCtx, s: MockState): MockResponse {
   };
 }
 
-/** Пара `item` + `folder` для add/remove-item; нет параметров → undefined (молча `{status:200}`). */
-function pair(ctx: HandlerCtx, s: MockState): { item: number; folder: FolderRow } | undefined {
+/** Пара `item` + `folder` для add/remove-item; нет параметров → 404 «item not found» (M-4). */
+function pair(ctx: HandlerCtx, s: MockState): { item: number; folder: FolderRow } {
   const item = numParam(ctx, "item");
   const folder = numParam(ctx, "folder");
-  if (item === undefined || folder === undefined) return undefined;
   const f = folderOr404(s, folder);
   if (!findItem(item)) throw new HttpError(404, NOT_FOUND);
   return { item, folder: f };
@@ -88,7 +90,6 @@ export function register(r: Router, s: MockState, base: () => string): void {
   r.add("POST", "/v1/bookmarks/add", (ctx) => {
     requireAuth(ctx);
     const p = pair(ctx, s);
-    if (!p) return OK;
     if (p.folder.items.includes(p.item)) return { status: 200, json: { status: 200, exists: true } };
     p.folder.items.unshift(p.item);
     p.folder.updated = nowSec();
@@ -98,7 +99,6 @@ export function register(r: Router, s: MockState, base: () => string): void {
   r.add("POST", "/v1/bookmarks/remove-item", (ctx) => {
     requireAuth(ctx);
     const p = pair(ctx, s);
-    if (!p) return OK;
     const i = p.folder.items.indexOf(p.item);
     if (i >= 0) {
       p.folder.items.splice(i, 1);
@@ -110,7 +110,6 @@ export function register(r: Router, s: MockState, base: () => string): void {
   r.add("POST", "/v1/bookmarks/remove-folder", (ctx) => {
     requireAuth(ctx);
     const folder = numParam(ctx, "folder");
-    if (folder === undefined) return OK;
     folderOr404(s, folder);
     s.folders.delete(folder);
     return OK;
