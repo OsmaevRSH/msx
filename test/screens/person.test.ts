@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { slotOf } from "../../src/bridge/current.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs, parseDataId } from "../../src/router/ids.ts";
-import { FIX, castOf, directorOf, findItem } from "../../tools/kpmock/fixtures.ts";
+import { FIX, castOf, catalog, directorOf, findItem } from "../../tools/kpmock/fixtures.ts";
 import { createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 
@@ -53,7 +53,6 @@ describe("personScreen", () => {
     const s = (await t.request(ids.person("cast", ACTOR))) as MsxContentRoot;
     assert.equal(s.type, "list");
     assert.equal(s.headline, `В ролях: ${ACTOR}`);
-    assert.match(s.extension ?? "", /^\d[\d ]* тайтл(а|ов)?$/);
     const q = searches(t);
     assert.deepEqual(q.map((x) => [x.get("q"), x.get("field"), x.get("page"), x.get("perpage")]), [
       [ACTOR, "cast", "1", "48"], [ACTOR, "cast", "2", "48"],
@@ -62,6 +61,10 @@ describe("personScreen", () => {
     assert.ok(shown.length > 48 && shown.length <= 96, String(shown.length));
     assert.equal(new Set(shown).size, shown.length);
     assert.equal(tiles(s)[0]?.focus, true);
+    // QA-NAV-8: найдено больше, чем показано (догрузки нет) — шапка говорит, что показана часть.
+    const total = catalog().filter((it) => !it.deleted && !it.unlisted && castOf(it).join(", ").toLowerCase().includes(ACTOR.toLowerCase())).length;
+    assert.ok(total > 96, `${total}`);
+    assert.equal(s.extension, `показаны 96 из ${total}`);
   });
 
   it("back to the screen answers from memory without the network; the window moves by extend", async () => {

@@ -14,7 +14,7 @@ import { gridPreload, gridTemplate } from "./tiles.ts";
 // `extend` те же, а возврат к экрану отвечает из памяти без сети. Найденное — первые две порции (≤ 96, как поиск S7).
 
 const PER_PAGE = 48;
-const T = { cast: "В ролях", director: "Режиссёр", empty: "Ничего не найдено" };
+const T = { cast: "В ролях", director: "Режиссёр", empty: "Ничего не найдено", shown: "показаны" };
 const FOUND = ["тайтл", "тайтла", "тайтлов"] as const;
 
 export async function personScreen(ctx: AppContext, field: "cast" | "director", name: string): Promise<MsxContentRoot> {
@@ -35,8 +35,10 @@ export async function personScreen(ctx: AppContext, field: "cast" | "director", 
   remember(ctx, key, st);
   const root: MsxContentRoot = {
     type: "list", flag: key, cache: false, reuse: false, ...gridPreload(ctx), headline: `${T[field]}: ${name}`,
-    extension: fmtCount(st.total ?? st.items.length, FOUND),
   };
+  // QA-NAV-8: догрузки дальше двух порций нет — шапка говорит, что показана часть найденного.
+  const total = st.total ?? st.items.length;
+  root.extension = total > st.items.length ? `${T.shown} ${st.items.length} из ${total}` : fmtCount(total, FOUND);
   if (st.items.length === 0) {
     root.pages = [{ items: emptyItems(T.empty) }];
     return root;
