@@ -5,7 +5,8 @@
   "reuse": false,
   "template": {
     "type": "button",
-    "layout": "0,0,8,1"
+    "layout": "0,0,8,1",
+    "enumerate": false
   },
   "items": [
     {

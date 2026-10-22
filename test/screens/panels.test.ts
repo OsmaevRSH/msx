@@ -80,19 +80,43 @@ describe("choicePanel", () => {
     assert.equal(s.headline, "Заголовок");
     assert.equal(s.cache, false);
     assert.equal(s.reuse, false);
-    assert.deepEqual(s.template, { type: "button", layout: "0,0,8,1" });
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,8,1", enumerate: false });
     assert.deepEqual(rows(s), [{ label: "Один", action: "a1" }, { label: `${CHECK}Два`, action: "a2", focus: true }]);
   });
 
   it("a layout of the rows: genres go in two columns of 4×1", async () => {
     const t = await make();
     const s = choicePanel(t.ctx, "Жанр", [{ label: "Один", action: "a1", current: false }], "0,0,4,1");
-    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1" });
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1", enumerate: false });
   });
 
   it("without rows — one «Назад», a page must have something to focus", async () => {
     const t = await make();
     assert.deepEqual(rows(choicePanel(t.ctx, "Пусто", [])), [{ label: "Нет вариантов", action: "back" }]);
+  });
+});
+
+// QA-NAV-9 / QA-SET-10: счётчик MSX «Тип (1/8)», «Другие страны (1/92)» ничего не добавляет к панели выбора (V-11).
+describe("QA-NAV-9: no MSX counter in choice panels", () => {
+  it("every choice panel — sort, genre, type, filters, audio, quality, subtitles, mode, seasons, the logout question — has enumerate: false", async () => {
+    const t = await make();
+    const list = encodeListKey(MOVIES);
+    const panels: [string, ...(string | number)[]][] = [
+      ["sort", list], ["genre", list], ["type", encodeListKey({ src: "fresh" })], ["year", list], ["kp", list], ["country", list],
+      ["countries", list], ["audio", A12, M12, "c"], ["quality", A12, M12, "c"], ["subs", A12, M12, "c"], ["mode", A12],
+      ["loc"], ["seasons", BIG, 1], ["bookmarks", SIMPLE], ["setting", "audioType"], ["setting", "account"], ["setting", "authors"],
+    ];
+    for (const [type, ...args] of panels) {
+      const s = await panel(t, type, ...args);
+      assert.equal(s.template?.enumerate, false, `${type}: ${JSON.stringify(s.template)}`);
+    }
+  });
+
+  it("«Другие страны» (92 rows) stays within the 16 KB of a panel", async () => {
+    const t = await make();
+    const s = await panel(t, "countries", encodeListKey(MOVIES));
+    assert.ok((s.items?.length ?? 0) >= 90, String(s.items?.length));
+    assert.ok(Buffer.byteLength(JSON.stringify(s)) <= 16 * 1024, String(Buffer.byteLength(JSON.stringify(s))));
   });
 });
 
@@ -129,7 +153,7 @@ describe("panelScreen: sort and genre (S6)", () => {
     const t = await make();
     const s = await panel(t, "genre", encodeListKey(MOVIES));
     assert.equal(s.headline, "Жанр");
-    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1" });
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1", enumerate: false });
     assert.equal(rows(s).length, 31);
     assert.deepEqual(current(s), [`${CHECK}Все жанры`]);
     assert.equal(row(s, "Драма").action, switchList({ ...MOVIES, genre: "9" }, MOVIES));

@@ -269,7 +269,7 @@ describe("settingPanel", () => {
     const t = await make();
     const s = await panel(t, "account");
     assert.equal(s.headline, "Выйти из KinoPub?");
-    assert.deepEqual(s.template, { type: "button", layout: "0,0,8,1" });
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,8,1", enumerate: false });
     assert.deepEqual(s.items, [
       { label: "Выйти", action: chain(["back", commitMsg(msgs.act("set", "logout"))]) },
       { label: "Отмена", action: "back", focus: true },

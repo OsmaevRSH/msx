@@ -64,6 +64,7 @@ const sameLang = (a: string, b: string): boolean => a.toLowerCase() === b.toLowe
 const isAvc = (f: FileInfo): boolean => /^(h264|avc)/i.test(f.codec);
 const fileQuality = (f: FileInfo | undefined): number | undefined => (f === undefined ? undefined : qualityOf(f));
 
+/** Панель выбора: строки-кнопки, текущая отмечена и в фокусе; без счётчика MSX «Тип (1/8)» в заголовке (QA-NAV-9). */
 export function choicePanel(ctx: AppContext, title: string, rows: Row[], layout: string = ROW): MsxContentRoot {
   const list = rows.length > 0 ? rows : [{ label: T.none, action: "back", current: false }];
   const first = list.findIndex((r) => r.current);
@@ -71,7 +72,7 @@ export function choicePanel(ctx: AppContext, title: string, rows: Row[], layout:
     const it: MsxContentItem = { label: r.current ? CHECK + r.label : r.label, action: r.action };
     return i === first ? { ...it, focus: true } : it;
   });
-  return { type: "list", headline: title, cache: false, reuse: false, template: { type: "button", layout }, items };
+  return { type: "list", headline: title, cache: false, reuse: false, template: { type: "button", layout, enumerate: false }, items };
 }
 
 /** `panel:<тип>:<аргументы>`; любая ошибка — экран ошибки внутри панели (сетка 8, «Повторить» — `reload:panel`). */

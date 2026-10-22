@@ -126,7 +126,7 @@ describe("catalog filters: the red button and the panels (spec §11.5)", () => {
     const t = await make();
     const title = (id: number): string => ALL_COUNTRIES.find((c) => c.id === id)?.title ?? "";
     const s = await panel(t, "country", MOVIES);
-    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1" });
+    assert.deepEqual(s.template, { type: "button", layout: "0,0,4,1", enumerate: false });
     assert.deepEqual(labels(s), [`${CHECK}Любая`, ...[1, 2, 3, 5, 7, 4, 6, 8, 9, 10].map(title), "Другие страны…"]);
     assert.equal(row(s, title(5)).action, pick("country", 5));
     assert.equal(row(s, "Другие страны…").action, open("countries", MOVIES));

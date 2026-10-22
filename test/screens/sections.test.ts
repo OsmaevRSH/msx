@@ -60,7 +60,7 @@ describe("new menu sections as lists (v1.11)", () => {
     await list(t, { src: "popular" });
     const p = (await t.request(ids.panel("type", alias))) as MsxContentRoot;
     assert.equal(p.headline, "Тип");
-    assert.deepEqual(p.template, { type: "button", layout: "0,0,4,1" });
+    assert.deepEqual(p.template, { type: "button", layout: "0,0,4,1", enumerate: false });
     assert.deepEqual(p.items?.map((i) => i.label), [
       "{ico:check} Фильмы", "Сериалы", "Док. фильмы", "Док. сериалы", "Концерты", "ТВ-шоу", "3D", "Все типы",
     ]);
