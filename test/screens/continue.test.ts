@@ -119,8 +119,37 @@ describe("buildContinue: serials (Plan B §8.3.1 п. 3)", () => {
     assert.deepEqual(out.map((t) => [t.id, t.progress, t.badge]), [[6, 1, "+1"]]);
   });
 
-  it("a serial missing from watching/serials is skipped", () => {
-    assert.deepEqual(buildContinue([entry(5, { type: "serial", s: 1, e: 1 })], [serial(7)], [], none), []);
+  it("a serial missing from watching/serials with the episode of the history watched is finished — skipped", () => {
+    const h = [entry(5, { type: "serial", s: 1, e: 1, time: 0.95 * 2 * HOUR })];
+    assert.deepEqual(buildContinue(h, [serial(7, { total: 10, watched: 10 })], [], none), []);
+  });
+
+  it("missing from watching/serials, the episode of the history not watched (QA-API-7): started — the tag, no progress", () => {
+    const h = [entry(5, { type: "serial", s: 1, e: 2, time: 600 }), entry(6, { type: "serial", s: 1, e: 1, time: 0, duration: 0 })];
+    assert.deepEqual(buildContinue(h, [], [], none).map((t) => [t.id, t.tag, t.progress, t.badge]), [
+      [5, "1×2", undefined, undefined], [6, "1×1", undefined, undefined],
+    ]);
+  });
+
+  it("missing from watching/serials: the episode marked watched on the TV after the history entry — finished", () => {
+    const ov = new Overlay(new FakeClock((SEEN + 60) * 1000));
+    ov.set(5, 1, 2, { time: 100, status: 1 });
+    assert.deepEqual(buildContinue([entry(5, { type: "serial", s: 1, e: 2, time: 600 })], [], [], none, (id) => ov.forItem(id)), []);
+  });
+
+  it("watching/serials did not answer (undefined): serials of the history stay — tag, no progress, no badge; films as usual", () => {
+    const h = [entry(5, { type: "serial", s: 2, e: 5 }), entry(1, { time: 1800, duration: 2 * HOUR }), entry(6, { type: "tvshow", s: 1, e: 3 })];
+    const out = buildContinue(h, undefined, [], none);
+    assert.deepEqual(out.map((t) => [t.id, t.tag, t.progress, t.badge]), [
+      [5, "2×5", undefined, undefined], [1, undefined, 0.25, undefined], [6, "1×3", undefined, undefined],
+    ]);
+  });
+
+  it("watching/serials did not answer: an episode marked on the TV after the history entry still gives the tag", () => {
+    const ov = new Overlay(new FakeClock((SEEN + 60) * 1000));
+    ov.set(5, 1, 6, { time: 100, status: 1 });
+    const [tile] = buildContinue([entry(5, { type: "serial", s: 1, e: 5 })], undefined, [], none, (id) => ov.forItem(id));
+    assert.deepEqual([tile?.tag, tile?.progress], ["1×6", undefined]);
   });
 });
 
@@ -168,6 +197,40 @@ describe("buildContinue: empty history (Plan B §8.3.1 п. 4)", () => {
     const m = Array.from({ length: 10 }, (_, i) => summary(i + 100, "movie"));
     assert.equal(buildContinue([], s, m, none).length, 15);
   });
+
+  it("no history and no answer from watching/serials (undefined) — the movies", () => {
+    assert.deepEqual(buildContinue([], undefined, [summary(7, "movie")], none).map((t) => t.id), [7]);
+  });
+});
+
+describe("buildContinue: titles of watching lists missing from the history page (QA-API-1)", () => {
+  /** 50 строк истории — серии одного сериала: бинж недели вытеснил из страницы всё остальное. */
+  const binge = (id: number, seen = SEEN): HistoryEntry[] =>
+    Array.from({ length: 50 }, (_, i) => entry(id, { type: "serial", s: 1, e: 50 - i, time: 2 * HOUR, seen: seen - i * 60 }));
+
+  it("after the history titles: unfinished serials by fewer episodes left (not by `new`, QA-API-2), then the started films", () => {
+    const s = [serial(9, { total: 60, watched: 50 }), serial(7, { total: 200, watched: 3, fresh: 197 }), serial(8, { total: 6, watched: 1, fresh: 5 })];
+    const out = buildContinue(binge(9), s, [summary(20, "movie")], none);
+    assert.deepEqual(out.map((t) => [t.id, t.tag, t.progress, t.badge]), [
+      [9, "1×50", 50 / 60, undefined], [8, undefined, undefined, "+5"], [7, undefined, undefined, "+197"], [20, undefined, undefined, undefined],
+    ]);
+  });
+
+  it("the binge serial finished: the shelf is not empty — the other started titles stay (the whole shelf vanished before)", () => {
+    const s = [serial(9, { total: 50, watched: 50 }), serial(7, { total: 10, watched: 4 })];
+    assert.deepEqual(buildContinue(binge(9), s, [summary(20, "movie")], none).map((t) => t.id), [7, 20]);
+  });
+
+  it("finished serials of the list and titles already in the history are not added again; a film skipped as watched stays skipped", () => {
+    const h = [entry(20, { time: 0.95 * 6000, duration: 6000 }), entry(7, { type: "serial", s: 1, e: 5 })];
+    const s = [serial(7), serial(8, { total: 10, watched: 10 }), serial(9, { total: 0, watched: 0 })];
+    assert.deepEqual(buildContinue(h, s, [summary(20, "movie"), summary(21, "movie")], none).map((t) => t.id), [7, 9, 21]);
+  });
+
+  it("no more than 15 with the lists", () => {
+    const s = Array.from({ length: 20 }, (_, i) => serial(i + 100));
+    assert.equal(buildContinue(binge(9), s, [], none).length, 15);
+  });
 });
 
 describe("buildContinue: kpmock fixtures", () => {
@@ -179,8 +242,8 @@ describe("buildContinue: kpmock fixtures", () => {
   it("SERIAL_BIG: 1×4 from history, +2 new, 3 of its episodes watched; MOVIE_SIMPLE at 1200 of 5400 s, then SERIAL_SMALL", async () => {
     t = await createTestApp({ loggedIn: true });
     const { ctx } = t;
-    const [h, s] = await t.run(Promise.all([ctx.repo.history(), ctx.repo.serials()]));
-    const out = buildContinue(h.value, s.value, [], ctx.overlay.get);
+    const [h, s, m] = await t.run(Promise.all([ctx.repo.history(), ctx.repo.serials(), ctx.repo.watchingMovies()]));
+    const out = buildContinue(h.value, s.value, m.value, ctx.overlay.get);
     const big = out.find((x) => x.id === FIX.SERIAL_BIG);
     const w = s.value.find((x) => x.id === FIX.SERIAL_BIG);
     assert.ok(big && w);

@@ -121,6 +121,8 @@ test("E-20: «Пункты меню» с первой строки настро�
   await page.keyboard.press("Enter");
   await expect(panel(page)).toContainText("Пункты меню");
   const sel = panel(page).locator(".selected");
+  // Фикс 2026-10-22: фокус при открытии — на «▲» первой строки (OK там ничего не меняет), название — левее.
+  await page.keyboard.press("ArrowLeft");
   await expect(sel, "фокус на первом пункте").toContainText("Главная");
   await page.keyboard.press("ArrowDown");
   await expect(sel).toContainText("Я смотрю");
@@ -158,11 +160,12 @@ test("E-21: «Секции главной» — скрыть «Новые фил
   await page.keyboard.press("Enter");
   await expect(panel(page)).toContainText("Секции главной");
   const sel = panel(page).locator(".selected");
+  await page.keyboard.press("ArrowLeft");
   await expect(sel, "фокус на первой полке").toContainText("Продолжить просмотр");
   await page.keyboard.press("ArrowDown");
   await expect(sel).toContainText("Новые фильмы");
   await page.keyboard.press("Enter");
-  await expect.poll(() => kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null), { timeout: 5000 }).toEqual({ hidden: ["fm"] });
+  await expect.poll(() => kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null), { timeout: 5000 }).toEqual({ hidden: ["fm"], v: 2 });
   await expect(sel, "фокус остался на той же строке").toContainText("Новые фильмы");
   await expect(content(page), "сводка строки под панелью обновилась").toContainText("7 из 8");
   // «Закладки» — двумя строками ниже: →, →, → (⤒) и OK — в начало.
@@ -198,6 +201,7 @@ test("E-21: «Секции главной» — скрыть «Новые фил
   const m1 = await mark(page);
   await page.keyboard.press("Enter");
   await answered(page, ids.panel("home"), m1);
+  await page.keyboard.press("ArrowLeft");
   await expect(sel).toContainText("Закладки");
   await kp(page, (k) => k.ctx.host.executeAction("focus:m_reset"));
   await expect(sel).toContainText("Сбросить по умолчанию");
@@ -212,6 +216,46 @@ test("E-21: «Секции главной» — скрыть «Новые фил
   await page.keyboard.press("Backspace");
   await expect(panel(page)).toBeHidden();
   await expectContent(page, "Новые фильмы");
+});
+
+test("E-36 (фикс 2026-10-22): красная кнопка главной, OK, OK — «Продолжить просмотр» не скрывается; kp.cfg.home старой версии со скрытой «Продолжить» её возвращает", async () => {
+  const shelves = async (): Promise<string[]> =>
+    ((await answer(page, ids.home())).pages ?? []).map((p: { items: { type?: string; headline?: string }[] }) => p.items.find((i) => i.type === "space")?.headline ?? "");
+  // После E-21 открыта главная по умолчанию, фокус — в контенте. Отзыв с ТВ: «пропала карусель „Продолжить просмотр“».
+  await page.keyboard.press("F1");
+  await expect(panel(page).locator(".selected"), "опции главной").toContainText("Секции главной");
+  const m0 = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.panel("home"), m0);
+  // Второе OK — на «▲» первой строки (`act:home:up:c`): настройка не меняется, панель перерисована, «Продолжить» на месте.
+  const ma = await mark(page);
+  await page.keyboard.press("Enter");
+  await answered(page, ids.panel("home"), ma);
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null)).toBeNull();
+  await page.keyboard.press("ArrowLeft");
+  await expect(panel(page).locator(".selected")).toContainText("Продолжить просмотр");
+  await page.keyboard.press("Backspace");
+  await expect(panel(page)).toBeHidden();
+  const m1 = await mark(page);
+  await kp(page, (k) => k.ctx.host.executeAction("reload:content"));
+  await answered(page, ids.home(), m1);
+  expect((await shelves())[0]).toBe("Продолжить просмотр");
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null)).toBeNull();
+
+  // kp.cfg.home v1.13–v1.20 (без `v`) со скрытой «Продолжить» и «Горячее: сериалы»: «Продолжить» возвращается первой,
+  // остальной выбор остаётся, настройка перезаписана с `v: 2`.
+  await kp(page, (k) => k.ctx.store.set("cfg", "home", { hidden: ["c", "hs"] }));
+  const m2 = await mark(page);
+  await kp(page, (k) => k.ctx.host.executeAction("reload:content"));
+  await answered(page, ids.home(), m2);
+  expect(await shelves()).toEqual(["Продолжить просмотр", "Новые фильмы", "Новые сериалы", "Закладки", "Популярные фильмы", "Популярные сериалы", "Горячее: фильмы"]);
+  await expectContent(page, "Продолжить просмотр");
+  expect(await kp(page, (k) => k.ctx.store.get("cfg", "home") ?? null)).toEqual({ hidden: ["hs"], v: 2 });
+  await kp(page, (k) => k.ctx.store.remove("cfg", "home"));
+  const m3 = await mark(page);
+  await kp(page, (k) => k.ctx.host.executeAction("reload:content"));
+  await answered(page, ids.home(), m3);
+  await expect(selected(page), "фокус в контенте главной").toBeVisible();
 });
 
 test("E-22: «Новинки» из меню — вкладка «Фильмы» с `type`; красная кнопка → «Тип» → «Сериалы» заменяет список и запоминается; «Подборки» без «0 шт.»", async () => {

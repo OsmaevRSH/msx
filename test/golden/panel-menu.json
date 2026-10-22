@@ -16,15 +16,15 @@
           "type": "button",
           "layout": "0,1,5,1",
           "label": "{ico:check-box} Главная",
-          "action": "interaction:commit:message:act:menu:hide:home",
-          "focus": true
+          "action": "interaction:commit:message:act:menu:hide:home"
         },
         {
           "id": "u_home",
           "type": "button",
           "layout": "5,1,1,1",
           "icon": "arrow-upward",
-          "action": "interaction:commit:message:act:menu:up:home"
+          "action": "interaction:commit:message:act:menu:up:home",
+          "focus": true
         },
         {
           "id": "d_home",

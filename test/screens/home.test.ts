@@ -9,10 +9,12 @@ import { chain, commitMsg, contentAction, panelAction, replaceContent } from "..
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { encodeListKey, ids, msgs } from "../../src/router/ids.ts";
 import { homeScreen, warmHome } from "../../src/screens/home.ts";
+import { onOrderAct } from "../../src/screens/order-edit.ts";
 import { TILE_STYLE } from "../../src/screens/tiles.ts";
 import { MAX_BYTES, bytes } from "../../src/screens/list.ts";
 import { refreshAfterPlayback } from "../../src/screens/refresh.ts";
-import { FIX, catalog } from "../../tools/kpmock/fixtures.ts";
+import { FIX, catalog, findItem } from "../../tools/kpmock/fixtures.ts";
+import { watchKey } from "../../tools/kpmock/state.ts";
 import { FAKE_EPOCH, FakeClock } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp, TestAppOptions } from "../helpers/harness.ts";
@@ -675,7 +677,8 @@ describe("homeScreen: «Секции главной» (kp.cfg.home; спец. §
 
   it("hidden shelves are neither shown nor asked from KinoPub: no history and watching without «Продолжить», no popular and hot", async () => {
     const t = await make();
-    t.ctx.store.set("cfg", "home", { hidden: ["c", "pm", "ps", "hm", "hs"] });
+    // `v: 2` — настройка этой версии (выбор пользователя); без неё «Продолжить» вернула бы миграция (фикс 2026-10-22).
+    t.ctx.store.set("cfg", "home", { hidden: ["c", "pm", "ps", "hm", "hs"], v: 2 });
     const s = await t.run(homeScreen(t.ctx));
     assert.deepEqual(headers(s), ["Новые фильмы", "Новые сериалы", "Закладки"]);
     assert.deepEqual(asked(t, /^\/v1\/(history|watching\/|items\/(popular|hot))/), []);
@@ -693,7 +696,7 @@ describe("homeScreen: «Секции главной» (kp.cfg.home; спец. §
 
   it("every shelf hidden: no shelf asked, a hint and the «Секции главной» button instead of «Пусто»", async () => {
     const t = await make();
-    t.ctx.store.set("cfg", "home", { hidden: ["c", "fm", "fs", "b", "pm", "ps", "hm", "hs"] });
+    t.ctx.store.set("cfg", "home", { hidden: ["c", "fm", "fs", "b", "pm", "ps", "hm", "hs"], v: 2 });
     const s = await t.run(homeScreen(t.ctx));
     assert.deepEqual(asked(t, SHELF_API), []);
     const all = items(s);
@@ -708,6 +711,100 @@ describe("homeScreen: «Секции главной» (kp.cfg.home; спец. §
   });
 });
 
+describe("homeScreen: «Продолжить просмотр» is not lost silently (отзыв с ТВ 2026-10-22)", () => {
+  const C = "Продолжить просмотр";
+  const RETRY_ID = "c_retry";
+  /** История пуста или не ответила — `watching/movies` встаёт в очередь лимитера последним: полка может прийти заменой. */
+  async function withFilms(t: TestApp): Promise<MsxContentRoot> {
+    if (!headers(await open(t)).includes(C)) await driveToAction(t);
+    return open(t);
+  }
+  const ALL3 = "^/v1/(history|watching/(serials|movies))$";
+
+  it("no kp.cfg.home: «Продолжить просмотр» is the first shelf", async () => {
+    const t = await make();
+    assert.equal(headers(await open(t))[0], C);
+    assert.equal(t.ctx.store.get("cfg", "home"), undefined);
+  });
+
+  it("kp.cfg.home of v1.13–v1.20 with «Продолжить» hidden (red button → OK → OK): shown again in its place, the rest kept, v: 2", async () => {
+    const t = await make();
+    t.ctx.store.set("cfg", "home", { order: ["b", "c", "fm", "fs", "pm", "ps", "hm", "hs"], hidden: ["c", "hs"] });
+    const s = await open(t);
+    assert.deepEqual(headers(s), ["Закладки", C, ...ALL.slice(1).filter((h) => h !== "Закладки" && h !== "Горячее: сериалы")]);
+    assert.deepEqual(t.ctx.store.get("cfg", "home"), { order: ["b", "c", "fm", "fs", "pm", "ps", "hm", "hs"], hidden: ["hs"], v: 2 });
+    // Скрыть снова — уже выбор: настройка с `v` больше не мигрирует, полка не показывается и не запрашивается.
+    onOrderAct(t.ctx, "home", "hide", ["c"]);
+    const n = calls(t, "/v1/history");
+    assert.ok(!headers(await open(t)).includes(C));
+    assert.equal(calls(t, "/v1/history"), n);
+  });
+
+  it("history and both watching lists fail without a cache: the shelf stays first with «Не удалось загрузить», OK reloads the home", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: ALL3, status: 400 }] });
+    const s = await open(t);
+    assert.deepEqual(headers(s), ALL);
+    const tiles = shelf(s, C);
+    assert.deepEqual(tiles.map((i) => [i.id, i.action]), [[RETRY_ID, RETRY_CONTENT]]);
+    assert.match(String(tiles[0]?.titleHeader), /Не удалось.*загрузить/);
+    assert.equal(tiles[0]?.titleFooter, "Повторить");
+    // Ошибка сама сверку не заказывает (повторы уже сделал транспорт); KinoPub ожил — OK на плитке (`reload:content`).
+    await t.clock.advance(RECHECK_MS);
+    await realSleep(20);
+    assert.deepEqual(actions(t), []);
+    t.mock.setScenario({ rules: [] });
+    const again = shelf(await open(t), C);
+    assert.deepEqual(again.map((i) => i.id), [`c${FIX.SERIAL_BIG}`, `c${FIX.MOVIE_SIMPLE}`, `c${FIX.SERIAL_SMALL}`]);
+  });
+
+  it("only watching/serials fails: serials of the history stay — the tag without progress; the film with its progress", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/watching/serials$", status: 400 }] });
+    const tiles = shelf(await open(t), C);
+    assert.deepEqual(tiles.map((i) => [i.id, i.tag, i.progress === undefined]), [
+      [`c${FIX.SERIAL_BIG}`, "1×4", true], [`c${FIX.MOVIE_SIMPLE}`, undefined, false], [`c${FIX.SERIAL_SMALL}`, "1×1", true],
+    ]);
+  });
+
+  it("only the history fails and the watching lists have nothing: an error, not an empty shelf", async () => {
+    const t = await make();
+    t.mock.state.watching.clear();
+    t.mock.setScenario({ rules: [{ path: "^/v1/history$", status: 400 }] });
+    assert.deepEqual(shelf(await withFilms(t), C).map((i) => i.id), [RETRY_ID]);
+  });
+
+  it("only the history fails: «Продолжить» from the watching lists (serials by fewer episodes left, then films)", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/history$", status: 400 }] });
+    assert.deepEqual(shelf(await withFilms(t), C).map((i) => i.id), [`c${FIX.SERIAL_SMALL}`, `c${FIX.SERIAL_BIG}`, `c${FIX.MOVIE_SIMPLE}`]);
+  });
+
+  it("a slow failure after the deadline: first without the shelf, then the error by replace; opened again — the error at once, no redraw loop", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: ALL3, status: 400, delayMs: 600 }] });
+    const first = await open(t);
+    assert.deepEqual(headers(first), ALL.slice(1), "«Продолжить» is still loading");
+    await driveToAction(t);
+    assert.deepEqual(actions(t), [REPLACE]);
+    // Новая загрузка снова дольше срока: на экране — прошлая ошибка полки, а не показ без неё.
+    t.clock.ioGraceMs = 250;
+    const second = await open(t);
+    assert.deepEqual(headers(second), ALL);
+    assert.deepEqual(shelf(second, C).map((i) => i.id), [RETRY_ID]);
+    await drive(t, () => counter(t, "refresh:unchanged") >= 1, "recheck of the error shelf");
+    assert.deepEqual(actions(t), [REPLACE], "the same error is not redrawn again");
+  });
+
+  it("a failing catalog shelf shows its error tile too (its own id), the other shelves as usual", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/items/fresh$", status: 400 }] });
+    const s = await open(t);
+    assert.deepEqual(headers(s), ALL);
+    assert.deepEqual(shelf(s, "Новые фильмы").map((i) => [i.id, i.action]), [["fm_retry", RETRY_CONTENT]]);
+  });
+});
+
 describe("warmHome and the history fallback", () => {
   it("loads every shelf into L2: the next app answers home without KinoPub", async () => {
     const first = await make();
@@ -719,10 +816,12 @@ describe("warmHome and the history fallback", () => {
     assert.equal(first.mock.calls().length, n);
   });
 
-  it("watching/movies is asked only when the history is empty; then «Продолжить» comes from watching", async () => {
+  it("watching/movies on the cold home only when the history is empty; then «Продолжить» comes from watching", async () => {
     const t = await make();
     assert.deepEqual(headers(await t.run(homeScreen(t.ctx))), ALL);
     assert.equal(calls(t, "/v1/watching/movies"), 0);
+    // История и сериалы «Продолжить» — первыми, до полок каталога.
+    assert.deepEqual(t.mock.calls().slice(0, 2).map((c) => c.path).sort(), ["/v1/history", "/v1/watching/serials"]);
 
     const empty = await make();
     empty.mock.state.history = [];
@@ -730,8 +829,70 @@ describe("warmHome and the history fallback", () => {
     if (!headers(await open(empty)).includes(ALL[0] ?? "")) await driveToAction(empty);
     const tiles = shelf(await open(empty), "Продолжить просмотр");
     assert.equal(calls(empty, "/v1/watching/movies"), 1);
-    assert.deepEqual(tiles.map((i) => i.action), [FIX.SERIAL_BIG, FIX.SERIAL_SMALL, FIX.MOVIE_SIMPLE].map((id) => contentAction(P, ids.item(id))));
+    // Сериалы — с меньшим остатком серий первыми (QA-API-1), затем фильмы.
+    assert.deepEqual(tiles.map((i) => i.action), [FIX.SERIAL_SMALL, FIX.SERIAL_BIG, FIX.MOVIE_SIMPLE].map((id) => contentAction(P, ids.item(id))));
     assert.ok(tiles.every((i) => i.progress === undefined && i.tag === undefined));
-    assert.equal(tiles[0]?.badge, "+2");
+    assert.equal(tiles[1]?.badge, "+2");
+  });
+
+  it("warmHome warms watching/movies too: the started films of the cache follow the history titles without a request", async () => {
+    const t = await make();
+    t.mock.state.watching.set(watchKey(FIX.MOVIE_AUDIO12, 0, 1), { time: 600, status: 0, updated: Math.floor(Date.now() / 1000) - 7200 });
+    warmHome(t.ctx);
+    await drive(t, () => t.ctx.cache.peek(cacheKeys.movies()) !== undefined && HOME_KEYS.every((k) => t.ctx.cache.peek(k) !== undefined), "warm-up");
+    const n = calls(t, "/v1/watching/movies");
+    assert.deepEqual(shelf(await open(t), "Продолжить просмотр").map((i) => i.id), [
+      FIX.SERIAL_BIG, FIX.MOVIE_SIMPLE, FIX.SERIAL_SMALL, FIX.MOVIE_AUDIO12,
+    ].map((id) => `c${id}`));
+    assert.equal(calls(t, "/v1/watching/movies"), n, "from the cache");
+  });
+
+  /**
+   * QA-API-1: неделя одного сериала — 50 последних строк истории (одна страница), прежние тайтлы — на второй странице.
+   * `finished` — сериал досмотрен до конца: раньше полка оставалась пустой и пропадала с главной целиком.
+   */
+  function binge(t: TestApp, finished: boolean): void {
+    const it = findItem(FIX.SERIAL_LONG);
+    assert.ok(it?.seasons);
+    const units = it.seasons.flatMap((x) => x.episodes.map((e) => ({ season: x.number, e })));
+    const now = Math.floor(Date.now() / 1000);
+    const watched = finished ? units : units.slice(0, 50);
+    for (const u of watched) t.mock.state.watching.set(watchKey(it.id, u.season, u.e.number), { time: u.e.duration, status: 1, updated: now - 60 });
+    const rows = watched.slice(-50).map((u, i) => ({ item: it.id, season: u.season, video: u.e.number, time: u.e.duration, lastSeen: now - 600 + i }));
+    t.mock.state.history = [...rows.reverse(), ...t.mock.state.history];
+  }
+
+  it("QA-API-1: 50 episodes of one serial in a row — the other started serials stay after it; the films — after warmHome", async () => {
+    const t = await make();
+    binge(t, false);
+    const cold = shelf(await open(t), "Продолжить просмотр");
+    assert.deepEqual(cold.map((i) => i.id), [FIX.SERIAL_LONG, FIX.SERIAL_SMALL, FIX.SERIAL_BIG].map((id) => `c${id}`));
+    assert.equal(cold[0]?.tag, "1×50");
+    const warm = await make({ mock: t.mock });
+    warmHome(warm.ctx);
+    await drive(warm, () => warm.ctx.cache.peek(cacheKeys.movies()) !== undefined, "warm-up");
+    assert.deepEqual(shelf(await open(warm), "Продолжить просмотр").map((i) => i.id), [
+      FIX.SERIAL_LONG, FIX.SERIAL_SMALL, FIX.SERIAL_BIG, FIX.MOVIE_SIMPLE,
+    ].map((id) => `c${id}`));
+  });
+
+  it("QA-API-1: the binge serial watched to the end — «Продолжить» is still on the home with the other titles (it vanished before)", async () => {
+    const t = await make();
+    binge(t, true);
+    const s = await open(t);
+    assert.equal(headers(s)[0], "Продолжить просмотр");
+    assert.deepEqual(shelf(s, "Продолжить просмотр").map((i) => i.id), [FIX.SERIAL_SMALL, FIX.SERIAL_BIG].map((id) => `c${id}`));
+  });
+
+  it("QA-API-7: a serial started without a watched episode (kpmock leaves it out of watching/serials) stays — the tag of the history", async () => {
+    const t = await make();
+    const now = Math.floor(Date.now() / 1000);
+    t.mock.state.watching.set(watchKey(FIX.SERIAL_LONG, 1, 1), { time: 600, status: 0, updated: now });
+    t.mock.state.history.unshift({ item: FIX.SERIAL_LONG, season: 1, video: 1, time: 600, lastSeen: now });
+    const tiles = shelf(await open(t), "Продолжить просмотр");
+    assert.deepEqual(tiles.map((i) => [i.id, i.tag, i.progress]), [
+      [`c${FIX.SERIAL_LONG}`, "1×1", undefined], [`c${FIX.SERIAL_BIG}`, "1×4", tiles[1]?.progress], [`c${FIX.MOVIE_SIMPLE}`, undefined, 0.22],
+      [`c${FIX.SERIAL_SMALL}`, "1×1", tiles[3]?.progress],
+    ]);
   });
 });

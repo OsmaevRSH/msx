@@ -39,7 +39,7 @@ const msg = (op: string, id?: string): string => `interaction:commit:message:${i
 const labels = async (t: TestApp): Promise<string[]> => ((await t.request(ids.init())) as MsxMenuRoot).menu.map((i) => i.label ?? "");
 
 describe("menu panel «Пункты меню»", () => {
-  it("pages of 6 rows: a hint, a row per section (name 5, ▲ ▼ ⤒ 1 each) in the menu order, «Сбросить» last; focus on the first name", async () => {
+  it("pages of 6 rows: a hint, a row per section (name 5, ▲ ▼ ⤒ 1 each) in the menu order, «Сбросить» last; focus on ▲ of the first row", async () => {
     const t = await make();
     const p = await panel(t);
     assert.equal(p.headline, "Пункты меню");
@@ -66,7 +66,8 @@ describe("menu panel «Пункты меню»", () => {
     });
     assert.equal(rows.at(-1)?.[0]?.id, "m_reset");
     assert.equal(rows.at(-1)?.[0]?.action, msg("reset"));
-    assert.equal(focused(p), "m_home");
+    // Первое OK в панели ничего не меняет: ▲ первой строки (не скрыть случайно, двойное OK после красной кнопки).
+    assert.equal(focused(p), "u_home");
     assert.equal(all(p).filter((i) => i.focus === true).length, 1);
     assert.equal(byId(p, "m_watching")?.label, "{ico:check-box} Я смотрю");
     assert.equal(byId(p, "m_watching")?.action, msg("hide", "watching"));
@@ -158,7 +159,7 @@ describe("menu panel «Пункты меню»", () => {
     const p = await panel(t);
     assert.equal(all(p).filter((i) => i.id?.startsWith("m_") && i.id !== "m_reset").length, DEFAULT.length);
     assert.equal(all(p)[1]?.id, "m_sport", "the stored order is kept for known ids");
-    assert.equal(focused(p), "m_sport");
+    assert.equal(focused(p), "u_sport");
     assert.ok(!all(p).some((i) => i.id === "m_probe" || /Диагностика|Настройки MSX/.test(i.label ?? "")));
     assert.equal((await labels(t)).filter((l) => l === "Главная").length, 1);
   });
@@ -202,7 +203,7 @@ describe("«Секции главной» panel (panel:home, kp.cfg.home)", () =
     });
     assert.equal(all(p).at(-1)?.id, "m_reset");
     assert.equal(all(p).at(-1)?.action, hmsg("reset"));
-    assert.equal(focused(p), "m_c");
+    assert.equal(focused(p), "u_c");
     assert.ok(!JSON.stringify(p).includes("{ico:lock}"));
     assert.ok(bytesOf(p) <= 16 * 1024, String(bytesOf(p)));
     assert.equal(orderSummary(t.ctx, "home"), "По умолчанию");
@@ -215,7 +216,8 @@ describe("«Секции главной» panel (panel:home, kp.cfg.home)", () =
     t.app.handleData({ message: msgs.act("home", "hide", "fm") });
     await realSleep(10);
     assert.deepEqual(actions(t), ["[reload:content|reload:panel]"]);
-    assert.deepEqual(t.ctx.store.get("cfg", "home"), { hidden: ["fm"] });
+    // `v` — версия миграции `kp.cfg.home` (фикс 2026-10-22): сохранённое этой версией — выбор, «Продолжить» не возвращается.
+    assert.deepEqual(t.ctx.store.get("cfg", "home"), { hidden: ["fm"], v: 2 });
     assert.equal(t.ctx.store.get("cfg", "menu"), undefined);
     const p = await home(t);
     assert.equal(byId(p, "m_fm")?.label, "{ico:check-box-outline-blank} Новые фильмы");
@@ -235,6 +237,20 @@ describe("«Секции главной» panel (panel:home, kp.cfg.home)", () =
     assert.equal(t.ctx.store.get("cfg", "home"), undefined);
     assert.equal(actions(t).at(-1), REPLACE_HOME);
     assert.equal(focused(await home(t)), "m_reset");
+  });
+
+  it("red button → OK → OK on the home: the second OK lands on ▲ of «Продолжить просмотр» and changes nothing", async () => {
+    const t = await make();
+    await t.request(ids.home());
+    const p = await home(t);
+    const first = all(p).find((i) => i.focus === true);
+    assert.equal(first?.id, "u_c");
+    t.app.handleData({ message: msgs.act("home", "up", "c") });
+    await realSleep(10);
+    assert.equal(t.ctx.store.get("cfg", "home"), undefined, "nothing stored");
+    assert.equal(orderSummary(t.ctx, "home"), "По умолчанию");
+    assert.equal(focused(await home(t)), "u_c", "the focus stays on the same ▲");
+    assert.equal(byId(await home(t), "m_c")?.label, "{ico:check-box} Продолжить просмотр");
   });
 
   it("unknown shelf or operation: a «home» warning, nothing stored, no redraw", async () => {

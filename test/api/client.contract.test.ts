@@ -133,6 +133,13 @@ describe("KpApi against kpmock (contract)", () => {
       assert.deepEqual(movies.map((m) => m.id), [FIX.MOVIE_SIMPLE]);
     });
 
+    it("watching/serials always says `subscribed`: 0 — every unfinished serial («Продолжить»), 1 — «Я смотрю» (HC watching.md, Apple)", async () => {
+      const r = env.rig();
+      await r.run(r.api.watchingSerials());
+      await r.run(r.api.watchingSerials("bg", true));
+      assert.deepEqual(env.calls("/v1/watching/serials").map((c) => q(c).get("subscribed")), ["0", "1"]);
+    });
+
     it("history perpage is capped at 50 (research §8.3)", async () => {
       const r = env.rig();
       const h = await r.run(r.api.history(1, 100));

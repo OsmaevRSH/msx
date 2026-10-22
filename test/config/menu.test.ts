@@ -90,6 +90,55 @@ describe("OrderStore with its own key (kp.cfg.home, «Секции главно�
     assert.equal(mem.getItem("kp.cfg.home"), null);
   });
 
+  describe("migration of a stored config: `version` and `show`", () => {
+    const H = { version: 2, show: ["c"] } as const;
+    const migrated = (kv: KvStore): OrderStore => new OrderStore(kv, SHELVES, [], "home", H);
+
+    it("a config without the version (v1.13–v1.20) shows «c» again once and is rewritten with `v`; order and other hidden stay", () => {
+      const { kv } = setup();
+      kv.set("cfg", "home", { order: ["b", "fm", "c", "fs"], hidden: ["c", "fs"] });
+      const h = migrated(kv);
+      assert.deepEqual(h.get(), { order: ["b", "fm", "c", "fs"], hidden: ["fs"] });
+      assert.deepEqual(kv.get("cfg", "home"), { order: ["b", "fm", "c", "fs"], hidden: ["fs"], v: 2 });
+      assert.deepEqual(h.shown(), ["b", "fm", "c"]);
+    });
+
+    it("only «c» hidden: after the migration the config equals the defaults and is removed", () => {
+      const { kv, mem } = setup();
+      kv.set("cfg", "home", { hidden: ["c"] });
+      assert.deepEqual(migrated(kv).get(), { order: SHELVES, hidden: [] });
+      assert.equal(mem.getItem("kp.cfg.home"), null);
+    });
+
+    it("hidden again after the migration — a choice: stored with `v`, stays hidden in a new app", () => {
+      const { kv } = setup();
+      kv.set("cfg", "home", { hidden: ["c"] });
+      migrated(kv).get();
+      migrated(kv).set({ order: SHELVES, hidden: ["c"] });
+      assert.deepEqual(kv.get("cfg", "home"), { hidden: ["c"], v: 2 });
+      assert.deepEqual(migrated(kv).get(), { order: SHELVES, hidden: ["c"] });
+      assert.deepEqual(migrated(kv).shown(), ["fm", "fs", "b"]);
+    });
+
+    it("garbage of an old config is dropped by the same migration; nothing stored — nothing written", () => {
+      const { kv, mem } = setup();
+      assert.deepEqual(migrated(kv).get(), { order: SHELVES, hidden: [] });
+      assert.equal(mem.getItem("kp.cfg.home"), null);
+      kv.set("cfg", "home", { order: "b", hidden: ["c", "x", 1], v: 1 });
+      assert.deepEqual(migrated(kv).get(), { order: SHELVES, hidden: [] });
+      assert.equal(mem.getItem("kp.cfg.home"), null);
+    });
+
+    it("a store without a version (kp.cfg.menu) neither migrates nor writes `v`", () => {
+      const { kv } = setup();
+      kv.set("cfg", "home", { hidden: ["c"] });
+      assert.deepEqual(home(kv).get().hidden, ["c"]);
+      assert.deepEqual(kv.get("cfg", "home"), { hidden: ["c"] });
+      home(kv).set({ order: SHELVES, hidden: ["fm"] });
+      assert.deepEqual(kv.get("cfg", "home"), { hidden: ["fm"] });
+    });
+  });
+
   it("garbage in kp.cfg.home is dropped; reset forgets it; the defaults are public", () => {
     const { kv, mem } = setup();
     const h = home(kv);

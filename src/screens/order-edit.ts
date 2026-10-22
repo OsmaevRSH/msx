@@ -80,7 +80,9 @@ export function orderPanel(ctx: AppContext, key: OrderKey): MsxContentRoot {
   const spec = SPECS[key];
   const store = spec.store(ctx);
   const { order, hidden } = store.get();
-  const want = focusOf.get(ctx) ?? `m_${order[0] ?? ""}`;
+  // Фокус при открытии — «▲» первой строки: OK на нём ничего не меняет. На названии случайное OK (двойное после
+  // красной кнопки главной) скрывало первую строку — «Продолжить просмотр» (отзыв с ТВ 2026-10-22).
+  const want = focusOf.get(ctx) ?? `u_${order[0] ?? ""}`;
   focusOf.delete(ctx);
   const act = (op: Op, id?: string): string => commitMsg(id === undefined ? msgs.act(key, op) : msgs.act(key, op, id));
   const btn = (id: string, layout: string, o: MsxContentItem): MsxContentItem =>

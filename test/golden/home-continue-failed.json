@@ -1,0 +1,850 @@
+{
+  "type": "list",
+  "flag": "home",
+  "cache": false,
+  "reuse": false,
+  "preload": "next",
+  "headline": "Главная",
+  "pages": [
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Продолжить просмотр"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "refresh",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Не удалось{br}загрузить",
+          "titleFooter": "Повторить",
+          "action": "[invalidate:content|reload:content]",
+          "id": "c_retry",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "layout": "0,0,2,1",
+          "offset": "0,0.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:c_retry"
+          }
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Новые фильмы"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1000",
+          "titleFooter": "2003 · 7,4",
+          "image": "http://kpmock.invalid/poster/medium/1000.svg",
+          "action": "content:request:interaction:item:1000@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1000",
+            "action": "interaction:commit:message:pf:1000"
+          },
+          "id": "fm1000",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1003",
+          "titleFooter": "2005 · 5,8",
+          "image": "http://kpmock.invalid/poster/medium/1003.svg",
+          "action": "content:request:interaction:item:1003@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1003",
+            "action": "interaction:commit:message:pf:1003"
+          },
+          "id": "fm1003",
+          "layout": "2,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1005",
+          "titleFooter": "1994 · 8,0",
+          "image": "http://kpmock.invalid/poster/medium/1005.svg",
+          "action": "content:request:interaction:item:1005@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1005",
+            "action": "interaction:commit:message:pf:1005"
+          },
+          "id": "fm1005",
+          "layout": "4,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1009",
+          "titleFooter": "2009 · 7,5",
+          "image": "http://kpmock.invalid/poster/medium/1009.svg",
+          "action": "content:request:interaction:item:1009@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1009",
+            "action": "interaction:commit:message:pf:1009"
+          },
+          "id": "fm1009",
+          "layout": "6,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1011",
+          "titleFooter": "1998 · 9,7",
+          "image": "http://kpmock.invalid/poster/medium/1011.svg",
+          "action": "content:request:interaction:item:1011@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1011",
+            "action": "interaction:commit:message:pf:1011"
+          },
+          "id": "fm1011",
+          "layout": "8,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "arrow-forward",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Показать все{br} ",
+          "titleFooter": "Новые фильмы",
+          "action": "content:request:interaction:list:ZnJlc2h8dHlwZT1tb3ZpZQ@https://example.github.io/msx/app/index.html",
+          "id": "fm_more",
+          "layout": "10,1,2,4",
+          "offset": "0,-0.5,0,0"
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Новые сериалы"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1001",
+          "titleFooter": "2016 · 8,5",
+          "image": "http://kpmock.invalid/poster/medium/1001.svg",
+          "action": "content:request:interaction:item:1001@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1001",
+            "action": "interaction:commit:message:pf:1001"
+          },
+          "id": "fs1001",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1004",
+          "titleFooter": "2018 · 6,9",
+          "image": "http://kpmock.invalid/poster/medium/1004.svg",
+          "action": "content:request:interaction:item:1004@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1004",
+            "action": "interaction:commit:message:pf:1004"
+          },
+          "id": "fs1004",
+          "layout": "2,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1008",
+          "titleFooter": "1996 · 6,4",
+          "image": "http://kpmock.invalid/poster/medium/1008.svg",
+          "action": "content:request:interaction:item:1008@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1008",
+            "action": "interaction:commit:message:pf:1008"
+          },
+          "id": "fs1008",
+          "layout": "4,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1012",
+          "titleFooter": "2011 · 5,9",
+          "image": "http://kpmock.invalid/poster/medium/1012.svg",
+          "action": "content:request:interaction:item:1012@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1012",
+            "action": "interaction:commit:message:pf:1012"
+          },
+          "id": "fs1012",
+          "layout": "6,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1015",
+          "titleFooter": "2013 · 9,2",
+          "image": "http://kpmock.invalid/poster/medium/1015.svg",
+          "action": "content:request:interaction:item:1015@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1015",
+            "action": "interaction:commit:message:pf:1015"
+          },
+          "id": "fs1015",
+          "layout": "8,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "arrow-forward",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Показать все{br} ",
+          "titleFooter": "Новые сериалы",
+          "action": "content:request:interaction:list:ZnJlc2h8dHlwZT1zZXJpYWw@https://example.github.io/msx/app/index.html",
+          "id": "fs_more",
+          "layout": "10,1,2,4",
+          "offset": "0,-0.5,0,0"
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Закладки"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "bookmark",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Избранное{br} ",
+          "titleFooter": "2 шт.",
+          "action": "content:request:interaction:list:Zm9sZGVyfGZvbGRlcj0x@https://example.github.io/msx/app/index.html",
+          "id": "b1",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Популярные фильмы"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1288",
+          "titleFooter": "2010 · 5,7",
+          "image": "http://kpmock.invalid/poster/medium/1288.svg",
+          "action": "content:request:interaction:item:1288@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1288",
+            "action": "interaction:commit:message:pf:1288"
+          },
+          "id": "pm1288",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1269",
+          "titleFooter": "2022 · 9,3",
+          "image": "http://kpmock.invalid/poster/medium/1269.svg",
+          "action": "content:request:interaction:item:1269@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1269",
+            "action": "interaction:commit:message:pf:1269"
+          },
+          "id": "pm1269",
+          "layout": "2,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1370",
+          "titleFooter": "2003 · 7,7",
+          "image": "http://kpmock.invalid/poster/medium/1370.svg",
+          "action": "content:request:interaction:item:1370@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1370",
+            "action": "interaction:commit:message:pf:1370"
+          },
+          "id": "pm1370",
+          "layout": "4,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1149",
+          "titleFooter": "2016 · 9,6",
+          "image": "http://kpmock.invalid/poster/medium/1149.svg",
+          "action": "content:request:interaction:item:1149@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1149",
+            "action": "interaction:commit:message:pf:1149"
+          },
+          "id": "pm1149",
+          "layout": "6,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1250",
+          "titleFooter": "1997 · 8,0",
+          "image": "http://kpmock.invalid/poster/medium/1250.svg",
+          "action": "content:request:interaction:item:1250@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1250",
+            "action": "interaction:commit:message:pf:1250"
+          },
+          "id": "pm1250",
+          "layout": "8,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "arrow-forward",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Показать все{br} ",
+          "titleFooter": "Популярные фильмы",
+          "action": "content:request:interaction:list:cG9wdWxhcnx0eXBlPW1vdmll@https://example.github.io/msx/app/index.html",
+          "id": "pm_more",
+          "layout": "10,1,2,4",
+          "offset": "0,-0.5,0,0"
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Популярные сериалы"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1408",
+          "titleFooter": "2016 · 5,4",
+          "image": "http://kpmock.invalid/poster/medium/1408.svg",
+          "action": "content:request:interaction:item:1408@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1408",
+            "action": "interaction:commit:message:pf:1408"
+          },
+          "id": "ps1408",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1187",
+          "titleFooter": "1992 · 7,3",
+          "image": "http://kpmock.invalid/poster/medium/1187.svg",
+          "action": "content:request:interaction:item:1187@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1187",
+            "action": "interaction:commit:message:pf:1187"
+          },
+          "id": "ps1187",
+          "layout": "2,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1168",
+          "titleFooter": "2004 · 6,0",
+          "image": "http://kpmock.invalid/poster/medium/1168.svg",
+          "action": "content:request:interaction:item:1168@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1168",
+            "action": "interaction:commit:message:pf:1168"
+          },
+          "id": "ps1168",
+          "layout": "4,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1048",
+          "titleFooter": "1998 · 6,3",
+          "image": "http://kpmock.invalid/poster/medium/1048.svg",
+          "action": "content:request:interaction:item:1048@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1048",
+            "action": "interaction:commit:message:pf:1048"
+          },
+          "id": "ps1048",
+          "layout": "6,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1471",
+          "titleFooter": "2021 · 6,1",
+          "image": "http://kpmock.invalid/poster/medium/1471.svg",
+          "action": "content:request:interaction:item:1471@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1471",
+            "action": "interaction:commit:message:pf:1471"
+          },
+          "id": "ps1471",
+          "layout": "8,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "arrow-forward",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Показать все{br} ",
+          "titleFooter": "Популярные сериалы",
+          "action": "content:request:interaction:list:cG9wdWxhcnx0eXBlPXNlcmlhbA@https://example.github.io/msx/app/index.html",
+          "id": "ps_more",
+          "layout": "10,1,2,4",
+          "offset": "0,-0.5,0,0"
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-0.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Горячее: фильмы"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1019",
+          "titleFooter": "1991 · 8,7",
+          "image": "http://kpmock.invalid/poster/medium/1019.svg",
+          "action": "content:request:interaction:item:1019@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1019",
+            "action": "interaction:commit:message:pf:1019"
+          },
+          "id": "hm1019",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1059",
+          "titleFooter": "1993 · 8,6",
+          "image": "http://kpmock.invalid/poster/medium/1059.svg",
+          "action": "content:request:interaction:item:1059@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1059",
+            "action": "interaction:commit:message:pf:1059"
+          },
+          "id": "hm1059",
+          "layout": "2,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1079",
+          "titleFooter": "1994 · 6,1",
+          "image": "http://kpmock.invalid/poster/medium/1079.svg",
+          "action": "content:request:interaction:item:1079@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1079",
+            "action": "interaction:commit:message:pf:1079"
+          },
+          "id": "hm1079",
+          "layout": "4,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1099",
+          "titleFooter": "1995 · 8,5",
+          "image": "http://kpmock.invalid/poster/medium/1099.svg",
+          "action": "content:request:interaction:item:1099@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1099",
+            "action": "interaction:commit:message:pf:1099"
+          },
+          "id": "hm1099",
+          "layout": "6,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}фильм 1119",
+          "titleFooter": "1996 · 6,0",
+          "image": "http://kpmock.invalid/poster/medium/1119.svg",
+          "action": "content:request:interaction:item:1119@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый фильм 1119",
+            "action": "interaction:commit:message:pf:1119"
+          },
+          "id": "hm1119",
+          "layout": "8,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "arrow-forward",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Показать все{br} ",
+          "titleFooter": "Горячее: фильмы",
+          "action": "content:request:interaction:list:aG90fHR5cGU9bW92aWU@https://example.github.io/msx/app/index.html",
+          "id": "hm_more",
+          "layout": "10,1,2,4",
+          "offset": "0,-0.5,0,0"
+        }
+      ]
+    },
+    {
+      "offset": "0,0,0,-1.5",
+      "items": [
+        {
+          "type": "space",
+          "layout": "0,0,12,1",
+          "offset": "0,0,0,-0.5",
+          "headline": "Горячее: сериалы"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1018",
+          "titleFooter": "2015 · 7,6",
+          "image": "http://kpmock.invalid/poster/medium/1018.svg",
+          "action": "content:request:interaction:item:1018@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1018",
+            "action": "interaction:commit:message:pf:1018"
+          },
+          "id": "hs1018",
+          "layout": "0,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1058",
+          "titleFooter": "2017 · 7,5",
+          "image": "http://kpmock.invalid/poster/medium/1058.svg",
+          "action": "content:request:interaction:item:1058@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1058",
+            "action": "interaction:commit:message:pf:1058"
+          },
+          "id": "hs1058",
+          "layout": "2,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1078",
+          "titleFooter": "2018 · 5,0",
+          "image": "http://kpmock.invalid/poster/medium/1078.svg",
+          "action": "content:request:interaction:item:1078@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1078",
+            "action": "interaction:commit:message:pf:1078"
+          },
+          "id": "hs1078",
+          "layout": "4,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1098",
+          "titleFooter": "2019 · 7,4",
+          "image": "http://kpmock.invalid/poster/medium/1098.svg",
+          "action": "content:request:interaction:item:1098@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1098",
+            "action": "interaction:commit:message:pf:1098"
+          },
+          "id": "hs1098",
+          "layout": "6,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "color": "msx-glass",
+          "imageHeight": 2.75,
+          "imageFiller": "cover",
+          "imageBoundary": true,
+          "round": true,
+          "truncation": "titleHeader",
+          "titleHeader": "{col:msx-white}Тестовый{br}сериал 1118",
+          "titleFooter": "2020 · 9,8",
+          "image": "http://kpmock.invalid/poster/medium/1118.svg",
+          "action": "content:request:interaction:item:1118@https://example.github.io/msx/app/index.html",
+          "selection": {
+            "headline": "Тестовый сериал 1118",
+            "action": "interaction:commit:message:pf:1118"
+          },
+          "id": "hs1118",
+          "layout": "8,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "type": "default",
+          "color": "msx-glass",
+          "round": true,
+          "truncation": "titleHeader|titleFooter",
+          "icon": "arrow-forward",
+          "iconSize": "large",
+          "titleHeader": "{col:msx-white}Показать все{br} ",
+          "titleFooter": "Горячее: сериалы",
+          "action": "content:request:interaction:list:aG90fHR5cGU9c2VyaWFs@https://example.github.io/msx/app/index.html",
+          "id": "hs_more",
+          "layout": "10,1,2,4",
+          "offset": "0,-0.5,0,0"
+        },
+        {
+          "layout": "0,5,2,1",
+          "offset": "0,-4.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:hs1018"
+          }
+        },
+        {
+          "layout": "2,5,2,1",
+          "offset": "0,-4.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:hs1058"
+          }
+        },
+        {
+          "layout": "4,5,2,1",
+          "offset": "0,-4.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:hs1078"
+          }
+        },
+        {
+          "layout": "6,5,2,1",
+          "offset": "0,-4.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:hs1098"
+          }
+        },
+        {
+          "layout": "8,5,2,1",
+          "offset": "0,-4.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:hs1118"
+          }
+        },
+        {
+          "layout": "10,5,2,1",
+          "offset": "0,-4.5,0,3",
+          "color": "transparent",
+          "selection": {
+            "action": "focus:hs_more"
+          }
+        }
+      ]
+    }
+  ],
+  "options": {
+    "headline": "Главная",
+    "template": {
+      "type": "control",
+      "layout": "0,0,8,1"
+    },
+    "items": [
+      {
+        "icon": "tune",
+        "label": "Секции главной",
+        "action": "[back|panel:request:interaction:panel:home@https://example.github.io/msx/app/index.html]"
+      }
+    ]
+  }
+}

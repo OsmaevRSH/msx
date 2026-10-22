@@ -42,6 +42,15 @@ describe("kpmock: togglewatchlist and history clear (tile actions)", () => {
       assert.deepEqual(await watchlist(), [FIX.SERIAL_BIG, FIX.SERIAL_SMALL]);
     });
 
+    it("removed from «Я смотрю»: subscribed=0 («Продолжить» главной) still lists it, the same as without the parameter", async () => {
+      const all = async (q: Record<string, number>): Promise<number[]> =>
+        (await json<{ items: Row[] }>("GET", "/v1/watching/serials", q)).items.map((i) => i.id);
+      assert.deepEqual(await all({ subscribed: 0 }), await all({}));
+      await json("GET", "/v1/watching/togglewatchlist", { id: FIX.SERIAL_BIG });
+      assert.ok(!(await watchlist()).includes(FIX.SERIAL_BIG));
+      assert.ok((await all({ subscribed: 0 })).includes(FIX.SERIAL_BIG));
+    });
+
     it("adds a serial that was never started; the list without `subscribed` does not change", async () => {
       const before = (await json<{ items: Row[] }>("GET", "/v1/watching/serials")).items.map((i) => i.id);
       assert.deepEqual(await json("GET", "/v1/watching/togglewatchlist", { id: FIX.SERIAL_LONG }), { status: 200, watching: true });

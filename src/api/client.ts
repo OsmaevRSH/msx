@@ -276,9 +276,13 @@ export class KpApi {
     await this.call({ method: "POST", path: "/v1/history/clear-for-item", query: { id } });
   }
 
-  /** `subscribed` — только «Я смотрю» (список «Буду смотреть», как у Kodi и других клиентов). */
+  /**
+   * `subscribed=1` — только «Я смотрю» (список «Буду смотреть», как у Kodi и других клиентов), `0` — все недосмотренные
+   * сериалы («Продолжить» главной). Параметр — всегда явно, как у Apple-клиента: умолчание API не описано (HC
+   * `watching.md`), а «Продолжить» не должна зависеть от «Буду смотреть» (фикс 2026-10-22).
+   */
   async watchingSerials(cls?: Cls, subscribed?: boolean): Promise<SerialWatching[]> {
-    const query = subscribed === true ? { subscribed: 1 } : undefined;
+    const query = { subscribed: subscribed === true ? 1 : 0 };
     return parseItems(await this.call({ path: "/v1/watching/serials", query, cls }), parseSerialWatching);
   }
 
