@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 import type { MsxMenuItem, MsxMenuRoot } from "../../src/msx/types.ts";
 import { decodeListKey, encodeListKey } from "../../src/router/ids.ts";
 import type { ListKey } from "../../src/router/ids.ts";
-import { SECTIONS, buildMenu, menuStore } from "../../src/screens/menu.ts";
+import { SECTIONS, buildMenu, loggedOutAction, menuStore } from "../../src/screens/menu.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
 import type { TestApp } from "../helpers/harness.ts";
 import { assertRealMs } from "../helpers/perf.ts";
@@ -190,4 +190,13 @@ describe("buildMenu (S3)", () => {
       assert.equal(t.mock.calls().length, 0);
     });
   }
+
+  it("SET-4: each logout reason has its own toast; an unconfirmed unlink tells where to remove the device", () => {
+    const toast = (r: Parameters<typeof loggedOutAction>[1]): string | undefined => /\|info:([^\]]*)\]$/.exec(loggedOutAction(TEST_P, r))?.[1];
+    assert.deepEqual([toast("logout"), toast("logout-local"), toast("refresh-rejected")], [
+      "Вы вышли из KinoPub",
+      "Вы вышли, но устройство осталось в аккаунте KinoPub — удалите его в списке устройств на сайте",
+      "Сессия KinoPub завершена, войдите снова",
+    ]);
+  });
 });

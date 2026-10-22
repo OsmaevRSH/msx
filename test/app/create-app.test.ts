@@ -34,6 +34,14 @@ describe("auth.onLoggedOut (createApp)", () => {
     assert.deepEqual(actions(t), [TO_MENU("Вы вышли из KinoPub")]);
   });
 
+  it("SET-4: KinoPub did not confirm the unlink → the guest menu and «устройство осталось в аккаунте»", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/device/unlink$", status: 502 }] });
+    await t.run(t.ctx.auth.logout());
+    assert.equal(t.ctx.auth.isLoggedIn(), false);
+    assert.deepEqual(actions(t), [TO_MENU("Вы вышли, но устройство осталось в аккаунте KinoPub — удалите его в списке устройств на сайте")]);
+  });
+
   it("a rejected refresh → home, the guest menu and the KP-AUTH reason", async () => {
     const t = await make();
     t.mock.setScenario({ refreshInvalid: true });

@@ -26,6 +26,7 @@ const T = {
   login: "Вход",
   settings: "Настройки",
   bye: "Вы вышли из KinoPub",
+  byeLocal: "Вы вышли, но устройство осталось в аккаунте KinoPub — удалите его в списке устройств на сайте",
 };
 
 /**
@@ -98,9 +99,12 @@ export function toMenu(P: string, toast: string): string {
   return chain(["home", "cleanup", `lazy:${refreshMenu(P)}`, `info:${toast}`]);
 }
 
-/** Выход и потеря сессии (V-39): гостевое меню и причина уведомлением; отказ refresh — текстом `KP-AUTH`. */
+/**
+ * Выход и потеря сессии (V-39): гостевое меню и причина уведомлением; отказ refresh — текстом `KP-AUTH`; отвязку
+ * KinoPub не подтвердил — где удалить устройство (SET-4).
+ */
 export function loggedOutAction(P: string, reason: LogoutReason): string {
-  return toMenu(P, reason === "logout" ? T.bye : errorText(new KpError("KP-AUTH", reason)).text);
+  return toMenu(P, reason === "logout" ? T.bye : reason === "logout-local" ? T.byeLocal : errorText(new KpError("KP-AUTH", reason)).text);
 }
 
 /**

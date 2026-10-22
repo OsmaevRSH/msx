@@ -461,6 +461,20 @@ describe("onSettingsAct", () => {
     assert.deepEqual([dev.support4k, dev.supportHevc], [1, 1]);
   });
 
+  // SET-4: выход виден сразу; без связи — не дольше 6 с и честный текст, а не «Вы вышли из KinoPub».
+  it("SET-4: logout says «Выхожу из KinoPub…» at once; a hanging unlink → within 6 s «устройство осталось в аккаунте»", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "^/v1/device/unlink$", hang: true }] });
+    const t0 = t.clock.now();
+    const done = act(t, "logout");
+    assert.deepEqual(actions(t), ["info:Выхожу из KinoPub…"]);
+    await done;
+    assert.ok(t.clock.now() - t0 <= 6000, `${t.clock.now() - t0} fake ms`);
+    assert.equal(t.ctx.auth.isLoggedIn(), false);
+    assert.equal(actions(t).length, 2);
+    assert.ok(actions(t)[1]?.endsWith("|info:Вы вышли, но устройство осталось в аккаунте KinoPub — удалите его в списке устройств на сайте]"), actions(t)[1]);
+  });
+
   it("logout forgets the cached device: after a new login the screen and a save use the new KinoPub device", async () => {
     const t = await make();
     assert.equal(ext(await screen(t), "device"), "kpmock TV");

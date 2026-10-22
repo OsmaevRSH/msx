@@ -149,7 +149,7 @@ describe("KpApi OAuth, 401 and request policy (contract)", () => {
         "POST /v1/bookmarks/add auto 8000 fg",
         "POST /v1/bookmarks/remove-item auto 8000 fg",
         "POST /oauth2/token none 15000 fg",
-        "POST /v1/device/unlink none 8000 fg",
+        "POST /v1/device/unlink none 6000 fg",
       ]);
       for (const req of r.t.reqs.filter((x) => x.path.startsWith("/oauth2/"))) {
         assert.equal(req.form, undefined, "OAuth: empty body");

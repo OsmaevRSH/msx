@@ -10,6 +10,7 @@ import {
   parseServerLocation, parseToggle, parseTokenPair, parseTvChannel, parseUser, parseWatching, str,
 } from "./parse.ts";
 import { parseTrailer } from "./parse.ts";
+import { NO_ANSWER_MS } from "./transport.ts";
 import type { ApiRequest, ApiResponse, Priority, ReqClass, RetryPolicy, Transport } from "./transport.ts";
 
 export interface TokenSource { access(): { token: string; gen: number } | undefined; refresh(gen: number): Promise<void> }
@@ -129,8 +130,9 @@ export class KpApi {
     return sent;
   }
 
+  /** Без автоповтора; ждём не дольше `NO_ANSWER_MS` (SET-4): выход без связи не висит 8 с. */
   async deviceUnlink(): Promise<void> {
-    await this.call({ method: "POST", path: "/v1/device/unlink", retry: "none" });
+    await this.call({ method: "POST", path: "/v1/device/unlink", retry: "none", timeoutMs: NO_ANSWER_MS });
   }
 
   // --- Пользователь и справочники ---

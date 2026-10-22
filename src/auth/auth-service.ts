@@ -16,7 +16,8 @@ const READY_FRESH_SEC = 600;
 const BASE: Partial<DeviceSettings> = { supportSsl: 1, mixedPlaylist: 1 };
 const FIRST: Partial<DeviceSettings> = { ...BASE, supportHdr: 0, support4k: 0, supportHevc: 0 };
 
-export type LogoutReason = "refresh-rejected" | "logout";
+/** `logout-local` — вышли, но KinoPub не подтвердил отвязку: слот устройства в аккаунте занят (SET-4). */
+export type LogoutReason = "refresh-rejected" | "logout" | "logout-local";
 
 // Ключ `err`, а не `code`: журнал маскирует `code` как код входа OAuth (CNFR-20).
 const errData = (e: unknown): Record<string, unknown> => {
@@ -131,19 +132,21 @@ export class AuthService implements TokenSource {
     return this.setup;
   }
 
-  /** `device/unlink` (ошибка игнорируется) → удаление `kp.auth.*` → `onLoggedOut("logout")`. */
+  /** `device/unlink` → удаление `kp.auth.*` → `onLoggedOut("logout")`; отвязка не удалась — `"logout-local"` (SET-4). */
   async logout(): Promise<void> {
     const epoch = this.epoch;
+    let reason: LogoutReason = "logout";
     if (this.isLoggedIn()) {
       try {
         await this.requireApi().deviceUnlink();
       } catch (e) {
         this.log.warn(TAG, "unlink_failed", errData(e));
+        reason = "logout-local";
       }
     }
     // Отказ refresh во время unlink уже вышел с "refresh-rejected": второй onLoggedOut не нужен.
     if (epoch !== this.epoch && !this.isLoggedIn()) return;
-    this.signOut("logout");
+    this.signOut(reason);
   }
 
   // --- Внутреннее ---

@@ -32,6 +32,7 @@ const T = {
   until: "До", left: "осталось", days: "дн.", inactive: "Не активна", authors: "Любимые студии",
   reset: "Сбросить любимые студии", noAuthors: "Студия добавляется, когда вы выбираете озвучку на карточке", none: "Нет",
   logout: "Выйти из KinoPub", confirm: "Выйти из KinoPub?", yes: "Выйти", cancel: "Отмена", mismatch: "device-settings-mismatch",
+  leaving: "Выхожу из KinoPub…",
 };
 /** V-33: заголовок группы — в нижней половине своей строки, вплотную к её пунктам (проверено в web MSX). */
 const GROUP_OFFSET = "0,0.5,0,-0.5";
@@ -211,7 +212,11 @@ export async function saveDevice(ctx: AppContext, change: Partial<DeviceForm>): 
  * потолок 2160p включает 4K устройства; `act:set:logout` — выход, `replace:menu` даёт `onLoggedOut` (create-app).
  */
 export async function onSettingsAct(ctx: AppContext, name: string, args: string[]): Promise<void> {
-  if (name === "logout") return ctx.auth.logout();
+  if (name === "logout") {
+    // SET-4: отвязка без связи ждёт до 6 с — выход виден сразу.
+    ctx.host.executeAction(`info:${T.leaving}`);
+    return ctx.auth.logout();
+  }
   const v = args[0] ?? "";
   const d = defOf(name);
   const o = d === undefined ? undefined : (await optsOf(ctx, d)).find((x) => enc(x.v) === v);

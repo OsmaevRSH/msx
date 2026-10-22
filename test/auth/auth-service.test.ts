@@ -108,7 +108,7 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.equal(env.calls("/oauth2/token")[0]?.status, 200);
       assert.equal(r.auth.isLoggedIn(), false);
       assert.deepEqual(env.authKeys(r), []);
-      assert.deepEqual(r.loggedOut, ["logout"]);
+      assert.deepEqual(r.loggedOut, ["logout-local"], "unlink was dropped (SET-4)");
     });
   });
 
@@ -314,13 +314,23 @@ describe("AuthService (spec §7.3, CC-03)", () => {
       assert.equal(env.mock().state.tokens.has(access), false, "the device and its tokens are gone in KinoPub");
     });
 
-    it("an unlink error is ignored", async () => {
+    // SET-4: KinoPub не подтвердил отвязку — выход всё равно выполнен, но слот устройства занят: причина своя.
+    it("SET-4: an unlink error still signs out, with the reason 'logout-local'", async () => {
       const r = env.authRig({ login: true });
       env.mock().setScenario({ rules: [{ path: "^/v1/device/unlink$", drop: true }] });
       await r.run(r.auth.logout());
       assert.equal(env.calls("/v1/device/unlink").length, 1, "unlink is not retried");
       assert.deepEqual(env.authKeys(r), []);
-      assert.deepEqual(r.loggedOut, ["logout"]);
+      assert.deepEqual(r.loggedOut, ["logout-local"]);
+    });
+
+    it("SET-4: a hanging unlink is given up after 6 s (NO_ANSWER_MS), not 8 s → 'logout-local'", async () => {
+      const r = env.authRig({ login: true });
+      env.mock().setScenario({ rules: [{ path: "^/v1/device/unlink$", hang: true }] });
+      const t0 = r.clock.now();
+      await r.run(r.auth.logout());
+      assert.equal(r.clock.now() - t0, 6000);
+      assert.deepEqual([r.auth.isLoggedIn(), r.loggedOut], [false, ["logout-local"]]);
     });
 
     it("unlink → 401 → rejected refresh: onLoggedOut fires once, with 'refresh-rejected'", async () => {
