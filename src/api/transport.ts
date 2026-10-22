@@ -340,6 +340,8 @@ export class Transport {
     }
     if (status === 401) return { ok: false, err: new KpError("KP-AUTH", "unauthorized", status), retry: false };
     if (status === 404) return { ok: false, err: new KpError("KP-404", "not-found", status), retry: false };
+    // QA-API-15: пустое тело 2xx (`clear-for-*`) — успех без данных, как `null`, какой бы ни был `content-type`.
+    if (status < 300 && text.trim() === "") return { ok: true, res: { status, json: null, ms } };
     if (!JSON_TYPE.test(contentType)) {
       return { ok: false, err: new KpError("KP-BAD", "not-json", status, contentType.split(";")[0]), retry: false };
     }

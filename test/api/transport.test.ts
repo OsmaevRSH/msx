@@ -206,6 +206,21 @@ describe("Transport", () => {
       assert.deepEqual(res.json, { status: 400, error: "authorization_pending" });
     });
 
+    // QA-API-15 (M-10): `clear-for-*` может ответить 200 с пустым телом — это успех, а не «Неожиданный ответ KinoPub».
+    it("an empty 2xx body is json: null whatever the content-type says; an empty 4xx body is not", async () => {
+      const bodies: [number, string, string][] = [[200, "application/json", ""], [200, "text/html", " \n"], [204, "", ""], [403, "text/html", ""]];
+      let i = 0;
+      const r = rig(() => {
+        const [status, type, text] = bodies[i++] as [number, string, string];
+        return Promise.resolve(new Response(status === 204 ? null : text, { status, headers: type === "" ? {} : { "content-type": type } }));
+      });
+      for (const [status] of bodies.slice(0, 3)) {
+        const res = await r.clock.runUntilSettled(r.t.send(get("/v1/history/clear-for-item", { method: "POST", retry: "auto" })));
+        assert.deepEqual([res.status, res.json], [status, null]);
+      }
+      await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/history/clear-for-item"))), kp("KP-BAD", "not-json"));
+    });
+
     it("HTML or broken JSON → KP-BAD without retries", async () => {
       const r = rig();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/test/html"))), kp("KP-BAD"));
