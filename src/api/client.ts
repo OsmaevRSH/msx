@@ -278,9 +278,12 @@ export class KpApi {
     return parseHistoryPage(await this.historyRaw(page, perpage, cls));
   }
 
-  /** Удалить тайтл из истории (research kinopub-api §8.3): POST, `id` в query, ответ — `null`; повтор безопасен. */
-  async historyClearItem(id: number): Promise<void> {
-    await this.call({ method: "POST", path: "/v1/history/clear-for-item", query: { id } });
+  /**
+   * Удалить тайтл из истории (research kinopub-api §8.3): POST, `id` в query, ответ — `null`; повтор безопасен. `media` —
+   * одну серию или видео по `media.id` (пробник убирает свой след, API-6).
+   */
+  async historyClearItem(id: number, what: "item" | "media" = "item"): Promise<void> {
+    await this.call({ method: "POST", path: `/v1/history/clear-for-${what}`, query: { id } });
   }
 
   /**

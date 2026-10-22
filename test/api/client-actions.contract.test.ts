@@ -46,6 +46,16 @@ describe("KpApi tile actions against kpmock (contract)", () => {
     assert.deepEqual((await r.run(r.api.history(1, 50))).map((e) => e.item.id), [FIX.SERIAL_BIG, FIX.SERIAL_SMALL]);
   });
 
+  it("API-6: historyClearItem(mid, \"media\") removes one episode — POST clear-for-media with the media id", async () => {
+    const r = env.rig();
+    const [first] = await r.run(r.api.history(1, 50));
+    assert.ok(first !== undefined && first.media.id > 0);
+    await r.run(r.api.historyClearItem(first.media.id, "media"));
+    const [c] = env.calls("/v1/history/clear-for-media");
+    assert.deepEqual([c?.method, q(c!).get("id")], ["POST", String(first.media.id)]);
+    assert.ok(!(await r.run(r.api.history(1, 50))).some((e) => e.media.id === first.media.id));
+  });
+
   it("historyClearItem is idempotent: a 5xx is retried, the title is gone once", async () => {
     env.mock().setScenario({ rules: [{ path: "^/v1/history/clear-for-item$", status: 502, times: 1 }] });
     const r = env.rig();

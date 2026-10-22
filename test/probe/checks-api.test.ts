@@ -183,6 +183,33 @@ describe("CDG-08: marktime and toggle on the test title", () => {
     });
   }
 
+  // API-6: marktime пишет историю — тестовая серия, которой в истории не было, после проверки оттуда убирается.
+  it("API-6: the account history is as before the check — a test episode that was not there is cleared, one that was stays", async () => {
+    const t = await make({ loggedIn: true });
+    const title = await t.run(pickTestTitle(t.ctx));
+    assert.ok(title !== undefined);
+    const hist = (): string[] => t.mock.state.history.map((h) => `${h.item}:${h.season}x${h.video}`);
+    const before = hist();
+    assert.ok(!before.includes(`${title.id}:1x${title.s1e1.e}`));
+    assert.equal((await run(t, "CDG-08")).ok, true);
+    assert.deepEqual(hist(), before);
+    assert.equal(apiCalls(t).filter((c) => c.path === "/v1/history/clear-for-media").length, 1);
+
+    t.mock.state.history.unshift({ item: title.id, season: 1, video: title.s1e1.e, time: 600, lastSeen: 1 });
+    const watched = hist();
+    await run(t, "CDG-08");
+    assert.deepEqual(hist().sort(), watched.sort(), "the user's own episode stays in the history");
+    assert.equal(apiCalls(t).filter((c) => c.path === "/v1/history/clear-for-media").length, 1, "nothing more to clear");
+  });
+
+  it("API-6: the history is cleared after a failed toggle too", async () => {
+    const t = await make({ loggedIn: true });
+    const title = await t.run(pickTestTitle(t.ctx));
+    t.mock.setScenario({ toggleLostResponse: 1 });
+    assert.equal((await run(t, "CDG-08")).ok, false);
+    assert.ok(!t.mock.state.history.some((h) => h.item === title?.id));
+  });
+
   it("lost toggle response → ✗ «проверьте отметку на сайте», no automatic repeat (CM-01)", async () => {
     const t = await make({ loggedIn: true });
     await t.run(pickTestTitle(t.ctx));

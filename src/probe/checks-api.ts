@@ -25,6 +25,7 @@ const TIMED_REPEATS = 3;
 const CATALOG_PERPAGE = 48;
 const TITLE_CANDIDATES = 10;
 const PROBE_TIME = 120;
+const HISTORY_PAGE = 50;
 const SERIES = new Set(["serial", "docuserial", "tvshow"]);
 
 const needLogin = (ctx: AppContext, id: CheckId): CheckResult => result(ctx, id, null, "нужен вход");
@@ -235,7 +236,8 @@ export async function pickTestTitle(ctx: AppContext): Promise<TestTitle | undefi
 
 /**
  * `marktime` и `toggle` на S1E1 тестового тайтла; исходные позиция и статус возвращаются. `toggle` не повторяется
- * вслепую (CM-01): сбой — ✗ с просьбой проверить отметку на сайте.
+ * вслепую (CM-01): сбой — ✗ с просьбой проверить отметку на сайте. API-6: `marktime` пишет и историю — серию, которой
+ * в первой странице истории не было, проверка оттуда убирает (сбой чтения истории — не трогаем: могла быть).
  */
 export async function checkProgress(ctx: AppContext): Promise<CheckResult> {
   if (!ctx.auth.isLoggedIn()) return needLogin(ctx, "CDG-08");
@@ -243,7 +245,9 @@ export async function checkProgress(ctx: AppContext): Promise<CheckResult> {
   if (title === undefined) return result(ctx, "CDG-08", false, "нет тестового тайтла: среди 10 свежих сериалов нет подходящего");
   const { api } = ctx;
   const { id } = title;
-  const { s, e } = title.s1e1;
+  const { s, e, mid } = title.s1e1;
+  const had = await api.history(1, HISTORY_PAGE).then((h) => h.some((x) => x.media.id === mid), () => true);
+  const clean = (): Promise<boolean> => (had ? Promise.resolve(true) : api.historyClearItem(mid, "media").then(() => true, () => false));
   const read = async (): Promise<{ time: number; status: -1 | 0 | 1 }> => {
     const u = (await api.watching(id)).find((x) => x.season === s && x.number === e);
     if (u === undefined) throw new KpError("KP-BAD", "no-watching-unit");
@@ -261,6 +265,7 @@ export async function checkProgress(ctx: AppContext): Promise<CheckResult> {
     if (toggleOk) toggleOk = (await api.toggle(id, e, s)).watched === was;
   } catch (err) {
     const code = toKpError(err).code;
+    await clean();
     return result(ctx, "CDG-08", false, `toggle: ${code}; проверьте отметку на сайте (S${s}E${e} «${title.title}»)`, { id, posOk, code });
   }
   let now = await read();
@@ -269,7 +274,7 @@ export async function checkProgress(ctx: AppContext): Promise<CheckResult> {
     await api.marktime(id, e, orig.time, s);
     now = await read();
   }
-  const restored = now.time === orig.time && now.status === orig.status;
+  const restored = (await clean()) && now.time === orig.time && now.status === orig.status;
   const ok = posOk && toggleOk && restored;
   const parts = [posOk ? "позиция сохраняется" : "позиция не сохранилась", toggleOk ? "toggle отвечает watched" : "toggle не переключил"];
   if (!restored) parts.push("исходное состояние не вернулось — проверьте отметку на сайте");
