@@ -18,6 +18,7 @@ import { errorScreen, errorText } from "./error.ts";
 import { audioTitle, playerProps, subsTitle } from "./player.ts";
 import type { PlayerPropsInput } from "./player.ts";
 import { personalHash, scheduleRefresh, trackScreen } from "./refresh.ts";
+import { setWatchlist } from "./tile-actions.ts";
 import type { RefreshSpec } from "./refresh.ts";
 
 // Карточка S8 (спец. §11, Plan B §8.3 S8): кнопки ведут в resolve, серия «Продолжить» выбирается в момент запуска (D-41).
@@ -50,6 +51,9 @@ const T = {
   ended: "Завершён",
   noTrailer: "Трейлер недоступен",
   marked: "Отмечено",
+  adding: "Добавляю…",
+  removing: "Убираю…",
+  busy: "Уже выполняется",
   unmarked: "Отметка снята",
   more: "{ico:msx-red:stop} Ещё",
 };
@@ -163,7 +167,8 @@ function model(ctx: AppContext, item: ItemDetail, fetchedAt: number): CardModel 
     out.film = { ref: first, status: mergedState(item, first, ctx.overlay.get, fetchedAt).status };
   }
   if (isSerial(item)) {
-    out.wl = item.watchlist === true;
+    const wl = wlMemory(ctx).get(item.id);
+    out.wl = wl !== undefined && wl.at >= fetchedAt ? wl.on : item.watchlist === true;
     out.seen = [refs.filter((r) => mergedState(item, r, ctx.overlay.get, fetchedAt).status === 1).length, refs.length];
   }
   return out;
@@ -433,6 +438,18 @@ async function refreshCard(ctx: AppContext, args: string[]): Promise<void> {
   if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
 }
 
+/**
+ * Итог «Буду смотреть» из ответа переключателя (QA-PLAY-13): главнее карточки, полученной не позже, — `in_watchlist`
+ * у KinoPub может отставать. Карточка, перечитанная позже, снова главнее.
+ */
+const wlMemories = new WeakMap<AppContext, Map<number, { on: boolean; at: number }>>();
+
+function wlMemory(ctx: AppContext): Map<number, { on: boolean; at: number }> {
+  const m = wlMemories.get(ctx) ?? new Map<number, { on: boolean; at: number }>();
+  wlMemories.set(ctx, m);
+  return m;
+}
+
 /** Сверка «Буду смотреть» по свежей карточке; кэш вместо неё (нет связи) — ошибка, а не повод переключать (CM-01). */
 async function inList(ctx: AppContext, id: number): Promise<boolean> {
   const got = await ctx.repo.item(id, { freshWithinMs: 0, waitMs: TOGGLE_WAIT_MS, cls: "fg" });
@@ -441,21 +458,27 @@ async function inList(ctx: AppContext, id: number): Promise<boolean> {
 }
 
 /**
- * `wl:<id>:<0|1>` — «Буду смотреть» (v1.19): переключатель — только при расхождении со свежей карточкой и не больше двух
- * раз (CM-01: ответ мог потеряться, состояние — смениться на другом ТВ). Карточка после сверки свежая, «Я смотрю» и
- * главная — устаревшие; перерисовка — только текущего экрана.
+ * `wl:<id>:<0|1>` — «Буду смотреть» (v1.19): сразу «Добавляю…»/«Убираю…»; одна сверка свежей карточкой (CM-01: состояние
+ * могло смениться на другом ТВ), затем `setWatchlist`, итог — из его ответа (QA-PLAY-13). Одно действие на тайтл в полёте:
+ * повтор до ответа — «Уже выполняется» (QA-PLAY-1). «Я смотрю» и главная — устаревшие; перерисовка — только текущего экрана.
  */
 async function watchlist(ctx: AppContext, args: string[]): Promise<void> {
   const [id, want] = [int(args[0], 1), args[1]];
   if (id === undefined || (want !== "0" && want !== "1")) return ctx.log.warn(TAG, "wl_bad_args", { args });
-  try {
-    for (let i = 0; (await inList(ctx, id)) !== (want === "1") && i < 2; i++) await ctx.api.toggleWatchlist(id, "fg");
-  } catch (e) {
-    ctx.log.warn(TAG, "wl_failed", { id, err: toKpError(e).code });
-    return ctx.host.executeAction(`info:${errorText(e).text}`);
-  }
-  ctx.cache.markStale(cacheKeys.serials());
-  if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
+  const on = want === "1";
+  const ran = await single(ctx, `wl:${id}`, async () => {
+    ctx.host.executeAction(`info:${on ? T.adding : T.removing}`);
+    try {
+      if ((await inList(ctx, id)) !== on) await setWatchlist(ctx, id, on);
+    } catch (e) {
+      ctx.log.warn(TAG, "wl_failed", { id, err: toKpError(e).code });
+      return ctx.host.executeAction(`info:${errorText(e).text}`);
+    }
+    wlMemory(ctx).set(id, { on, at: ctx.clock.now() });
+    ctx.cache.markStale(cacheKeys.serials());
+    if (showsTitle(ctx, id)) ctx.host.executeAction("reload:content");
+  });
+  if (!ran) ctx.host.executeAction(`info:${T.busy}`);
 }
 
 /**

@@ -2,6 +2,8 @@ import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { MsxResolveResponse } from "../../src/msx/types.ts";
 import { cacheKeys } from "../../src/cache/repo.ts";
+import { KpError } from "../../src/core/errors.ts";
+import { errorText } from "../../src/screens/error.ts";
 import { commitMsg, contentAction, resolveAction } from "../../src/msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
 import { ids, msgs, parseDataId } from "../../src/router/ids.ts";
@@ -183,7 +185,9 @@ describe("card v1.19: trailer resolve play:<id>:trailer — video without progre
 });
 
 describe("act:item:wl — «Буду смотреть» (CM-01)", () => {
-  it("re-reads the card, toggles once, re-reads; serials and the card are fresh; the current card is redrawn", async () => {
+  const acts = (t: TestApp): string[] => t.host.actions.map((a) => a.action);
+
+  it("re-reads the card, toggles once; the answer of the switch decides; serials stale; the current card is redrawn", async () => {
     const t = await make();
     const before = await open(t, BIG);
     assert.equal(el(before, "b_wl")?.label, "✓ В списке");
@@ -191,9 +195,32 @@ describe("act:item:wl — «Буду смотреть» (CM-01)", () => {
     const n0 = t.mock.calls().length;
     await t.run(onItemAct(t.ctx, "wl", [String(BIG), "0"]));
     assert.equal(t.mock.state.watchlist.get(BIG), false);
-    assert.deepEqual(t.mock.calls().slice(n0).map((c) => c.path), [`/v1/items/${BIG}`, "/v1/watching/togglewatchlist", `/v1/items/${BIG}`]);
-    assert.deepEqual(t.host.actions.map((a) => a.action), ["reload:content"]);
+    assert.deepEqual(t.mock.calls().slice(n0).map((c) => c.path), [`/v1/items/${BIG}`, "/v1/watching/togglewatchlist"]);
+    assert.deepEqual(acts(t), ["info:Убираю…", "reload:content"]);
     assert.equal(t.ctx.cache.peek(cacheKeys.serials(true))?.stale, true, "«Я смотрю» and home are marked stale");
+    assert.equal(el(await open(t, BIG), "b_wl")?.label, "★ Буду смотреть");
+  });
+
+  it("QA-PLAY-13: the card lags behind the switch (in_watchlist still true) — the button follows the answer", async () => {
+    const t = await make();
+    await open(t, BIG);
+    await t.run(onItemAct(t.ctx, "wl", [String(BIG), "0"]));
+    // Свежая карточка уже в кэше; новая, перечитанная позже, снова главнее памяти.
+    t.mock.state.watchlist.set(BIG, true);
+    assert.equal(el(await open(t, BIG), "b_wl")?.label, "★ Буду смотреть");
+    await t.clock.advance(1000);
+    await t.run(t.ctx.repo.item(BIG, { freshWithinMs: 0, waitMs: 3000 }));
+    assert.equal(el(await open(t, BIG), "b_wl")?.label, "✓ В списке");
+  });
+
+  it("QA-PLAY-1: a second OK before the answer is not a second switch: «Уже выполняется», the serial is removed", async () => {
+    const t = await make();
+    await open(t, BIG);
+    t.mock.setScenario({ delayMs: 50 });
+    await t.run(Promise.all([onItemAct(t.ctx, "wl", [String(BIG), "0"]), onItemAct(t.ctx, "wl", [String(BIG), "0"])]));
+    assert.equal(calls(t, "/v1/watching/togglewatchlist"), 1);
+    assert.equal(t.mock.state.watchlist.get(BIG), false);
+    assert.ok(acts(t).includes("info:Уже выполняется"));
     assert.equal(el(await open(t, BIG), "b_wl")?.label, "★ Буду смотреть");
   });
 
@@ -203,17 +230,39 @@ describe("act:item:wl — «Буду смотреть» (CM-01)", () => {
     t.mock.state.watchlist.set(BIG, false);
     await t.run(onItemAct(t.ctx, "wl", [String(BIG), "0"]));
     assert.equal(calls(t, "/v1/watching/togglewatchlist"), 0);
-    assert.deepEqual(t.host.actions.map((a) => a.action), ["reload:content"]);
+    assert.deepEqual(acts(t), ["info:Убираю…", "reload:content"]);
   });
 
-  it("a dropped toggle is not repeated blindly: one call, a notice, the state as KinoPub has it", async () => {
+  it("the answer is lost after KinoPub applied it: the list shows it — no second switch", async () => {
+    const t = await make();
+    await open(t, BIG);
+    t.mock.setScenario({ watchlistLostResponse: 1 });
+    await t.run(onItemAct(t.ctx, "wl", [String(BIG), "0"]));
+    assert.equal(calls(t, "/v1/watching/togglewatchlist"), 1);
+    assert.equal(calls(t, "/v1/watching/serials"), 1);
+    assert.equal(t.mock.state.watchlist.get(BIG), false);
+    assert.equal(el(await open(t, BIG), "b_wl")?.label, "★ Буду смотреть");
+  });
+
+  it("a dropped toggle is repeated only after the list shows it did not apply — two at most, then the network notice", async () => {
     const t = await make();
     await open(t, BIG);
     t.mock.setScenario({ rules: [{ path: "^/v1/watching/togglewatchlist$", drop: true }] });
     await t.run(onItemAct(t.ctx, "wl", [String(BIG), "0"]));
-    assert.equal(calls(t, "/v1/watching/togglewatchlist"), 1);
+    assert.equal(calls(t, "/v1/watching/togglewatchlist"), 2);
     assert.equal(t.mock.state.watchlist.get(BIG), undefined);
-    assert.match(t.host.actions[0]?.action ?? "", /^info:/);
+    assert.deepEqual(acts(t), ["info:Убираю…", `info:${errorText(new KpError("KP-NET", "x")).text}`]);
+    assert.equal(el(await open(t, BIG), "b_wl")?.label, "✓ В списке");
+  });
+
+  it("API-11: 429 on the switch — no second round, the 429 text", async () => {
+    const t = await make();
+    await open(t, BIG);
+    t.mock.setScenario({ rules: [{ path: "^/v1/watching/togglewatchlist$", status: 429 }] });
+    await t.run(onItemAct(t.ctx, "wl", [String(BIG), "0"]));
+    assert.equal(calls(t, "/v1/watching/togglewatchlist"), 1);
+    assert.equal(calls(t, "/v1/watching/serials"), 0);
+    assert.deepEqual(acts(t), ["info:Убираю…", `info:${errorText(new KpError("KP-429", "x", 429)).text}`]);
   });
 
   it("the watchlist is part of the personal hash: a change elsewhere redraws the card on refresh", async () => {

@@ -1,6 +1,8 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { KpError } from "../../src/core/errors.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
+import { errorText } from "../../src/screens/error.ts";
 import { encodeListKey, ids, listFlag } from "../../src/router/ids.ts";
 import { expandContext, rootIssues, splitChain } from "../../tools/crawl-rules.ts";
 import { FIX } from "../../tools/kpmock/fixtures.ts";
@@ -213,6 +215,19 @@ describe("contract: tile actions (spec §11.4)", () => {
     assert.ok(!actions(t).some((a) => a.includes("replace:content")), "nothing replaced");
     assert.equal(calls(t, "/v1/watching/togglewatchlist").length, 1, "no blind repeat of the switch");
     assert.equal(t.mock.state.watchlist.has(FIX.SERIAL_BIG), false, "the 503 came before KinoPub applied anything");
+  });
+
+  it("API-11: «Я смотрю» and 429 on the switch — no re-read, no second switch, the 429 text; the tile stays", async () => {
+    const t = await app();
+    const w = (await t.request(ids.watching())) as MsxContentRoot;
+    t.mock.setScenario({ rules: [{ path: "^/v1/watching/togglewatchlist$", status: 429 }] });
+    const reads = calls(t, "/v1/watching/serials").length;
+    t.host.clearActions();
+    choose(t, optionsOf(w, tile(w, FIX.SERIAL_BIG)), "Убрать из «Я смотрю»");
+    await waitFor(t, () => actions(t).some((a) => a.startsWith("info:")), "error info");
+    assert.deepEqual(actions(t), [`info:${errorText(new KpError("KP-429", "x", 429)).text}`]);
+    assert.equal(calls(t, "/v1/watching/togglewatchlist").length, 1);
+    assert.equal(calls(t, "/v1/watching/serials").length, reads, "the answer came: nothing to reconcile");
   });
 
   it("folder → «Убрать из папки»: remove-item, the tile is gone, the count in the extension follows", async () => {

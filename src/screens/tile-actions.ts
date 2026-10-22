@@ -96,26 +96,38 @@ async function del(ctx: AppContext, id: number): Promise<void> {
 }
 
 /**
- * Сериал из «Я смотрю» (CM-01): `togglewatchlist` — переключатель. Ответ `watching: true` значит, что сериала в списке
- * уже не было (убран на другом ТВ), и второй вызов возвращает как было. Ответа нет — перед повтором список «Я смотрю»
- * перечитывается: сериала в нём нет — переключение дошло. Не больше двух переключений.
+ * «Я смотрю» в состояние `want` (CM-01, QA-PLAY-13): `togglewatchlist` — переключатель, его ответ — новое состояние.
+ * Ответ не тот — состояние успело смениться на другом ТВ, ещё круг. Ответ потерян или непонятен (сеть, 5xx, KP-BAD) —
+ * сначала список «Я смотрю»: там уже как надо — готово, иначе ещё круг. 429, вход и 404 — ответ получен, переключения не
+ * было: сразу ошибка, без второго круга (QA-API-11). Не больше двух переключений.
  */
-async function unwatch(ctx: AppContext, id: number): Promise<void> {
+export async function setWatchlist(ctx: AppContext, id: number, want: boolean): Promise<void> {
+  let last: unknown;
   for (let n = 0; n < 2; n++) {
     let on: boolean;
     try {
-      on = (await ctx.api.toggleWatchlist(id)).watching;
-    } catch {
+      on = (await ctx.api.toggleWatchlist(id, "fg")).watching;
+    } catch (e) {
+      if (!LOST.has(toKpError(e).code)) throw e;
+      last = e;
       on = (await ctx.api.watchingSerials("fg", true)).some((w) => w.id === id);
     }
-    if (on) continue;
-    // Экран «Я смотрю» строится из кэша: без своей записи он перечитает список, остальное — устаревшее.
-    ctx.cache.delete(cacheKeys.serials(true));
-    ctx.cache.markStale(cacheKeys.serials());
-    ctx.cache.markStale(cacheKeys.item(id));
-    return shown(ctx, "watching", "watching", ids.watching(), id, T.unwatched);
+    if (on === want) return;
   }
-  throw new KpError("KP-BAD", "watchlist");
+  throw last ?? new KpError("KP-BAD", "watchlist");
+}
+
+/** Ответа на переключатель нет или он непонятен: переключение могло пройти — сверка списком. */
+const LOST: ReadonlySet<string> = new Set(["KP-NET", "KP-5XX", "KP-BAD"]);
+
+/** Сериал из «Я смотрю»: `setWatchlist` в «нет»; экран «Я смотрю» без плитки. */
+async function unwatch(ctx: AppContext, id: number): Promise<void> {
+  await setWatchlist(ctx, id, false);
+  // Экран «Я смотрю» строится из кэша: без своей записи он перечитает список, остальное — устаревшее.
+  ctx.cache.delete(cacheKeys.serials(true));
+  ctx.cache.markStale(cacheKeys.serials());
+  ctx.cache.markStale(cacheKeys.item(id));
+  shown(ctx, "watching", "watching", ids.watching(), id, T.unwatched);
 }
 
 /** Убрать из папки (`to` = 0) или переместить: сначала `add` в другую папку, затем `remove-item` — тайтл не теряется. */
