@@ -16,7 +16,8 @@ const MAX_ENTRIES = 64;
 type Kind = "auto" | StreamMode;
 type Step = ChainStep["step"];
 
-interface Entry { step: Step; resolvedAt: number; started: boolean; kind: Kind }
+/** `cancelled` — «Назад» до первого кадра (QA-PLAY-2); `again` — шаг повторён после такой отмены, вторая отмена — сбой. */
+interface Entry { step: Step; resolvedAt: number; started: boolean; kind: Kind; cancelled?: boolean; again?: boolean }
 
 function stepOf(kind: Kind, step: Step): ChainStep {
   if (step === 4) return { step: 4, mode: "none", freshLinks: false };
@@ -48,8 +49,18 @@ export class FallbackChain {
     const kind = this.kind(manual);
     const now = this.ctx.clock.perf();
     const e = this.live(mid, kind);
+    if (e?.cancelled === true) return { ...this.save(mid, { step: e.step, resolvedAt: now, started: false, kind, again: true }), freshLinks: false };
     const step = e === undefined ? 1 : now - e.resolvedAt >= RETRY_AFTER_MS ? following(kind, e.step) : e.step;
     return this.save(mid, { step, resolvedAt: now, started: false, kind });
+  }
+
+  /**
+   * QA-PLAY-2: запуск закрыт до первого кадра раньше, чем AVPlay мог выдать ошибку, — отмена, а не сбой: следующий
+   * resolve — тот же шаг, ссылки из кэша. Один раз подряд: быстрая ошибка плеера с «Назад» не держит шаг вечно.
+   */
+  cancelled(mid: number): void {
+    const e = this.entries.get(mid);
+    if (e !== undefined && !e.started && e.again !== true) e.cancelled = true;
   }
 
   /** Ошибка API при resolve (Plan B §5.11): сразу следующий шаг, без участия пользователя. */

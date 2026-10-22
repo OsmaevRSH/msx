@@ -41,6 +41,8 @@ const MAX_AUTO_STEPS = 2;
  * прошли повторы транспорта (спец. §5.3); 404 и вход другой режим не исправит.
  */
 const NEXT_STEP_ON: ReadonlySet<KpErrorCode> = new Set<KpErrorCode>(["KP-5XX", "KP-BAD"]);
+/** `tizen:buffer:timeout` плеера: закрытый раньше без старта запуск AVPlay ещё не мог признать сбоем — это отмена (QA-PLAY-2). */
+const CANCEL_MS = 10_000;
 /** У `hls2` качество адаптивное, а озвучка — по умолчанию потока. */
 const HLS2_QUALITY = "Авто";
 
@@ -101,9 +103,10 @@ export async function resolveUnit(
 
 /**
  * Подключён в `createApp`: признак старта сбрасывает цепочку fallback этого `mid` и запускает фоновый префетч
- * ссылок следующей серии для автоперехода (спец. §8.3, §10.1).
+ * ссылок следующей серии для автоперехода (спец. §8.3, §10.1); `stop` без старта раньше `CANCEL_MS` — отмена.
  */
 export function onTrackerEvent(ctx: AppContext, ev: TrackerEvent): void {
+  if (ev.kind === "stop" && !ev.s.started && ctx.clock.now() - ev.s.loadedAt < CANCEL_MS) ctx.chain.cancelled(ev.s.mid);
   if (ev.kind !== "started") return;
   ctx.chain.markStarted(ev.s.mid);
   const item = ctx.repo.peekItem(ev.s.itemId)?.value;

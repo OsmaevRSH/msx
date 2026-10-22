@@ -279,6 +279,23 @@ describe("ProgressTracker: watched (Plan B §9.4, CNFR-14)", () => {
     assert.equal(marktimes(t).length, 0);
   });
 
+  it("QA-PLAY-14: kp:d 0 (KinoPub gave no duration) → the player's duration: 92 % of it is watched", async () => {
+    const t = await make();
+    const ev = recordEvents(t);
+    const noDur = kpProps(EP, { "kp:d": "0" });
+    load(t, noDur, 0, EP.duration);
+    assert.equal(t.ctx.tracker.session()?.duration, EP.duration, "from video:load");
+    const u = { ...EP, mid: EP.mid + 1, video: 6 };
+    load(t, kpProps(u, { "kp:d": "0", "kp:r": "z" }), 0, 0);
+    player(t, "play", { position: 0 });
+    assert.equal(t.ctx.tracker.session()?.duration, 0);
+    snapshot(t, pct(u, 92), kpProps(u, { "kp:d": "0", "kp:r": "z" }), u.duration);
+    await waitFor(t, () => kinds(ev, "watched").length === 1, "watched by the snapshot's duration");
+    assert.equal(t.mock.state.watching.get("2001:1:6")?.status, 1);
+    player(t, "stop", { position: u.duration - 1, duration: u.duration });
+    assert.equal((kinds(ev, "stop")[0] as Extract<TrackerEvent, { kind: "pause" | "stop" }>).s.ended, true, "the end without `ended` is known too");
+  });
+
   it("already watched by the card status → only marktime", async () => {
     const t = await make();
     await t.run(t.ctx.repo.item(EP.item));

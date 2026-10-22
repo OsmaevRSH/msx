@@ -50,6 +50,11 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object
  */
 const moved = (s: PlaybackSession, pos: number | undefined): boolean => pos !== undefined && pos > 0 && Math.abs(pos - s.from) >= 1;
 
+/** `kp:d` 0 — KinoPub не дал длительность (новая серия): берём ту, что сообщает плеер (QA-PLAY-14). */
+function learn(s: PlaybackSession | undefined, duration: number | undefined): void {
+  if (s !== undefined && s.duration <= 0 && duration !== undefined) s.duration = duration;
+}
+
 function errData(e: unknown): Record<string, unknown> {
   const err = toKpError(e);
   return { err: err.code, status: err.status, msg: err.message };
@@ -89,8 +94,9 @@ export class ProgressTracker {
   /** `handleEvent` с `video:*`. */
   onEvent(ev: any): void {
     const name = isObj(ev) && typeof ev.event === "string" ? ev.event : "";
-    const { position } = positionFrom(ev);
+    const { position, duration } = positionFrom(ev);
     this.emit(position === undefined ? { kind: "raw", source: "handleEvent", name } : { kind: "raw", source: "handleEvent", name, position });
+    if (name !== "video:load") learn(this.current, duration);
     switch (name) {
       case "video:load":
         this.onLoad(ev);
@@ -112,7 +118,7 @@ export class ProgressTracker {
    * heartbeat-таймера (`source: "timer"`). Тип триггера неизвестен: решение принимается по позиции (спец. §10.1).
    */
   onSnapshot(payload: any, source: SnapshotSource = "handleData"): void {
-    const { position } = positionFrom(payload);
+    const { position, duration } = positionFrom(payload);
     this.emit(position === undefined ? { kind: "raw", source, name: "video" } : { kind: "raw", source, name: "video", position });
     const fresh = sessionFromProps(propsFrom(payload), this.ctx.clock.now());
     if (this.isLate(fresh)) {
@@ -120,6 +126,7 @@ export class ProgressTracker {
       return;
     }
     const s = this.sessionFor(fresh);
+    learn(s, duration);
     if (s === undefined || position === undefined) return;
     if (!s.started && moved(s, position)) this.markStarted(s, position);
     this.emit({ kind: "snapshot", s, pos: position });
@@ -156,6 +163,7 @@ export class ProgressTracker {
     this.cancelRefresh();
     this.ctx.heartbeat.stop();
     if (s !== undefined) {
+      learn(s, positionFrom(ev).duration);
       this.open(s);
       return;
     }

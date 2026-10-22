@@ -274,6 +274,26 @@ describe("resolvePlay: links and the fallback chain", () => {
     assert.deepEqual(lastResolved(t), { step: 2, mode: "hls1" });
   });
 
+  it("QA-PLAY-2: «Назад» before the first frame is a cancel: «▶» 9 s later → the same step, no toast, links from the cache", async () => {
+    const t = await make();
+    const p1 = props(await play(t, ids.playContinue(BIG)));
+    t.app.handleEvent({ event: "video:load", info: { properties: p1 }, data: { state: 0, position: 0 } });
+    await t.clock.advance(2_000);
+    t.app.handleEvent({ event: "video:stop", data: { state: 0, position: 0 } });
+    await t.clock.advance(7_000);
+    const p2 = props(await play(t, ids.playContinue(BIG)));
+    assert.equal(p2["trigger:load"], undefined);
+    assert.deepEqual(lastResolved(t), { step: 1, mode: "hls1" });
+    assert.equal(linkCalls(t), 1);
+
+    // Плеер не стартовал 10 с и закрыт — это сбой: следующий запуск — шаг 2.
+    t.app.handleEvent({ event: "video:load", info: { properties: p2 }, data: { state: 0, position: 0 } });
+    await t.clock.advance(10_500);
+    t.app.handleEvent({ event: "video:stop", data: { state: 0, position: 0 } });
+    assert.equal(props(await play(t, ids.playContinue(BIG)))["trigger:load"], RETRY);
+    assert.deepEqual(lastResolved(t), { step: 2, mode: "hls1" });
+  });
+
   it("an impatient second press within 8 s → the same step, links from the cache", async () => {
     const t = await make();
     props(await play(t, ids.playContinue(BIG)));
@@ -311,6 +331,29 @@ describe("resolvePlay: links and the fallback chain", () => {
     const res = await play(t, ids.playContinue(BIG));
     assert.equal(typeof res.error, "string");
     assert.equal(linkCalls(t), 3, "one step with the transport's own retries");
+  });
+
+  it("QA-PLAY-5: a restart from the player panel in HLS2 says the choice does not apply; hls1 restarts stay silent", async () => {
+    const t = await make();
+    t.ctx.prefs.setTitle("mode", BIG, "hls2");
+    props(await play(t, ids.playContinue(BIG)));
+    const manual = props(await play(t, ids.playEp(BIG, BIG_S1E4, 1, 4, { at: 600 })));
+    assert.equal(manual["trigger:load"], "info:Способ 2 (HLS2): озвучка и качество не выбираются");
+
+    // Цепочка сама дошла до HLS2 (шаг 3): выбор сработает при следующем запуске, когда цепочка начнётся с hls1.
+    const a = await make();
+    props(await play(a, ids.playContinue(BIG)));
+    for (let i = 0; i < 2; i++) {
+      await a.clock.advance(9_000);
+      props(await play(a, ids.playContinue(BIG)));
+    }
+    assert.deepEqual(lastResolved(a), { step: 3, mode: "hls2" });
+    const auto = props(await play(a, ids.playEp(BIG, BIG_S1E4, 1, 4, { at: 600 })));
+    assert.equal(auto["trigger:load"], "info:Способ 2 (HLS2): озвучка и качество не выбираются — выбор сработает при следующем запуске");
+
+    const h = await make();
+    props(await play(h, ids.playContinue(BIG)));
+    assert.equal(props(await play(h, ids.playEp(BIG, BIG_S1E4, 1, 4, { at: 600 })))["trigger:load"], undefined);
   });
 
   it("a manual stream mode for the title disables the automatic chain", async () => {

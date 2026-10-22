@@ -30,6 +30,9 @@ const BUFFER_TIMEOUT_SEC = "10";
 /** Режим и шаг fallback пользователю ничего не говорят (V-27): они только в журнале resolve и в проверках «Диагностики». */
 const MODE_LABEL = { hls1: "HLS1", hls2: "HLS2" } as const;
 const RETRY_TOAST = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
+/** QA-PLAY-5: у HLS2 один адаптивный поток с озвучкой по умолчанию — перезапуск из панели выбора не применит. */
+const HLS2_TOAST = "info:Способ 2 (HLS2): озвучка и качество не выбираются";
+const HLS2_LATER = " — выбор сработает при следующем запуске";
 const SUBS_OFF = "Выключены";
 /**
  * §9.4: ◀◀/▶▶ и ⏪/⏩ пульта (у MSX это клавиши `delete`/`insert`) — переход на шаг из настроек. Свои у MSX —
@@ -194,6 +197,8 @@ export function dynamicProps(ctx: AppContext, r: ResolvedPlay): Record<string, s
   // Варианты hls2 уже ограничены качеством устройства — стартуем с верхнего (Plan B §5.8).
   if (r.mode === "hls2") out["tizen:stream:ADAPTIVE_INFO"] = "STARTBITRATE=HIGHEST";
   if (r.step >= 2 && !r.restart) out["trigger:load"] = RETRY_TOAST;
+  // Шаг 3 — автоматический HLS2: следующий запуск начнёт цепочку с hls1 и выбор применит.
+  if (r.restart && r.mode === "hls2") out["trigger:load"] = HLS2_TOAST + (r.step === 3 ? HLS2_LATER : "");
   return out;
 }
 

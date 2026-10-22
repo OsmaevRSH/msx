@@ -98,6 +98,20 @@ describe("FallbackChain (Plan B §5.11, D-27), streamMode hls1", () => {
     assert.deepEqual(chain.advance(MID), step(4, "none", false));
   });
 
+  it("QA-PLAY-2: a launch cancelled before the first frame is not a failure — the same step after 9 s, once in a row", async () => {
+    chain.next(MID);
+    chain.cancelled(MID);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.next(MID), step(1, "hls1", false));
+    // Быстрая ошибка плеера с «Назад» не держит шаг бесконечно: вторая отмена подряд — уже сбой.
+    chain.cancelled(MID);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.next(MID), step(2, "hls1", true));
+    chain.cancelled(MID);
+    await clock.advance(9_000);
+    assert.deepEqual(chain.next(MID), step(2, "hls1", false), "a cancel on step 2 keeps step 2; fresh links only cure a failure");
+  });
+
   it("advance restarts the 8 s window", async () => {
     chain.next(MID);
     await clock.advance(7_000);
