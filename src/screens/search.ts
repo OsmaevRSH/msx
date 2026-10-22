@@ -183,6 +183,8 @@ function restart(ctx: AppContext, s: SearchEntry, wait: number): boolean {
   delete s.total;
   delete s.capped;
   delete s.recent;
+  // Догрузка прежнего запроса может ещё висеть: её ответ отбросит `seq`, а новый запрос догружается сам (QA-NAV-4).
+  delete s.loading;
   s.items = [];
   s.page = 0;
   s.totalPages = 0;

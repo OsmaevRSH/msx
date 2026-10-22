@@ -315,6 +315,30 @@ describe("onSearchInput (spec §3.4, §6.3)", () => {
     assert.equal(st(t).items.length, 96);
   });
 
+  it("QA-NAV-4: a new query loads its second portion while the second portion of the old one still hangs", async () => {
+    const t = await opened();
+    type(t, "фи");
+    await settle(t);
+    t.mock.setScenario({ rules: [{ path: `^${SEARCH}$`, hang: true, times: 1 }] });
+    send(t, "extend:search");
+    // Реальное время, без поддельных таймеров: зависший запрос не должен успеть кончиться по сроку транспорта.
+    const soon = async (pred: () => boolean, what: string): Promise<void> => {
+      for (const end = performance.now() + 5000; !pred();) {
+        assert.ok(performance.now() < end, what);
+        await new Promise((r) => setTimeout(r, 5));
+      }
+    };
+    await soon(() => searches(t).length === 2, "page 2 of «фи» reached the mock");
+    type(t, "л");
+    await t.clock.advance(500);
+    await soon(() => st(t).status === "ready" && st(t).query === "фил", "page 1 of «фил»");
+    send(t, "extend:search");
+    await soon(() => st(t).items.length === 96, "page 2 of «фил»");
+    assert.deepEqual(searches(t).map((q) => [q.get("q"), q.get("page")]), [["фи", "1"], ["фи", "2"], ["фил", "1"], ["фил", "2"]]);
+    assert.ok(st(t).items.every((it) => it.title.toLowerCase().includes("фил")));
+    t.mock.release();
+  });
+
   it("a stale answer is dropped: typing on while the request is in flight searches again", async () => {
     const t = await opened();
     t.mock.setScenario({ delayMs: 50 });
