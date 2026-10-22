@@ -27,8 +27,8 @@ export type PlayRoute = Extract<Route, { k: "play" } | { k: "playEp" }>;
 
 /** `forget` — «Очистить историю»: недавние запросы (`screens/recent.ts`). */
 export type SearchControl = "back" | "clear" | "space" | "lang" | "forget";
-/** `tile` — действия над плиткой (`screens/tile-actions.ts`, спец. §11.4). */
-export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu" | "home" | "tile";
+/** `tile` — действия над плиткой (`screens/tile-actions.ts`, спец. §11.4); `player` — ◀◀/▶▶ плеера (`playback/seek.ts`, §9.4). */
+export type ActModule = "login" | "item" | "panel" | "set" | "probe" | "menu" | "home" | "tile" | "player";
 
 export type Msg =
   | { k: "extend"; key: string }
@@ -54,7 +54,7 @@ export interface ListKey {
 const SIMPLE = new Set(["init", "login", "home", "search", "settings", "bookmarks", "dev", "watching", "tv"]);
 const VARIANTS: readonly ProbeVariant[] = ["a1", "a2", "hls2", "props", "ticks", "autonext"];
 const CONTROLS: readonly SearchControl[] = ["back", "clear", "space", "lang", "forget"];
-const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu", "home", "tile"];
+const MODULES: readonly ActModule[] = ["login", "item", "panel", "set", "probe", "menu", "home", "tile", "player"];
 const SOURCES: readonly ListKey["src"][] = ["catalog", "fresh", "popular", "hot", "folder", "similar", "history", "collections", "collection"];
 const KEY_FIELDS = ["type", "sort", "genre", "folder", "id", "quality", "year", "country", "kp", "fin"] as const;
 const NUM_FIELDS = new Set<string>(["folder", "id"]);

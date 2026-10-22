@@ -24,6 +24,7 @@ import { Metrics } from "../core/metrics.ts";
 import { FallbackChain } from "../playback/modes.ts";
 import { PrefsStore } from "../playback/prefs.ts";
 import { onTrackerEvent } from "../playback/resolve.ts";
+import { Seeker } from "../playback/seek.ts";
 import { attachProbe } from "../probe/lazy.ts";
 import type { ProbeLoad } from "../probe/lazy.ts";
 import { HeartbeatTimer } from "../progress/heartbeat.ts";
@@ -106,6 +107,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   ctx.outbox = new Outbox(ctx);
   ctx.heartbeat = new HeartbeatTimer(ctx);
   ctx.chain = new FallbackChain(ctx);
+  ctx.seeker = new Seeker(ctx);
   attachProbe(ctx, o.loadProbe);
 
   auth.onLoggedOut = (reason) => {

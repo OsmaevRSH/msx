@@ -58,10 +58,10 @@ const EXAMPLE: Record<string, string> = {
   "button:restart:icon": "hd",
   "button:restart:action": `panel:request:interaction:panel:quality:8632:82469:p@${P}`,
   "button:rewind:icon": "replay-10",
-  "button:rewind:action": "player:seek:-10",
+  "button:rewind:action": "interaction:commit:message:act:player:seek:-10",
   "button:rewind:key": "delete",
   "button:forward:icon": "forward-10",
-  "button:forward:action": "player:seek:+10",
+  "button:forward:action": "interaction:commit:message:act:player:seek:+10",
   "button:forward:key": "insert",
   "button:prev:icon": "default",
   "button:prev:action": `video:resolve:request:interaction:play:8632:82468:1:1@${P}`,
@@ -197,23 +197,78 @@ describe("playerProps", () => {
     assert.equal(playerProps(t.ctx, MIDDLE)["kp:p"], undefined);
   });
 
-  it("seek step from TV settings (v1.11): ◀◀/▶▶ and the ⏪/⏩ keys seek by it instead of MSX's 10/30 s", async () => {
+  it("seek step from TV settings (v1.11): ◀◀/▶▶ and the ⏪/⏩ keys seek by it instead of MSX's 10/30 s — through the plugin", async () => {
     const t = await make();
     const seekProps = (): string[] => keys(playerProps(t.ctx, MIDDLE), /^button:(rewind|forward):/).map((k) => `${k}=${playerProps(t.ctx, MIDDLE)[k]}`);
     t.ctx.prefs.update({ seekStep: 30 });
     assert.deepEqual(seekProps(), [
-      "button:rewind:icon=replay-30", "button:rewind:action=player:seek:-30", "button:rewind:key=delete",
-      "button:forward:icon=forward-30", "button:forward:action=player:seek:+30", "button:forward:key=insert",
+      "button:rewind:icon=replay-30", "button:rewind:action=interaction:commit:message:act:player:seek:-30", "button:rewind:key=delete",
+      "button:forward:icon=forward-30", "button:forward:action=interaction:commit:message:act:player:seek:+30", "button:forward:key=insert",
     ]);
     t.ctx.prefs.update({ seekStep: 5 });
     assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:icon"], "forward-5");
-    assert.equal(playerProps(t.ctx, MIDDLE)["button:rewind:action"], "player:seek:-5");
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:rewind:action"], "interaction:commit:message:act:player:seek:-5");
     // Значка с цифрой 15 у MSX нет — обычные ⏪/⏩.
     t.ctx.prefs.update({ seekStep: 15 });
     assert.equal(playerProps(t.ctx, MIDDLE)["button:rewind:icon"], "default");
     assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:icon"], "default");
-    assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:action"], "player:seek:+15");
-    assert.equal(contextPlayerProps(t.ctx)["button:forward:action"], "player:seek:+15", "the season template carries the same step");
+    assert.equal(playerProps(t.ctx, MIDDLE)["button:forward:action"], "interaction:commit:message:act:player:seek:+15");
+    assert.equal(contextPlayerProps(t.ctx)["button:forward:action"], "interaction:commit:message:act:player:seek:+15", "the season template carries the same step");
+  });
+
+  // Отзыв с ТВ «назад по 10 сек не мотается»: относительный `player:seek:-N` MSX отбрасывает, пока плеер буферизует.
+  it("no button seeks with MSX's relative player:seek:±N: MSX drops it while the player buffers", async () => {
+    const t = await make();
+    for (const step of [5, 10, 15, 30] as const) {
+      t.ctx.prefs.update({ seekStep: step });
+      for (const props of [playerProps(t.ctx, MIDDLE), contextPlayerProps(t.ctx)]) {
+        const seeks = Object.entries(props).filter(([, v]) => /(?:^|[[|])player:seek:/.test(v)).map(([k]) => k);
+        assert.deepEqual(seeks, [], `step ${step}`);
+      }
+    }
+  });
+
+  it("the button message act:player:seek:∓N → an absolute player:seek from the player position, both directions, every step", async () => {
+    const t = await make();
+    let position = 1300;
+    t.host.responses.set("video", () => ({ video: { info: { properties: { "kp:r": "r1" } }, data: { position, duration: 3720 } } }));
+    for (const step of [5, 10, 15, 30] as const) {
+      t.ctx.prefs.update({ seekStep: step });
+      for (const key of ["button:rewind:action", "button:forward:action"]) {
+        const msg = playerProps(t.ctx, MIDDLE)[key]!.replace(/^interaction:commit:message:/, "");
+        t.host.clearActions();
+        t.app.handleData({ message: msg });
+        await t.clock.advance(0);
+        const want = key.includes("rewind") ? position - step : position + step;
+        assert.deepEqual(t.host.actions.map((a) => a.action), [`player:seek:${want}`], `${key} step ${step}`);
+        position = want;
+        await t.clock.advance(1000);
+      }
+    }
+  });
+
+  it("handleEvent video:load (resume:position) and video:seek reach the seeker: ◀◀ right after them counts from their target", async () => {
+    const t = await make();
+    t.host.responses.set("video", { video: { info: { properties: { "kp:r": "r7" } }, data: { position: 3, duration: 3720 } } });
+    t.app.handleEvent({ event: "video:load", info: { properties: { "kp:i": "8632", "kp:m": "82469", "kp:s": "1", "kp:e": "2", "kp:r": "r7", "resume:position": "1287" } }, data: { position: 0 } });
+    t.app.handleData({ message: "act:player:seek:-10" });
+    await t.clock.advance(1000);
+    t.app.handleEvent({ event: "video:seek", position: 2000, data: { position: 1277 } });
+    t.app.handleData({ message: "act:player:seek:+30" });
+    await t.clock.advance(0);
+    assert.deepEqual(t.host.actions.map((a) => a.action), ["player:seek:1277", "player:seek:2030"]);
+  });
+
+  it("act:player with a bad name or step is ignored with a warning", async () => {
+    const t = await make();
+    t.host.responses.set("video", { video: { data: { position: 100, duration: 3720 } } });
+    for (const msg of ["act:player:seek:10", "act:player:seek:-abc", "act:player:seek:+0", "act:player:seek:-1000", "act:player:seek", "act:player:jump:-10", "act:player:seek:-10:x"]) {
+      t.app.handleData({ message: msg });
+    }
+    await t.clock.advance(0);
+    assert.deepEqual(t.host.actions, []);
+    assert.equal(t.host.requests.filter((r) => r === "video").length, 0);
+    assert.equal(t.ctx.log.entries().filter((e) => e.tag === "player" && e.msg === "bad_args").length, 7);
   });
 
   it("buffer sizes come from TV settings", async () => {

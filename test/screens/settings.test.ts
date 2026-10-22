@@ -390,8 +390,8 @@ describe("onSettingsAct", () => {
     assert.deepEqual(actions(t), [BACK_RELOAD]);
     assert.equal(ext(await screen(t), "seek"), "30 с");
     const res = (await t.request(ids.playContinue(FIX.SERIAL_BIG))) as { properties: Record<string, string> };
-    assert.equal(res.properties["button:forward:action"], "player:seek:+30");
-    assert.equal(res.properties["button:rewind:action"], "player:seek:-30");
+    assert.equal(res.properties["button:forward:action"], commitMsg(msgs.act("player", "seek", "+30")));
+    assert.equal(res.properties["button:rewind:action"], commitMsg(msgs.act("player", "seek", "-30")));
     await act(t, "seek", 7);
     assert.equal(t.ctx.prefs.get().seekStep, 30, "not one of the steps — ignored");
   });

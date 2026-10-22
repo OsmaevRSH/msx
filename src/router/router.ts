@@ -17,6 +17,7 @@ import { loginScreen, onLoginAct } from "../screens/login.ts";
 import { buildMenu } from "../screens/menu.ts";
 import { onOrderAct } from "../screens/order-edit.ts";
 import { onPanelAct, panelScreen } from "../screens/panels.ts";
+import { onPlayerAct } from "../screens/player.ts";
 import { personScreen } from "../screens/person.ts";
 import { onSearchInput, rememberSearch, searchScreen } from "../screens/search.ts";
 import { seasonScreen } from "../screens/season.ts";
@@ -182,6 +183,7 @@ export class App implements PluginApp {
     const name = isObj(e) && typeof e.event === "string" ? e.event : "";
     try {
       if (name.startsWith("video:")) {
+        if (name === "video:load" || name === "video:seek") ctx.seeker.onEvent(e);
         ctx.tracker.onEvent(e);
         return;
       }
@@ -341,6 +343,9 @@ export class App implements PluginApp {
         return;
       case "tile":
         this.spawn(what, () => onTileAct(ctx, name, args));
+        return;
+      case "player":
+        onPlayerAct(ctx, name, args);
         return;
     }
   }

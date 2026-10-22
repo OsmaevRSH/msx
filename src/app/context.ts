@@ -17,6 +17,7 @@ import type { Logger } from "../core/log.ts";
 import type { Metrics } from "../core/metrics.ts";
 import type { FallbackChain } from "../playback/modes.ts";
 import type { PrefsStore } from "../playback/prefs.ts";
+import type { Seeker } from "../playback/seek.ts";
 import type { ProbeRunner } from "../probe/runner.ts";
 import type { HeartbeatTimer } from "../progress/heartbeat.ts";
 import type { Outbox } from "../progress/outbox.ts";
@@ -55,7 +56,7 @@ export interface AppContext {
   P: string; build: BuildInfo; clock: Clock; log: Logger; metrics: Metrics; store: KvStore; flags: FlagStore; prefs: PrefsStore;
   fetch: FetchLike; transport: Transport; api: KpApi; auth: AuthService; cache: SwrCache; repo: Repo; overlay: Overlay;
   host: MsxHost; current: CurrentScreen; state: AppState;
-  tracker: ProgressTracker; outbox: Outbox; heartbeat: HeartbeatTimer; chain: FallbackChain;
+  tracker: ProgressTracker; outbox: Outbox; heartbeat: HeartbeatTimer; chain: FallbackChain; seeker: Seeker;
   /** Ставит probe.js при загрузке (этап 23b, `src/probe/entry.ts`): до первого маршрута пробника его нет. */
   probe?: ProbeRunner;
   /** L2 (`kp.l2.*`): всё в этом пространстве пишется только через него — чужие записи `L2` удаляет при загрузке индекса. */

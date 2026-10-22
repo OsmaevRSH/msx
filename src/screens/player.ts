@@ -1,12 +1,12 @@
 import type { AppContext } from "../app/context.ts";
 import type { Audio, Subtitle } from "../api/models.ts";
 import { langName, subsLabel } from "../core/lang.ts";
-import { chain, panelAction, resolveAction } from "../msx/actions.ts";
+import { chain, commitMsg, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxResolveResponse } from "../msx/types.ts";
 import type { EpRef } from "../playback/episodes.ts";
 import type { SubsChoice } from "../playback/select.ts";
 import { KP_PROPS } from "../progress/session.ts";
-import { ids } from "../router/ids.ts";
+import { ids, msgs } from "../router/ids.ts";
 
 // Свойства плеера и ответ resolve (спец. §9.1–9.2, §10.1, §16.3; Plan B §5.8, §5.11).
 // Маркеры kp:* — по ним ProgressTracker собирает сессию (sessionFromProps требует kp:i, kp:m, kp:e).
@@ -32,12 +32,26 @@ const MODE_LABEL = { hls1: "HLS1", hls2: "HLS2" } as const;
 const RETRY_TOAST = "info:Предыдущий запуск не удался — пробую другой способ воспроизведения";
 const SUBS_OFF = "Выключены";
 /**
- * §9.4: ◀◀/▶▶ и ⏪/⏩ пульта (у MSX это клавиши `delete`/`insert`) — `player:seek` на шаг из настроек. Свои у MSX —
- * ±10 с, а у видео длиннее часа ±30 с; стрелки двигают маркер на 2 % длительности, это не настраивается.
+ * §9.4: ◀◀/▶▶ и ⏪/⏩ пульта (у MSX это клавиши `delete`/`insert`) — переход на шаг из настроек. Свои у MSX —
+ * ±10 с, а у видео длиннее часа ±30 с; стрелки двигают маркер на 2 % длительности, это не настраивается. Не
+ * `player:seek:±N`: его MSX отбрасывает, пока плеер буферизует, — переход от позиции считает плагин (`playback/seek.ts`).
  */
 const SEEK = [["rewind", "-", "replay", "delete"], ["forward", "+", "forward", "insert"]] as const;
+/** Шаг в сообщении `act:player:seek:<±с>`: со знаком, не больше 10 минут. */
+const SEEK_ARG = /^[+-]\d{1,3}$/;
 /** Значки MSX с цифрой шага: `replay-10`, `forward-30`; для 15 с такого нет — обычные ⏪/⏩. */
 const SEEK_ICONS: readonly number[] = [5, 10, 30];
+
+/** `act:player:seek:<±с>` от кнопок ◀◀/▶▶ и клавиш ⏪/⏩ плеера. */
+export function onPlayerAct(ctx: AppContext, name: string, args: string[]): void {
+  const arg = args[0] ?? "";
+  const delta = name === "seek" && args.length === 1 && SEEK_ARG.test(arg) ? Number(arg) : 0;
+  if (delta === 0 || Math.abs(delta) > 600) {
+    ctx.log.warn("player", "bad_args", { name, args });
+    return;
+  }
+  ctx.seeker.press(delta);
+}
 
 /** Студия озвучки, иначе её тип («Оригинал»), иначе язык — на кнопке карточки и в `label:extension`. */
 export const audioTitle = (a: Audio): string => a.authorTitle ?? a.typeTitle ?? langName(a.lang, 0);
@@ -82,7 +96,7 @@ function controls(ctx: AppContext, a: EpisodeActions, ticks: number): Record<str
   const s = prefs.seekStep;
   for (const [b, sign, icon, key] of SEEK) {
     out[`button:${b}:icon`] = SEEK_ICONS.includes(s) ? `${icon}-${s}` : "default";
-    out[`button:${b}:action`] = `player:seek:${sign}${s}`;
+    out[`button:${b}:action`] = commitMsg(msgs.act("player", "seek", `${sign}${s}`));
     out[`button:${b}:key`] = key;
   }
   if (a.prev !== undefined) {

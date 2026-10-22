@@ -32,6 +32,14 @@ const [S1E1, S1E2, S1E3, S2E1, S2E2] = [s1[0], s1[1], s1[2], s2[0], s2[1]];
 /** CNFR-14: «просмотрено» — с 90 % длительности, у WebM mock это 54 с из 60. */
 const WATCHED_AT = 54;
 const restartOf = (mid: number, s: number, e: number): RegExp => new RegExp(`^play:${SMALL}:${mid}:${s}:${e}:at(\\d+)$`);
+/**
+ * Позиция, которую MSX отдаёт плагину (`requestData("video")`), догнала `<video>`: MSX обновляет её раз в секунду, а
+ * ◀◀/▶▶ плагин считает от неё (спец. §9.4) — иначе шаг на паузе отсчитывался бы от позиции секундой раньше.
+ */
+const msxSees = (p: Page): Promise<void> =>
+  expect.poll(async () => (await msxPos(p)) === Math.round(await videoTime(p)), { message: "MSX видит позицию <video>", timeout: 5000, intervals: [200] }).toBe(true);
+/** Действие кнопок ◀◀/▶▶ (спец. §9.4): сообщение плагину со знаковым шагом. */
+const seekMsg = (d: number): string => commitMsg(msgs.act("player", "seek", d < 0 ? String(d) : `+${d}`));
 
 test.beforeAll(async ({ browser }) => {
   await mock.reset();
@@ -531,13 +539,14 @@ test("E-16: «Шаг перемотки» 30 с в настройках — ⏩/
   const from = await mark(page);
   await exec(page, resolveAction(P, play));
   await answered(page, play, from);
-  expect((await answer(page, play)).properties, "кнопки ◀◀/▶▶ и клавиши ⏪/⏩ — на шаг из настроек").toMatchObject({
-    "button:rewind:action": "player:seek:-30", "button:rewind:key": "delete", "button:rewind:icon": "replay-30",
-    "button:forward:action": "player:seek:+30", "button:forward:key": "insert", "button:forward:icon": "forward-30",
+  expect((await answer(page, play)).properties, "кнопки ◀◀/▶▶ и клавиши ⏪/⏩ — на шаг из настроек, через плагин").toMatchObject({
+    "button:rewind:action": seekMsg(-30), "button:rewind:key": "delete", "button:rewind:icon": "replay-30",
+    "button:forward:action": seekMsg(30), "button:forward:key": "insert", "button:forward:icon": "forward-30",
   });
   await playing(page, S1E1, from);
   await exec(page, "player:pause");
   await expect.poll(() => videoPaused(page), { message: "пауза", timeout: 5000 }).toBe(true);
+  await msxSees(page);
   const at = Math.round(await videoTime(page));
   const pos = (want: number, what: string): Promise<void> =>
     expect.poll(() => videoTime(page), { message: what, timeout: 5000, intervals: [100] }).toBeCloseTo(want, 0);
@@ -554,6 +563,66 @@ test("E-16: «Шаг перемотки» 30 с в настройках — ⏩/
   await pos(at, "◀◀: −30 с");
   expect(await videoPaused(page), "перемотка не снимает паузу").toBe(true);
   await closePlayer(page);
+  await kp(page, (k) => k.ctx.prefs.update({ seekStep: 10 }));
+});
+
+// Отзыв с ТВ «назад по 10 сек не мотается»: относительный `player:seek:±N` MSX 0.1.167 молча отбрасывает, пока плеер
+// буферизует (MSX «занят»), а AVPlay буферизует после каждого перехода и после «Продолжить». Кнопки и клавиши теперь
+// идут через плагин: абсолютный переход от позиции плеера (спец. §9.4). «Занят» в web MSX — событие `waiting` у <video>.
+test("E-35: ◀◀/▶▶ и ⏪/⏩, пока MSX «занят» буферизацией, — переход на шаг 5/10/15/30 с в обе стороны; три ⏪ подряд — один переход на три шага", async () => {
+  const at = (want: number, what: string): Promise<void> =>
+    expect.poll(() => videoTime(page), { message: what, timeout: 5000, intervals: [100] }).toBeCloseTo(want, 0);
+  const busy = (): Promise<void> => page.locator("video").evaluate((v: HTMLVideoElement) => {
+    v.dispatchEvent(new Event("waiting"));
+  });
+  const FROM = 35;
+  for (const step of [5, 10, 15, 30] as const) {
+    await kpWith(page, (k, s) => k.ctx.prefs.update({ seekStep: s }), step);
+    const play = ids.playEp(SMALL, S1E1, 1, 1, { start: true });
+    const from = await mark(page);
+    await exec(page, resolveAction(P, play));
+    await answered(page, play, from);
+    const props = (await answer(page, play)).properties as Record<string, string>;
+    expect(props["button:rewind:action"], `шаг ${step}: ◀◀ через плагин`).toBe(seekMsg(-step));
+    expect(props["button:forward:action"], `шаг ${step}: ▶▶ через плагин`).toBe(seekMsg(step));
+    await playing(page, S1E1, from);
+    await exec(page, "player:pause");
+    await expect.poll(() => videoPaused(page), { message: "пауза", timeout: 5000 }).toBe(true);
+    await exec(page, `player:seek:${FROM}`);
+    await at(FROM, `шаг ${step}: исходная позиция`);
+    await msxSees(page);
+    if (step === 10) {
+      // Причина отзыва: прежнее действие кнопки, пока MSX «занят», ничего не делает.
+      await busy();
+      await exec(page, "player:seek:-10");
+      await sleep(1000);
+      expect(Math.round(await videoTime(page)), "MSX отбрасывает player:seek:-10, пока «занят»").toBe(FROM);
+    }
+    await busy();
+    await page.keyboard.press("NumpadSubtract");
+    await at(FROM - step, `шаг ${step}: ⏪ при буферизации`);
+    await busy();
+    await page.keyboard.press("NumpadAdd");
+    await at(FROM, `шаг ${step}: ⏩ при буферизации`);
+    const [back, fwd] = step === 15 ? ["fast-rewind", "fast-forward"] : [`replay-${step}`, `forward-${step}`];
+    await focusPlayerButton(page, back);
+    await busy();
+    await page.keyboard.press("Enter");
+    await at(FROM - step, `шаг ${step}: ◀◀ при буферизации`);
+    await focusPlayerButton(page, fwd);
+    await busy();
+    await page.keyboard.press("Enter");
+    await at(FROM, `шаг ${step}: ▶▶ при буферизации`);
+    await sleep(500);
+    const m = await kp(page, (k) => k.ctx.log.entries().filter((e: any) => e.tag === "seek" && e.msg === "seek").length as number);
+    await busy();
+    for (let n = 0; n < 3; n++) await page.keyboard.press("NumpadSubtract");
+    await at(Math.max(0, FROM - 3 * step), `шаг ${step}: три ⏪ подряд`);
+    const burst = await kp(page, (k) => k.ctx.log.entries().filter((e: any) => e.tag === "seek" && e.msg === "seek").length as number);
+    expect(burst - m, "три нажатия — первый переход сразу и один на остальные").toBe(2);
+    expect(await videoPaused(page), "перемотка не снимает паузу").toBe(true);
+    await closePlayer(page);
+  }
   await kp(page, (k) => k.ctx.prefs.update({ seekStep: 10 }));
 });
 
