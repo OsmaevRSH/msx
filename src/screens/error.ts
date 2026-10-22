@@ -3,7 +3,7 @@ import { KpError, toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
 import { chain, contentAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
-import { ids, isPanelId, parseDataId } from "../router/ids.ts";
+import { decodeListKey, ids, isPanelId, parseDataId } from "../router/ids.ts";
 
 // Экран ошибки S14 (Plan B §8.3 S14, спец. §12): причина простыми словами и код KP-*.
 
@@ -32,6 +32,9 @@ const T = {
   /** QA-API-9: 403 — проверка бота Cloudflare или запрет выхода VPN; HTML со статусом ошибки — страница прокси. */
   forbidden: "KinoPub отклонил запрос (403). Смените сервер VPN",
   page: "KinoPub ответил страницей ошибки — возможно, мешает VPN или прокси",
+  /** QA-API-10, QA-NAV-7: `KP-404` папки и подборки — не тайтл. */
+  folder: "Папка не найдена — возможно, её удалили",
+  collection: "Подборка не найдена",
 };
 
 /** Перезапросить текущий экран; `invalidate:content` — только визуальная пометка «обновляю» (msx-platform §3.2). */
@@ -54,7 +57,7 @@ export interface ErrorItemsOptions {
   /** Ширина сетки: 12 у экрана, 8 у панели. */
   width?: number;
   headline?: string;
-  /** `KP-404` тайтла: «Назад» и «Поиск» — повтор не вернёт удалённый тайтл (V-41). */
+  /** `KP-404` тайтла, папки или подборки: «Назад» и «Поиск» — повтор не вернёт удалённое (V-41, QA-API-10). */
   gone?: boolean;
   /** Причина вместо текста кода. */
   text?: string;
@@ -84,17 +87,28 @@ const failed = new WeakMap<object, KpErrorCode>();
  */
 export function errorScreen(ctx: AppContext, err: unknown, retryDataId?: string, text?: string): MsxContentRoot {
   const panel = retryDataId !== undefined && isPanelId(retryDataId);
-  const k = retryDataId === undefined ? undefined : parseDataId(retryDataId).k;
+  const r = retryDataId === undefined ? undefined : parseDataId(retryDataId);
+  // Удалённая папка или подборка (QA-API-10, QA-NAV-7): свой текст, и повтор её не вернёт.
+  const lost = r?.k === "list" && errorText(err).code === "KP-404" ? lostList(r.key) : undefined;
   const items = errorItems(ctx, err, {
     retry: panel ? RETRY_PANEL : RETRY_CONTENT,
     offerLogin: true,
     width: panel ? PANEL_W : PAGE_W,
-    gone: k === "item" || k === "season",
-    text,
+    gone: r?.k === "item" || r?.k === "season" || lost !== undefined,
+    text: text ?? lost,
   });
   const root: MsxContentRoot = { type: "pages", cache: false, reuse: false, headline: T.title, pages: [{ items }] };
   failed.set(root, errorText(err).code);
   return root;
+}
+
+function lostList(key: string): string | undefined {
+  try {
+    const src = decodeListKey(key).src;
+    return src === "folder" ? T.folder : src === "collection" ? T.collection : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Код экрана ошибки или `undefined`, если это не экран ошибки. */

@@ -151,6 +151,19 @@ describe("CC-13 end to end: errors without CORS and the network (contract)", () 
     assert.equal(apiCalls(t, `/v1/items/${FIX.MOVIE_SIMPLE}`).length, 1);
   });
 
+  it("QA-API-10 / QA-NAV-7: a deleted folder and a missing collection → their own text with «Назад», one call each", async () => {
+    const t = await make();
+    const folder = await t.request(ids.list(encodeListKey({ src: "folder", folder: 999_999 }))) as MsxContentRoot;
+    assert.equal(errorCode(folder), "KP-404");
+    assert.match(pageItems(folder)[0]?.text ?? "", /^Папка не найдена — возможно, её удалили\{br\}/);
+    assert.equal(pageItems(folder)[1]?.label, "Назад");
+    const collection = await t.request(ids.list(encodeListKey({ src: "collection", id: 999_999 }))) as MsxContentRoot;
+    assert.match(pageItems(collection)[0]?.text ?? "", /^Подборка не найдена\{br\}Код: KP-404$/);
+    assert.equal(pageItems(collection)[1]?.label, "Назад");
+    assert.equal(apiCalls(t, "/v1/bookmarks/999999").length, 1);
+    assert.equal(apiCalls(t, "/v1/collections/view").length, 1);
+  });
+
   it("toggle_lost_response on «просмотрено» from a real resolve → queued, no blind retry; flush reconciles: one toggle in total, status 1", async () => {
     const t = await make();
     t.mock.setScenario({ toggleLostResponse: 1 });

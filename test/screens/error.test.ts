@@ -4,6 +4,7 @@ import type { AppContext } from "../../src/app/context.ts";
 import { KpError } from "../../src/core/errors.ts";
 import type { KpErrorCode } from "../../src/core/errors.ts";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
+import { encodeListKey, ids } from "../../src/router/ids.ts";
 import { errorScreen, errorText, placeholderScreen } from "../../src/screens/error.ts";
 import { TEST_P } from "../helpers/harness.ts";
 
@@ -101,6 +102,34 @@ describe("errorScreen (S14)", () => {
   it("KP-404 elsewhere (a list, bookmarks, a panel) keeps «Повторить»", () => {
     assert.equal(buttons(errorScreen(ctx, new KpError("KP-404", "x", 404), "bookmarks"))[0]?.action, RETRY);
     assert.equal(buttons(errorScreen(ctx, new KpError("KP-404", "x", 404), "panel:audio:2006:2006001:c"))[0]?.action, "reload:panel");
+  });
+
+  // QA-API-10, QA-NAV-7: папку удалили на другом устройстве, подборку убрали — повтор не поможет, а текст про тайтл неверен.
+  it("KP-404 of a folder or a collection: its own text, «Назад» and «Поиск»", () => {
+    const cases: [string, string][] = [
+      [ids.list(encodeListKey({ src: "folder", folder: 999_999 })), "Папка не найдена — возможно, её удалили"],
+      [ids.list(encodeListKey({ src: "collection", id: 999_999 })), "Подборка не найдена"],
+    ];
+    for (const [dataId, text] of cases) {
+      const s = errorScreen(ctx, new KpError("KP-404", "not-found", 404), dataId);
+      assert.equal(items(s)[0]?.text, `${text}{br}Код: KP-404`, dataId);
+      assert.deepEqual(buttons(s), [
+        { layout: "0,5,6,1", label: "Назад", action: "back" },
+        { layout: "6,5,6,1", label: "Поиск", action: SEARCH },
+      ], dataId);
+    }
+  });
+
+  it("a folder with another error, and KP-404 of other lists or a broken key: the usual text and «Повторить»", () => {
+    const folder = ids.list(encodeListKey({ src: "folder", folder: 7 }));
+    const down = errorScreen(ctx, new KpError("KP-5XX", "server-error", 502), folder);
+    assert.equal(items(down)[0]?.text, "KinoPub не отвечает{br}Код: KP-5XX");
+    assert.equal(buttons(down)[0]?.action, RETRY);
+    for (const dataId of [ids.list(encodeListKey({ src: "catalog", type: "movie" })), ids.list(encodeListKey({ src: "collections" })), "list:%%%"]) {
+      const s = errorScreen(ctx, new KpError("KP-404", "not-found", 404), dataId);
+      assert.match(items(s)[0]?.text ?? "", /^Тайтл недоступен или удалён из каталога\{br\}/, dataId);
+      assert.equal(buttons(s)[0]?.action, RETRY, dataId);
+    }
   });
 
   it("works without retryDataId (unknown route)", () => {
