@@ -92,8 +92,7 @@
     {
       "id": "s_device",
       "label": "Название",
-      "extensionLabel": "kpmock TV",
-      "enable": false
+      "extensionLabel": "kpmock TV"
     },
     {
       "type": "space",
@@ -104,8 +103,7 @@
     {
       "id": "s_account",
       "label": "Подписка",
-      "extensionLabel": "До 31.01.2026, осталось 30 дн.",
-      "enable": false
+      "extensionLabel": "До 31.01.2026, осталось 30 дн."
     },
     {
       "id": "s_logout",

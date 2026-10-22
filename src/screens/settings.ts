@@ -130,8 +130,10 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
   const p = ctx.prefs.get();
   const s = user?.value.subscription;
   const items: MsxContentItem[] = [];
+  // SET-12: строки без действия («Название», «Подписка») не выключены — выключенные MSX рисует тёмно-серыми, их не
+  // прочитать с дивана; фокус на них встаёт, OK ничего не делает (как у «Загружаю главную…»).
   const add = (key: string, label: string, ext: string, action?: string): void => {
-    items.push({ id: `s_${key}`, label, extensionLabel: ext, ...(action === undefined ? { enable: false } : { action }) });
+    items.push({ id: `s_${key}`, label, extensionLabel: ext, action });
   };
   for (const [head, ...rows] of guest ? [DEV] : GROUPS) {
     items.push({ type: "space", layout: "0,0,12,1", offset: GROUP_OFFSET, headline: head });

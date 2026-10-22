@@ -100,14 +100,15 @@ describe("settingsScreen (S12)", () => {
     for (const [k, v] of Object.entries(want)) assert.equal(ext(s, k), v, k);
   });
 
-  it("rows open their panels; CDN — the S10 location panel; «Диагностика» — the probe; the device name and the subscription are display only", async () => {
+  it("rows open their panels; CDN — the S10 location panel; «Диагностика» — the probe; the device name and the subscription are display only (SET-12: readable, focusable)", async () => {
     const t = await make();
     const s = await screen(t);
     assert.equal(row(s, "quality").action, panelAction(P, ids.panel("setting", "quality")));
     assert.equal(row(s, "logout").action, panelAction(P, ids.panel("setting", "account")));
     assert.equal(row(s, "menu").action, panelAction(P, ids.panel("menu")));
     assert.equal(row(s, "home").action, panelAction(P, ids.panel("home")));
-    assert.equal(row(s, "account").enable, false);
+    // SET-12: выключенная строка — тёмно-серый текст, срок подписки не читается с дивана; строка в фокусе, без действия.
+    assert.equal(row(s, "account").enable, undefined);
     assert.equal(row(s, "account").action, undefined);
     assert.equal(row(s, "loc").action, panelAction(P, ids.panel("loc")));
     assert.equal(row(s, "probe").action, contentAction(P, ids.probe()));
@@ -115,7 +116,7 @@ describe("settingsScreen (S12)", () => {
     assert.equal(row(s, "cdn").action, contentAction(P, ids.probe("cdn")));
     assert.equal(row(s, "cdn").extensionLabel, "");
     assert.equal(row(s, "msx").action, "settings");
-    assert.equal(row(s, "device").enable, false);
+    assert.equal(row(s, "device").enable, undefined);
     assert.equal(row(s, "device").action, undefined);
   });
 
