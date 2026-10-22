@@ -179,6 +179,19 @@ describe("Transport", () => {
       assert.equal(r.clock.perf() - t0, 9000);
     });
 
+    // QA-API-4: 5xx — ответ сервера, сеть и VPN в порядке; раньше 5 таких ответов открывали breaker на 15 с, и все
+    // разделы получали «Нет связи» (KP-NET breaker-open) без единого запроса.
+    it("5xx is an answer for the breaker: two screens of 502 keep it closed, the next request reaches the network", async () => {
+      mock.setScenario({ rules: [{ path: "^/v1/items/2006$", status: 502 }] });
+      const r = rig();
+      for (let i = 0; i < 2; i++) await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/items/2006"))), kp("KP-5XX"));
+      assert.equal(mock.calls().length, 6);
+      assert.equal(r.breaker.state(), "closed");
+      const res = await r.clock.runUntilSettled(r.t.send(get("/v1/types", { query: { access_token: token } })));
+      assert.equal(res.status, 200);
+      assert.equal(mock.calls().length, 7);
+    });
+
     it("401 → KP-AUTH and 404 → KP-404, without retries", async () => {
       const r = rig();
       await assert.rejects(r.clock.runUntilSettled(r.t.send(get("/v1/types"))), kp("KP-AUTH"));

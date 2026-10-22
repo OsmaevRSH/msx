@@ -330,11 +330,9 @@ export class Transport {
     this.typeErrors = 0;
     this.metrics.record(`api:${metricPath(req.path)}`, ms);
     this.logCall(status >= 500 || status === 429 ? "warn" : "info", req, String(status), ms);
-    if (status >= 500) {
-      this.breaker.failure();
-      return { ok: false, err: new KpError("KP-5XX", "server-error", status), retry: true };
-    }
+    // Любой ответ, и 5xx тоже, — для breaker не сетевой сбой: сеть и VPN в порядке (QA-API-4).
     this.breaker.success();
+    if (status >= 500) return { ok: false, err: new KpError("KP-5XX", "server-error", status), retry: true };
     if (status === 429) {
       this.limiter.on429();
       this.metrics.inc("api:429");
