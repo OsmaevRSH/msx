@@ -7,8 +7,9 @@ import type { KpError, KpErrorCode } from "../core/errors.ts";
 import type { Logger } from "../core/log.ts";
 import type { AuthService } from "./auth-service.ts";
 
+/** `reason` — только у отказа KinoPub при опросе (SET-6): такой вход не начинается заново сам, только по «Повторить». */
 export type LoginState = { phase: "idle" } | { phase: "code"; userCode: string; verificationUri: string; expiresAt: number }
-  | { phase: "done" } | { phase: "error"; code: KpErrorCode };
+  | { phase: "done" } | { phase: "error"; code: KpErrorCode; reason?: string };
 
 export interface DeviceFlowDeps {
   api: KpApi; auth: AuthService; clock: Clock; log: Logger;
@@ -202,8 +203,8 @@ export class DeviceFlow {
         return;
       case "denied":
         this.halt();
-        this.d.log.warn(TAG, "denied");
-        this.set({ phase: "error", code: "KP-AUTH" }, true);
+        this.d.log.warn(TAG, "denied", { reason: r.reason });
+        this.set({ phase: "error", code: "KP-AUTH", reason: r.reason }, true);
         return;
     }
   }

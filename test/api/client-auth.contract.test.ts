@@ -48,7 +48,10 @@ describe("KpApi OAuth, 401 and request policy (contract)", () => {
       assert.deepEqual(await r.run(r.api.deviceToken(code)), { kind: "slow_down" });
       assert.deepEqual(await r.run(r.api.deviceToken(code)), { kind: "expired" });
       assert.deepEqual(await r.run(r.api.deviceToken("mock-dc-unknown")), { kind: "expired" });
-      assert.deepEqual(await r.run(r.api.deviceToken("")), { kind: "denied" });
+      // SET-6: причина отказа — `error_description` (иначе `error`) для экрана входа и журнала.
+      assert.deepEqual(await r.run(r.api.deviceToken("")), { kind: "denied", reason: "code is required" });
+      env.mock().setScenario({ rules: [{ path: "^/oauth2/device$", status: 400, times: 1 }] });
+      assert.deepEqual(await r.run(r.api.deviceToken(code)), { kind: "denied", reason: "mock" });
     });
 
     it("refreshToken rotates the pair; the old refresh is rejected with KP-AUTH", async () => {

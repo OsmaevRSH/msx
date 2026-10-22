@@ -2,6 +2,8 @@ import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setTimeout as realSleep } from "node:timers/promises";
 import type { MsxContentItem, MsxContentRoot } from "../../src/msx/types.ts";
+import { commitMsg } from "../../src/msx/actions.ts";
+import { msgs } from "../../src/router/ids.ts";
 import { loginScreen, onLoginAct } from "../../src/screens/login.ts";
 import { FAKE_EPOCH } from "../helpers/fake-clock.ts";
 import { TEST_P, createTestApp } from "../helpers/harness.ts";
@@ -143,15 +145,30 @@ describe("loginScreen (S2)", () => {
     assert.deepEqual(actions(t), []);
   });
 
-  it("a rejected code (denied) while login is current → reload:content, then a fresh code", async () => {
+  // SET-6: отказ при опросе (например, лимит устройств) — экран с причиной; новый код — только по «Повторить».
+  it("SET-6: a denial while polling → «KinoPub отклонил вход» with the reason; no new code by itself; «Повторить» — a new code", async () => {
     const t = await make();
     const first = codeOf(await t.request("login"));
     t.mock.setScenario({ rules: [{ path: "^/oauth2/device$", status: 400, times: 1 }] });
     await t.run(until(() => actions(t).includes("reload:content")));
+    const s = await t.request("login");
+    assert.equal(codeOf(s), undefined);
+    assert.deepEqual(texts(s), [
+      "{ico:msx-yellow:warning} KinoPub отклонил вход", "Проверьте число устройств в аккаунте KinoPub{br}mock{br}Код: KP-AUTH",
+    ]);
+    const retry = commitMsg(msgs.act("login", "new"));
+    assert.deepEqual(buttons(s)[0], { label: "Повторить", action: retry });
+    await t.request("login");
+    await t.clock.advance(60_000);
+    assert.equal(codeGrants(t), 1, "the denied flow does not ask for a new code by itself");
     assert.equal(t.ctx.state.login?.state().phase, "error");
+
+    t.host.clearActions();
+    t.app.handleData({ message: msgs.act("login", "new") });
+    await t.run(until(() => actions(t).includes("reload:content")));
     const next = codeOf(await t.request("login"));
     assert.ok(next !== undefined && next !== first);
-    assert.equal(t.ctx.state.login?.state().phase, "code");
+    assert.equal(codeGrants(t), 2);
   });
 
   it("the code request fails → reason, code and «Повторить»; the retry gets a code", async () => {

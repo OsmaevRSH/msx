@@ -221,7 +221,7 @@ describe("DeviceFlow (spec §7.1, CC-02)", () => {
     const r = flowRig(env);
     await r.run(r.flow.start());
     env.mock().setScenario({ rules: [{ path: "^/oauth2/device$", status: 400, times: 1 }] });
-    assert.deepEqual(await r.next("error"), { phase: "error", code: "KP-AUTH" });
+    assert.deepEqual(await r.next("error"), { phase: "error", code: "KP-AUTH", reason: "mock" });
     assert.equal(r.clock.pending(), 0);
     assert.equal(r.auth.isLoggedIn(), false);
   });

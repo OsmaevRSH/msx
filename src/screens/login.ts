@@ -27,6 +27,8 @@ const T = {
   newCode: "Новый код",
   probe: "Диагностика",
   codeFailed: "{ico:msx-yellow:warning} Не удалось получить код входа",
+  denied: "{ico:msx-yellow:warning} KinoPub отклонил вход",
+  deniedText: "Проверьте число устройств в аккаунте KinoPub",
   done: "Вход выполнен",
   doneHeadline: "{ico:msx-green:check} Вход выполнен",
   doneText: "Если меню не обновилось, обновите его кнопкой ниже",
@@ -67,9 +69,16 @@ function codeScreen(ctx: AppContext, st: Extract<LoginState, { phase: "code" }>)
   ]);
 }
 
-/** Код не получен: «Повторить» перезапрашивает экран, а он начинает новый вход. */
-function failedScreen(ctx: AppContext, code: KpErrorCode): MsxContentRoot {
-  return screen(errorItems(ctx, new KpError(code, "login"), { retry: RETRY_CONTENT, offerLogin: false, headline: T.codeFailed }));
+/**
+ * Код не получен: «Повторить» перезапрашивает экран, а он начинает новый вход. Отказ KinoPub при опросе (`reason`,
+ * SET-6) — свой текст с причиной; «Повторить» — новый код (`act:login:new`), сам экран код не меняет.
+ */
+function failedScreen(ctx: AppContext, code: KpErrorCode, reason?: string): MsxContentRoot {
+  const denied = reason !== undefined;
+  return screen(errorItems(ctx, new KpError(code, "login"), {
+    retry: denied ? commitMsg(msgs.act("login", "new")) : RETRY_CONTENT, offerLogin: false, headline: denied ? T.denied : T.codeFailed,
+    text: denied ? [T.deniedText, reason.replace(/[{}]/g, "").slice(0, 120)].filter(Boolean).join("{br}") : undefined,
+  }));
 }
 
 /** Вход уже выполнен (меню могло не успеть обновиться): новый код не запрашивается — он занял бы слот устройства. */
@@ -93,13 +102,13 @@ function onFlowChange(ctx: AppContext, flow: DeviceFlow, s: LoginState): void {
 }
 
 /**
- * Текущий вход по коду: `code` и `idle` (код ещё запрашивается — второй запрос экрана получит тот же `start()`)
- * переиспользуются, иначе начинается новый.
+ * Текущий вход по коду: `code`, `idle` (код ещё запрашивается — второй запрос экрана получит тот же `start()`) и отказ
+ * KinoPub (SET-6: экран отказа держится до «Повторить») переиспользуются, иначе начинается новый.
  */
 function ensureFlow(ctx: AppContext): DeviceFlow {
   const cur = ctx.state.login;
-  const phase = cur?.state().phase;
-  if (cur !== undefined && (phase === "code" || phase === "idle")) return cur;
+  const st = cur?.state();
+  if (cur !== undefined && (st?.phase === "code" || st?.phase === "idle" || (st?.phase === "error" && st.reason !== undefined))) return cur;
   cur?.stop();
   const flow: DeviceFlow = new DeviceFlow({
     api: ctx.api, auth: ctx.auth, clock: ctx.clock, log: ctx.log,
@@ -115,14 +124,16 @@ function ensureFlow(ctx: AppContext): DeviceFlow {
 
 export async function loginScreen(ctx: AppContext): Promise<MsxContentRoot> {
   if (ctx.auth.isLoggedIn()) return doneScreen(ctx);
-  const st = await ensureFlow(ctx).start();
+  const flow = ensureFlow(ctx);
+  const now = flow.state();
+  const st = now.phase === "error" ? now : await flow.start();
   switch (st.phase) {
     case "code":
       return codeScreen(ctx, st);
     case "done":
       return doneScreen(ctx);
     case "error":
-      return failedScreen(ctx, st.code);
+      return failedScreen(ctx, st.code, st.reason);
     case "idle":
       // Запрос кода перебит остановкой входа; «Повторить» начнёт новый.
       return failedScreen(ctx, "KP-BAD");

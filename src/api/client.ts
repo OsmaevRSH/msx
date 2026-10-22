@@ -14,7 +14,7 @@ import { NO_ANSWER_MS } from "./transport.ts";
 import type { ApiRequest, ApiResponse, Priority, ReqClass, RetryPolicy, Transport } from "./transport.ts";
 
 export interface TokenSource { access(): { token: string; gen: number } | undefined; refresh(gen: number): Promise<void> }
-export type DeviceTokenResult = { kind: "ok"; pair: TokenPairRaw } | { kind: "pending" | "slow_down" | "expired" | "denied" };
+export type DeviceTokenResult = { kind: "ok"; pair: TokenPairRaw } | { kind: "pending" | "slow_down" | "expired" } | { kind: "denied"; reason: string };
 
 // Таймауты спец. §5.2.
 const CATALOG_MS = 8000;
@@ -81,7 +81,10 @@ export class KpApi {
     return dc;
   }
 
-  /** 400 `authorization_pending` → pending, `slow_down`, `code_expired`/`authorization_expired` → expired, прочие 400 → denied. */
+  /**
+   * 400 `authorization_pending` → pending, `slow_down`, `code_expired`/`authorization_expired` → expired, прочие 400 →
+   * denied с причиной (`error_description`, иначе `error`; SET-6).
+   */
   async deviceToken(code: string): Promise<DeviceTokenResult> {
     const res = await this.oauth("/oauth2/device", { grant_type: "device_token", code });
     const err = oauthError(res.json);
@@ -92,7 +95,7 @@ export class KpApi {
       case "slow_down": return { kind: "slow_down" };
       case "code_expired":
       case "authorization_expired": return { kind: "expired" };
-      default: return { kind: "denied" };
+      default: return { kind: "denied", reason: str(obj(res.json).error_description) || err };
     }
   }
 
