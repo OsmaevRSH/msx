@@ -45,7 +45,7 @@ export async function tvScreen(ctx: AppContext): Promise<MsxContentRoot> {
     return root;
   }
   const items = channels.map((c, i): MsxContentItem => ({
-    id: `tv${c.id}`, ...(i === 0 ? { focus: true } : {}), titleHeader: c.title, image: c.logo, playerLabel: c.title,
+    id: `tv${c.id}`, ...(i === 0 ? { focus: true } : {}), titleHeader: `{col:msx-white}${c.title}`, image: c.logo, playerLabel: c.title,
     badge: T.live, action: `video:${c.stream}`,
   }));
   // Свойства плеера от плитки (Extended Properties MSX): у эфира нет позиции — полоса прогресса скрыта, «Назад» закрывает

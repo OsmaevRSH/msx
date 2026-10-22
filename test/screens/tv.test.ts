@@ -39,7 +39,8 @@ describe("tvScreen «Спорт» (S16)", () => {
     assert.equal(tiles(s).length, CHANNELS.length);
     const first = tiles(s)[0];
     assert.equal(first?.focus, true);
-    assert.equal(first?.titleHeader, "Тестовый спорт 1");
+    // QA-NAV-12: название белое, как у постерных плиток (`tiles.ts`), а не серое «неактивное».
+    assert.equal(first?.titleHeader, "{col:msx-white}Тестовый спорт 1");
     assert.equal(first?.playerLabel, "Тестовый спорт 1");
     assert.equal(first?.badge, "Эфир");
     assert.equal(first?.image, `${t.mock.url}/poster/logo/1.svg`);
