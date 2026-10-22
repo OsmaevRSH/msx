@@ -192,6 +192,18 @@ describe("resolvePlay: «Продолжить» по свежим данным (
     assert.equal(p["resume:position"], "none");
   });
 
+  it("QA-PLAY-3: the card is 2 min old, another device played the film to 40:00 → «▶» continues from its position", async () => {
+    const t = await make();
+    await t.run(t.ctx.repo.item(FIX.MOVIE_SIMPLE));
+    await t.clock.advance(2 * 60_000);
+    const other = t.mock.issueToken();
+    const r = await fetch(`${t.mock.url}/v1/watching/marktime?id=${FIX.MOVIE_SIMPLE}&video=1&time=2400&access_token=${other.access}`);
+    assert.equal(r.status, 200);
+    const p = props(await play(t, ids.playContinue(FIX.MOVIE_SIMPLE)));
+    assert.equal(p["resume:position"], "2397");
+    assert.equal(t.mock.calls().filter((c) => c.path === `/v1/items/${FIX.MOVIE_SIMPLE}`).length, 2);
+  });
+
   it("a fresh card is not reloaded", async () => {
     const t = await make();
     await t.run(t.ctx.repo.item(BIG));
@@ -381,16 +393,38 @@ describe("resolvePlay: subscription and token", () => {
     await until(() => t.mock.calls().some((c) => c.path === "/v1/user"), "GET /v1/user");
   });
 
-  it("a long movie refreshes a token that would expire during playback", async () => {
+  const refreshes = (t: TestApp): number => t.mock.calls().filter((c) => c.path === "/oauth2/token").length;
+
+  it("QA-PLAY-4: a fresh 1-hour token is not refreshed before a long movie — three launches, no /oauth2/token", async () => {
     const t = await make();
+    for (let i = 0; i < 3; i++) props(await play(t, ids.playContinue(FIX.MOVIE_SIMPLE)));
+    assert.equal(refreshes(t), 0);
+  });
+
+  it("QA-PLAY-4: a token that expires within 15 min is refreshed before the start, once", async () => {
+    const t = await make();
+    await t.clock.advance(55 * 60_000);
     props(await play(t, ids.playContinue(FIX.MOVIE_SIMPLE)));
-    assert.equal(t.mock.calls().filter((c) => c.path === "/oauth2/token").length, 1);
+    props(await play(t, ids.playContinue(FIX.MOVIE_SIMPLE)));
+    assert.equal(refreshes(t), 1);
+  });
+
+  it("QA-PLAY-4: a hung refresh delays the start by 3 s at most while the access token lives", async () => {
+    const t = await make();
+    await t.clock.advance(55 * 60_000);
+    t.mock.setScenario({ rules: [{ path: "^/oauth2/token$", hang: true }] });
+    const t0 = t.clock.now();
+    props(await play(t, ids.playContinue(FIX.MOVIE_SIMPLE)));
+    assert.ok(t.clock.now() - t0 <= 3000, `resolve took ${t.clock.now() - t0} ms`);
+    assert.equal(refreshes(t), 1);
   });
 
   it("a network failure of that refresh does not prevent playback", async () => {
     const t = await make();
+    await t.clock.advance(55 * 60_000);
     t.mock.setScenario({ rules: [{ path: "^/oauth2/token$", drop: true }] });
     props(await play(t, ids.playContinue(FIX.MOVIE_SIMPLE)));
+    assert.equal(refreshes(t), 1);
   });
 });
 

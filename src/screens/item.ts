@@ -8,6 +8,7 @@ import { fmtMinutes, fmtRating, ruTitle } from "../core/format.ts";
 import { chain, commitMsg, contentAction, panelAction, resolveAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot, MsxResolveResponse } from "../msx/types.ts";
 import { continueTarget, findUnit, mainButtonLabel, mergedState, neighbours, orderedUnits } from "../playback/episodes.ts";
+import { FRESH_CARD_MS } from "../playback/resolve.ts";
 import type { ContinueTarget, EpRef } from "../playback/episodes.ts";
 import { parseSubsValue, pickAudio, pickFile, pickSubtitle, selectPrefs } from "../playback/select.ts";
 import type { SelectPrefs } from "../playback/select.ts";
@@ -201,7 +202,8 @@ export async function itemScreen(ctx: AppContext, id: number): Promise<MsxConten
   if (m.target !== undefined) prefetchLinks(ctx, m.target.ref.mid);
   const spec = itemRefreshSpec(ctx, id, itemHash(ctx, item, got.fetchedAt));
   trackScreen(ctx, spec);
-  if (got.stale) scheduleScreenRefresh(ctx, spec);
+  // QA-PLAY-3: позиция с другого устройства — карточку старше минуты сверяем фоном, экран меняется при новом хеше.
+  if (got.stale || ctx.clock.now() - got.fetchedAt > FRESH_CARD_MS) scheduleScreenRefresh(ctx, spec);
   return root;
 }
 

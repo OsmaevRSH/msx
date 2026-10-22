@@ -233,6 +233,24 @@ describe("itemScreen: conditional refresh of a stale card (спец. §6.3)", ()
     assert.equal(logged(t, "refresh scheduled item_2001"), 1);
   });
 
+  it("QA-PLAY-3: a card older than 1 min is checked in the background; another device's position replaces the screen", async () => {
+    const t = await make();
+    const id = FIX.MOVIE_SIMPLE;
+    await open(t, id);
+    await t.clock.advance(50_000);
+    await open(t, id);
+    assert.equal(logged(t, `refresh scheduled item_${id}`), 0, "50 s is fresh enough");
+    await t.clock.advance(70_000);
+    const other = t.mock.issueToken();
+    const r = await fetch(`${t.mock.url}/v1/watching/marktime?id=${id}&video=1&time=2400&access_token=${other.access}`);
+    assert.equal(r.status, 200);
+    const s = await open(t, id);
+    assert.notEqual(el(s, "b_main").label, "▶ Продолжить с 39:57", "the old card is shown at once");
+    assert.equal(logged(t, `refresh scheduled item_${id}`), 1);
+    await until(() => actions(t).some((a) => a.includes(`replace:content:item_${id}`)), "the screen replaced");
+    assert.equal(el(await open(t, id), "b_main").label, "▶ Продолжить с 39:57");
+  });
+
   it("recompute reloads the card and changes the hash only when the personal part changed", async () => {
     const t = await make();
     await t.run(t.ctx.repo.item(BIG));

@@ -1,5 +1,6 @@
 import type { AppContext } from "../app/context.ts";
 import type { Audio, ItemDetail, MediaLinks, MediaUnit } from "../api/models.ts";
+import { sleep } from "../core/clock.ts";
 import { KpError, toKpError } from "../core/errors.ts";
 import type { KpErrorCode } from "../core/errors.ts";
 import { ruTitle } from "../core/format.ts";
@@ -27,11 +28,20 @@ export const NO_START_TEXT = "Видео не запускается. Откро
 export interface ResolveOverrides { manual?: StreamMode; audio?: Audio; probe?: string; ticks?: number; t0?: number; restart?: boolean }
 
 const TAG = "resolve";
-/** Plan B D-41: «Продолжить» по свежим данным — карточку старше 600 с ждём не дольше 500 мс. */
-const FRESH_CARD_MS = 600_000;
+/**
+ * Plan B D-41, QA-PLAY-3: «Продолжить» по свежим данным — карточку старше минуты ждём не дольше 500 мс. Иначе позиция
+ * с другого устройства не видна, и `marktime` ТВ затёр бы её своей.
+ */
+export const FRESH_CARD_MS = 60_000;
 const FRESH_WAIT_MS = 500;
-/** Токен должен пережить просмотр с запасом: refresh посреди серии не нужен. */
+/**
+ * QA-PLAY-4: токен должен пережить начало просмотра — не больше 5 мин видео плюс 10 мин запаса. «Пережить фильм» при
+ * сроке 1 ч недостижимо: иначе refresh шёл бы перед каждым запуском фильма. Истечение посреди просмотра лечит 401 →
+ * refresh перед `marktime` (спец. §5.3). Висящий refresh старт ждёт не дольше `TOKEN_WAIT_MS`: access ещё жив.
+ */
+const TOKEN_SPAN_SEC = 300;
 const TOKEN_MARGIN_SEC = 600;
+const TOKEN_WAIT_MS = 3000;
 /** TTL пользователя в кэше (Plan B §7.2): старше — запись о подписке могла устареть. */
 const USER_TTL_MS = 3_600_000;
 /** Ошибка API сразу переводит цепочку на следующий шаг — не больше двух раз за один resolve (Plan B §5.11). */
@@ -74,7 +84,7 @@ export async function resolveUnit(
   const t0 = o.t0 ?? ctx.clock.perf();
   const unit = findUnit(item, ref.mid)?.unit;
   if (unit === undefined) throw new KpError("KP-404", "unit-not-found", undefined, `mid ${ref.mid}`);
-  await ctx.auth.ensureFreshFor(unit.duration + TOKEN_MARGIN_SEC);
+  await Promise.race([ctx.auth.ensureFreshFor(Math.min(unit.duration, TOKEN_SPAN_SEC) + TOKEN_MARGIN_SEC), sleep(ctx.clock, TOKEN_WAIT_MS)]);
   const prefs = ctx.prefs.get();
   const manual = o.manual ?? prefs.titleMode[String(item.id)] ?? prefs.streamMode;
   let step = o.restart ? ctx.chain.restart(ref.mid, manual) : ctx.chain.next(ref.mid, manual);
