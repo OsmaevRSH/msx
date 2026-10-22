@@ -104,6 +104,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
   if (typeof saved === "string") overlay.load(saved);
   const current = new CurrentScreen();
   const state = initialState(o.startedAt ?? clock.perf());
+  state.overlaySaved = overlay.serialize();
 
   // Сервисы верхнего уровня получают ctx и читают его поля лениво, поэтому создаются после остальных полей.
   const ctx = {
@@ -129,6 +130,7 @@ export function createApp(o: CreateAppOptions): { app: App; ctx: AppContext } {
       cache.wipe();
       store.removeNs("out");
       overlay.wipe();
+      state.overlaySaved = overlay.serialize();
       for (const k of [...state.lists.keys()]) state.lists.delete(k);
     }
     ctx.host.executeAction(loggedOutAction(ctx.P, reason));

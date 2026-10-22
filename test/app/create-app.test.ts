@@ -97,6 +97,8 @@ describe("SET-8: what logout leaves behind (createApp)", () => {
       if (unlink !== undefined) t.mock.setScenario({ rules: [{ path: "^/v1/device/unlink$", status: unlink }] });
       await t.run(t.ctx.auth.logout());
       assert.deepEqual([keys(t, "kp.l2."), keys(t, "kp.out.")], [[], []]);
+      await t.clock.advance(60_000);
+      assert.deepEqual(keys(t, "kp.out."), [], "SET-15: the wiped (unchanged) overlay is not written back by the 30 s tick");
       assert.ok(keys(t, "kp.cfg.").includes("kp.cfg.prefs"));
       assert.equal(t.ctx.repo.peekUser(), undefined);
       assert.equal(t.ctx.overlay.get(FIX.SERIAL_SMALL, 1, 1), undefined);
@@ -112,5 +114,25 @@ describe("SET-8: what logout leaves behind (createApp)", () => {
     assert.ok(keys(t, "kp.l2.").length > 0 && keys(t, "kp.out.").length > 0);
     assert.notEqual(t.ctx.repo.peekUser(), undefined);
     assert.equal(t.ctx.state.lists.size, 1);
+  });
+});
+
+describe("persistState (SET-15)", () => {
+  // SET-15: у квоты localStorage каждая запись kp.out.* раз в 30 с стирала L2 — оверлей пишется, только если изменился.
+  it("SET-15: kp.out.overlay is written only when the overlay changed", async () => {
+    const t = await make();
+    const n = (): number => t.storage.writes.filter((k) => k === "kp.out.overlay").length;
+    persistState(t.ctx, false);
+    persistState(t.ctx, false);
+    await t.clock.advance(60_000);
+    assert.equal(n(), 0, "an empty overlay of a fresh start is not written at all");
+    t.ctx.overlay.set(FIX.SERIAL_SMALL, 1, 1, { time: 5, status: 0 });
+    persistState(t.ctx, false);
+    persistState(t.ctx, false);
+    await t.clock.advance(30_000);
+    assert.equal(n(), 1);
+    t.ctx.overlay.set(FIX.SERIAL_SMALL, 1, 1, { time: 35, status: 0 });
+    await t.clock.advance(30_000);
+    assert.equal(n(), 2);
   });
 });

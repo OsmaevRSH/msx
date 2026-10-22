@@ -50,6 +50,8 @@ export interface AppState {
   /** mid → `clock.perf()` последнего resolve (TTFF). */
   resolveAt: Map<number, number>;
   msxInfo?: MsxInfo;
+  /** Оверлей, который уже лежит в `kp.out.overlay` (SET-15): тот же не переписывается. */
+  overlaySaved?: string;
 }
 
 export interface AppContext {
@@ -70,10 +72,12 @@ export const LOG_PERSIST_ENTRIES = 100;
 
 /**
  * Сбросить журнал (последние 100 записей) и оверлей прогресса в хранилище. `flush` — записать L2 сразу
- * (`app:suspend`: ТВ может выгрузить страницу), иначе — обычной отложенной пачкой L2.
+ * (`app:suspend`: ТВ может выгрузить страницу), иначе — обычной отложенной пачкой L2. Оверлей — только изменившийся
+ * (SET-15): у квоты `localStorage` каждая запись `kp.out.*` освобождает место за счёт L2.
  */
 export function persistState(ctx: AppContext, flush: boolean): void {
   ctx.l2.put(LOG_L2_KEY, ctx.log.tail(LOG_PERSIST_ENTRIES));
-  ctx.store.set("out", OVERLAY_KEY, ctx.overlay.serialize());
+  const o = ctx.overlay.serialize();
+  if (o !== ctx.state.overlaySaved && ctx.store.set("out", OVERLAY_KEY, o)) ctx.state.overlaySaved = o;
   if (flush) ctx.l2.flush();
 }
