@@ -66,7 +66,7 @@ describe("probeScreen (spec §16.2, decision R-11)", () => {
     assert.equal(byLabel(root, "Вход")?.action, contentAction(P, ids.login()));
     assert.ok(!actions(root).some((a) => a.startsWith("video:resolve:")));
     assert.equal(byLabel(root, "Выйти из KinoPub"), undefined);
-    for (const l of ["Запустить проверки API", "Записать маркер хранилища", "Отчёт", "Отчёт в консоль", "Для разработчика"]) {
+    for (const l of ["Запустить проверки API", "Записать маркер хранилища", "Отчёт", "Отчёт в консоль", "Переключатели развилок"]) {
       assert.ok(labels(root).includes(l), l);
     }
     assert.equal(t.mock.calls().length, 0);
@@ -88,7 +88,8 @@ describe("probeScreen (spec §16.2, decision R-11)", () => {
     assert.equal(byLabel(root, "Прокрутка 150 плиток")?.action, chain([act("grid"), contentAction(P, GRID)]));
     assert.equal(byLabel(root, "Отчёт")?.action, contentAction(P, ids.probe("report:1")));
     assert.equal(byLabel(root, "Отчёт в консоль")?.action, act("console"));
-    assert.equal(byLabel(root, "Для разработчика")?.action, contentAction(P, ids.dev()));
+    // SET-13: не «Для разработчика» — так называется группа «Настроек», где этих переключателей нет.
+    assert.equal(byLabel(root, "Переключатели развилок")?.action, contentAction(P, ids.dev()));
     // V-34: выход — через панель «Аккаунт» с подтверждением, а не сразу.
     assert.equal(byLabel(root, "Выйти из KinoPub")?.action, ACCOUNT);
     assert.equal(byLabel(root, "Вход"), undefined);
@@ -206,9 +207,13 @@ describe("«Для разработчика» (spec §16.6)", () => {
       "f_postBody", "f_apiBase", "f_apiFallbackBase",
     ]);
     const row = (k: string): MsxContentItem | undefined => rows.find((r) => r.id === `f_${k}`);
-    assert.equal(row("streamMode")?.extensionLabel, "hls1");
-    assert.equal(row("restart")?.extensionLabel, "inplace");
-    assert.equal(row("heartbeat")?.extensionLabel, "{txt:msx-yellow:timer}");
+    // SET-13: понятные подписи, сырое значение — в скобках (по нему ищут README и e2e); подсказка без «Phase 0».
+    assert.equal(root.headline, "Переключатели развилок");
+    assert.equal(root.items?.[0]?.text, "Запасные режимы: менять только по итогам «Диагностики». Изменённые — жёлтым; хранятся на ТВ до сброса");
+    assert.equal(row("streamMode")?.extensionLabel, "С выбором озвучки (hls1)");
+    assert.equal(row("restart")?.extensionLabel, "В открытом плеере (inplace)");
+    assert.equal(row("heartbeat")?.extensionLabel, "{txt:msx-yellow:Таймер плагина (timer)}");
+    assert.equal(row("postBody")?.label, "POST-тела (CDG-03, только для отладки) · postBody");
     assert.equal(row("streamMode")?.action, panelAction(P, ids.probe("flag:streamMode")));
     assert.equal(root.items?.find((i) => i.id === "f_reset")?.action, act("flagsReset"));
     assert.deepEqual(await t.request(ids.dev()), root);
@@ -220,8 +225,8 @@ describe("«Для разработчика» (spec §16.6)", () => {
     assert.ok(panel.template !== undefined, "MSX не показывает items корня панели без template");
     assert.equal(panel.template.enumerate, false, "SET-10: no MSX counter «(1/2)»");
     assert.deepEqual(panel.items?.map((i) => [i.label, i.action, i.extensionIcon]), [
-      ["hls1", chain([act("flag", "streamMode", "hls1"), "back"]), "check"],
-      ["hls2", chain([act("flag", "streamMode", "hls2"), "back"]), undefined],
+      ["С выбором озвучки (hls1)", chain([act("flag", "streamMode", "hls1"), "back"]), "check"],
+      ["Без выбора озвучки (hls2)", chain([act("flag", "streamMode", "hls2"), "back"]), undefined],
     ]);
     const api = (await t.request(ids.probe("flag:apiBase"))) as MsxContentRoot;
     assert.equal(api.items?.length, 1, "in tests both API hosts are the mock");

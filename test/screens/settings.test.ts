@@ -92,8 +92,9 @@ describe("settingsScreen (S12)", () => {
     const s = await screen(t);
     // V-33: значения с заглавной буквы.
     const want: Record<string, string> = {
-      quality: "1080p", mode: "Авто", loc: "По умолчанию", audioLang: "Русский", audioType: "Любой", authors: "Нет",
-      ac3: "Нет", subs: "Выключены", hevc: "Выкл", uhd: "Выкл", device: "kpmock TV",
+      // SET-13: один вид переключателей «Вкл/Выкл»; у CDN по умолчанию — страна сервера устройства, как в панели.
+      quality: "1080p", mode: "Авто", loc: "По умолчанию (Нидерланды)", audioLang: "Русский", audioType: "Любой", authors: "Нет",
+      ac3: "Выкл", subs: "Выключены", hevc: "Выкл", uhd: "Выкл", device: "kpmock TV",
       bufferInit: "4 с", bufferResume: "6 с", posterSize: "Средние", cardBackgrounds: "Выкл", seek: "10 с",
       menu: "По умолчанию", home: "По умолчанию",
     };
@@ -137,7 +138,21 @@ describe("settingsScreen (S12)", () => {
     assert.equal(ext(s, "audioType"), "Многоголосый");
     assert.equal(ext(s, "authors"), "2");
     assert.equal(ext(s, "subs"), "Английские");
-    assert.equal(ext(s, "ac3"), "Да");
+    assert.equal(ext(s, "ac3"), "Вкл");
+  });
+
+  it("SET-13: «Разрешить AC3» offers «Вкл» and «Выкл», like HEVC, 4K and card backgrounds", async () => {
+    const t = await make();
+    const p = await panel(t, "ac3");
+    assert.deepEqual(p.items?.map((i) => i.label?.replace(CHECK, "")), ["Вкл", "Выкл"]);
+  });
+
+  it("SET-13: «2160p» whose 4K fails says «4K не включён» with the reason", async () => {
+    const t = await make();
+    t.mock.setScenario({ rules: [{ path: "/settings$", method: "POST", status: 500 }] });
+    await act(t, "quality", 2160);
+    assert.equal(t.ctx.prefs.get().maxQuality, 2160);
+    assert.deepEqual(actions(t), ["[back|reload:content|info:4K не включён: KinoPub не отвечает]"]);
   });
 
   it("device info unavailable — the screen still opens, device rows show a dash", async () => {
@@ -333,7 +348,7 @@ describe("onSettingsAct", () => {
     t.mock.setScenario({ rules: [{ path: "^/v1/device/info$", status: 502 }] });
     await act(t, "hevc", 1);
     assert.equal(device(t).supportHevc, 1);
-    assert.deepEqual(actions(t), ["[back|reload:content|info:KinoPub не отвечает]"]);
+    assert.deepEqual(actions(t), ["[back|reload:content|info:Настройка «HEVC» не изменена: KinoPub не отвечает]"]);
   });
 
   it("4K off → support4k = 0", async () => {
@@ -349,7 +364,7 @@ describe("onSettingsAct", () => {
     await act(t, "hevc", 1);
     assert.equal(device(t).supportHevc, 0);
     assert.equal(t.ctx.prefs.get().allowHevc, false);
-    assert.deepEqual(actions(t), ["[back|reload:content|info:KinoPub не отвечает]"]);
+    assert.deepEqual(actions(t), ["[back|reload:content|info:Настройка «HEVC» не изменена: KinoPub не отвечает]"]);
   });
 
   // SET-3 / API-14: на строгом mock (M-11) частичная форма сбросила бы 4K и HEVC.
@@ -373,7 +388,7 @@ describe("onSettingsAct", () => {
       return sent;
     };
     await act(t, "uhd", 1);
-    assert.equal(actions(t).at(-1), "[back|reload:content|info:Неожиданный ответ KinoPub]");
+    assert.equal(actions(t).at(-1), "[back|reload:content|info:4K не включён: Неожиданный ответ KinoPub]");
   });
 
   it("server answers 200 but keeps the old value → the re-read catches it (Plan B §6.2.1)", async () => {
@@ -382,7 +397,7 @@ describe("onSettingsAct", () => {
     await act(t, "hevc", 1);
     assert.equal(device(t).supportHevc, 0);
     assert.equal(t.ctx.prefs.get().allowHevc, false);
-    assert.deepEqual(actions(t), ["[back|reload:content|info:Неожиданный ответ KinoPub]"]);
+    assert.deepEqual(actions(t), ["[back|reload:content|info:Настройка «HEVC» не изменена: Неожиданный ответ KinoPub]"]);
   });
 
   it("TV prefs: mode, voice, studios reset, AC3, subtitles, advanced", async () => {

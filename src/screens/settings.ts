@@ -44,11 +44,14 @@ const GROUP_OFFSET = "0,0.5,0,-0.5";
 const GRID = { width: 12, height: 6, w: 12, h: 1 };
 
 type Val = string | number | boolean | undefined;
-interface Opt { v: Val; label: string }
+/** `id` — у CDN-сервера: по нему строка «По умолчанию» называет сервер устройства (SET-13). */
+interface Opt { v: Val; label: string; id?: number }
 interface Def { label: string; field?: keyof Prefs; dev?: keyof DeviceSettings; opts: Opt[] | ((ctx: AppContext) => Promise<Opt[]>) }
 
 const opt = (v: Val, label: string): Opt => ({ v, label });
 const ON_OFF = [opt(1, "Вкл"), opt(0, "Выкл")];
+/** SET-13: все переключатели — «Вкл/Выкл», в том числе AC3. */
+const ON_OFF_BOOL = [opt(true, "Вкл"), opt(false, "Выкл")];
 const nums = (vs: number[], unit: string): Opt[] => vs.map((v) => opt(v, `${v}${unit}`));
 const langs = (codes: string[], kind: 0 | 1): Opt[] => codes.map((c) => opt(c, langName(c, kind)));
 /** «Авто», «Любой», «По умолчанию» — снятое поле `prefs`; в сообщении — `auto`. */
@@ -63,21 +66,22 @@ const DEFS: Record<string, Def> = {
   mode: { label: "Способ воспроизведения", field: "streamMode", opts: [opt(undefined, "Авто"), opt("hls1", MODE_NAMES.hls1), opt("hls2", MODE_NAMES.hls2)] },
   loc: {
     label: "CDN-сервер", field: "loc",
-    opts: refs("По умолчанию", async (ctx) => (await ctx.repo.serverLocations()).value.map((l) => opt(l.location, countryName(l.location, l.name)))),
+    opts: refs("По умолчанию", async (ctx) =>
+      (await ctx.repo.serverLocations()).value.map((l) => ({ ...opt(l.location, countryName(l.location, l.name)), id: l.id }))),
   },
   audioLang: { label: "Язык озвучки", field: "audioLang", opts: langs(["rus", "ukr", "eng"], 0) },
   audioType: {
     label: "Тип озвучки", field: "audioType",
     opts: refs("Любой", async (ctx) => (await ctx.repo.voiceoverTypes()).value.map((x) => opt(x.id, x.title))),
   },
-  ac3: { label: "Разрешить AC3", field: "allowAc3", opts: [opt(true, "Да"), opt(false, "Нет")] },
+  ac3: { label: "Разрешить AC3", field: "allowAc3", opts: ON_OFF_BOOL },
   subs: { label: "Субтитры по умолчанию", field: "subsLang", opts: [opt("off", "Выключены"), ...langs(["rus", "eng"], 1)] },
   hevc: { label: "HEVC", dev: "supportHevc", opts: ON_OFF },
   uhd: { label: "4K", dev: "support4k", opts: ON_OFF },
   bufferInit: { label: "Буфер старта", field: "bufferInit", opts: nums([2, 4, 6, 8], SEC) },
   bufferResume: { label: "Буфер продолжения", field: "bufferResume", opts: nums([4, 6, 8, 10], SEC) },
   posterSize: { label: "Размер постеров", field: "posterSize", opts: [opt("small", "Маленькие"), opt("medium", "Средние")] },
-  cardBackgrounds: { label: "Фоны карточек", field: "cardBackgrounds", opts: [opt(true, "Вкл"), opt(false, "Выкл")] },
+  cardBackgrounds: { label: "Фоны карточек", field: "cardBackgrounds", opts: ON_OFF_BOOL },
   seek: { label: "Шаг перемотки", field: "seekStep", opts: nums([5, 10, 15, 30], SEC) },
 };
 
@@ -142,7 +146,10 @@ export async function settingsScreen(ctx: AppContext): Promise<MsxContentRoot> {
       const d = DEFS[key];
       if (d !== undefined) {
         const cur = current(p, d, dev);
-        const ext = lists[i]!.find((o) => o.v === cur)?.label ?? (cur === undefined ? DASH : String(cur));
+        let ext = lists[i]!.find((o) => o.v === cur)?.label ?? (cur === undefined ? DASH : String(cur));
+        // SET-13: «По умолчанию (Нидерланды)», как в панели CDN-сервера.
+        const own = key === "loc" && cur === undefined ? lists[i]!.find((o) => o.id === dev?.location?.id)?.label ?? dev?.location?.label : undefined;
+        if (own) ext += ` (${own})`;
         add(key, d.label, ext, panelAction(ctx.P, key === "loc" ? ids.panel("loc") : ids.panel("setting", key)));
       } else if (key === "authors") {
         add(key, T.authors, p.audioAuthors.length > 0 ? String(p.audioAuthors.length) : T.none, panelAction(ctx.P, ids.panel("setting", key)));
@@ -238,7 +245,9 @@ export async function onSettingsAct(ctx: AppContext, name: string, args: string[
     if (d?.dev === "supportHevc") ctx.prefs.update({ allowHevc: o?.v === 1 });
   } catch (e) {
     ctx.log.warn(TAG, "device_failed", { name, err: toKpError(e).code });
-    tail.push(`info:${errorText(e).text}`);
+    // SET-13: что не изменилось и почему; «2160p» и «4K: Вкл» — «4K не включён».
+    const what = (d?.dev === "support4k" && o?.v === 1) || name === "quality" ? "4K не включён" : `Настройка «${d?.label}» не изменена`;
+    tail.push(`info:${what}: ${errorText(e).text}`);
   }
   ctx.host.executeAction(chain(["back", "reload:content", ...tail]));
 }

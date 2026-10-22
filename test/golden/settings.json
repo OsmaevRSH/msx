@@ -126,13 +126,13 @@
     {
       "id": "s_loc",
       "label": "CDN-сервер",
-      "extensionLabel": "По умолчанию",
+      "extensionLabel": "По умолчанию (Нидерланды)",
       "action": "panel:request:interaction:panel:loc@https://example.github.io/msx/app/index.html"
     },
     {
       "id": "s_ac3",
       "label": "Разрешить AC3",
-      "extensionLabel": "Нет",
+      "extensionLabel": "Выкл",
       "action": "panel:request:interaction:panel:setting:ac3@https://example.github.io/msx/app/index.html"
     },
     {

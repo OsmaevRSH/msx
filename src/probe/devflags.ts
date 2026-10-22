@@ -5,15 +5,16 @@ import { chain, commitMsg, panelAction } from "../msx/actions.ts";
 import type { MsxContentItem, MsxContentRoot } from "../msx/types.ts";
 import { ids, msgs } from "../router/ids.ts";
 
-// «Диагностика → Для разработчика» (спец. §16.6): переключатели развилок Phase 0 меняются на ТВ без нового деплоя
-// и хранятся в `kp.cfg.flags`. Панель вариантов — своя разметка через маршрут пробника (`probe:flag:<имя>`).
+// «Диагностика → Переключатели развилок» (спец. §16.6): развилки Phase 0 меняются на ТВ без нового деплоя и хранятся в
+// `kp.cfg.flags`. Панель вариантов — своя разметка через маршрут пробника (`probe:flag:<имя>`). SET-13: не «Для
+// разработчика» — так называется группа «Настроек»; значения — понятной подписью, сырое — в скобках.
 
 const TAG = "probe";
 const FLAG_PAGE = "flag:";
 
 const T = {
-  headline: "Для разработчика",
-  hint: "Переключатели развилок Phase 0 (спец. §16.6). Изменённые — жёлтым; хранятся на ТВ до сброса",
+  headline: "Переключатели развилок",
+  hint: "Запасные режимы: менять только по итогам «Диагностики». Изменённые — жёлтым; хранятся на ТВ до сброса",
   reset: "Сбросить все",
   resetDone: "Переключатели сброшены",
   unknown: "Неизвестный переключатель",
@@ -31,12 +32,25 @@ const ROWS: readonly { key: keyof Flags; label: string }[] = [
   { key: "restart", label: "Смена озвучки в плеере" },
   { key: "focusPrefetch", label: "Префетч по фокусу (CDG-12)" },
   { key: "gridPreload", label: "Предзагрузка страницы сеток" },
-  { key: "postBody", label: "POST-тела (CDG-03)" },
+  // API-13: запасного режима для POST нет — query KinoPub молча не принимает (настройки устройства, закладки).
+  { key: "postBody", label: "POST-тела (CDG-03, только для отладки)" },
   { key: "apiBase", label: "Хост API" },
   { key: "apiFallbackBase", label: "Резервный хост API" },
 ];
 
 const rowOf = (name: string): (typeof ROWS)[number] | undefined => ROWS.find((r) => r.key === name);
+
+/** Подписи значений (`<переключатель>:<значение>`). */
+const VALUES: Readonly<Record<string, string>> = {
+  "streamMode:hls1": "С выбором озвучки", "streamMode:hls2": "Без выбора озвучки",
+  "playerPropsIn:resolve": "В ответе запуска", "playerPropsIn:item": "В элементе видео",
+  "heartbeat:ticks": "Тики плеера", "heartbeat:timer": "Таймер плагина", "heartbeat:percent": "Проценты просмотра",
+  "events:handleEvent": "События MSX", "events:triggers": "Триггеры плеера",
+  "autonext:button": "Кнопка «Следующая»", "autonext:resolve": "Сразу следующая серия",
+  "restart:inplace": "В открытом плеере", "restart:eject": "Закрыть и открыть плеер",
+  "focusPrefetch:on": "Вкл", "focusPrefetch:off": "Выкл", "gridPreload:next": "Следующая страница", "gridPreload:none": "Выкл",
+  "postBody:form": "Форма в теле", "postBody:query": "В адресе",
+};
 
 /** Допустимые значения: перечислимые — из `FLAG_CHOICES`, хосты API — два адреса сборки (решение Р-14). */
 export function flagChoices(ctx: AppContext, key: keyof Flags): string[] {
@@ -46,7 +60,10 @@ export function flagChoices(ctx: AppContext, key: keyof Flags): string[] {
 }
 
 function show(ctx: AppContext, key: keyof Flags, v: string): string {
-  if (key !== "apiBase" && key !== "apiFallbackBase") return v;
+  if (key !== "apiBase" && key !== "apiFallbackBase") {
+    const name = VALUES[`${key}:${v}`];
+    return name === undefined ? v : `${name} (${v})`;
+  }
   const host = v.replace(/^[a-z]+:\/\//i, "");
   if (v === ctx.build.apiBase) return `${host} (${T.main})`;
   return v === ctx.build.apiFallbackBase ? `${host} (${T.fallback})` : host;

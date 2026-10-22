@@ -188,7 +188,7 @@ describe("bundle probe.js: loaded on the first probe route (stage 23b)", () => {
     assert.equal(screen.headline, "Диагностика");
     assert.deepEqual(s.scripts, [`${ORIGIN}/msx/app/probe.js?v=${probeHash}`]);
     const dev = await request(s, "d1", "dev");
-    assert.equal(dev.headline, "Для разработчика");
+    assert.equal(dev.headline, "Переключатели развилок");
     assert.equal(s.scripts.length, 1);
   });
 

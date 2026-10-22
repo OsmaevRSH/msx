@@ -9,7 +9,7 @@ import {
 import type { MockCall } from "./fixtures.ts";
 
 // Smoke Phase 0 в настоящей web-версии MSX (этап 27, решение Р-27): одна сессия MSX на весь файл, как у пользователя —
-// меню без входа, вход по коду, главная и список, карточка, видео, «Настройки» → «Диагностика» и «Для разработчика»; в конце —
+// меню без входа, вход по коду, главная и список, карточка, видео, «Настройки» → «Диагностика» и «Переключатели развилок»; в конце —
 // тот же iframe (CE-05).
 
 test.describe.configure({ mode: "serial" });
@@ -142,12 +142,14 @@ test("«Настройки» → «Диагностика» лениво гру�
   expect(diag(page).probeRequests, "probe.js загружен один раз").toHaveLength(1);
 });
 
-test("«Для разработчика» и панель переключателя: MSX рисует items корня (у корня есть template)", async () => {
+test("«Переключатели развилок» и панель переключателя: MSX рисует items корня (у корня есть template); понятные подписи (SET-13)", async () => {
   await exec(page, contentAction(P, ids.dev()));
   await expectContent(page, "Режим потока");
+  await expectContent(page, "С выбором озвучки (hls1)");
   await exec(page, panelAction(P, ids.probe("flag:streamMode")));
   const panel = page.locator("#appPanelContent");
-  await expect(panel).toContainText("hls2");
+  await expect(panel).toContainText("Без выбора озвучки (hls2)");
+  await expect(panel, "SET-10: без счётчика MSX").not.toContainText("(1/2)");
   await expect(panel).not.toContainText(/Content Not Available|Содержимое недоступно/i);
   await exec(page, "back");
   await expect(panel).toBeHidden();
